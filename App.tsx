@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Language, UserProfile, HelpRequest, ChatMessage, ChatRoom } from './types';
 import { translations } from './translations';
 
@@ -605,6 +605,7 @@ const AdminPanel: React.FC<{ onClose: () => void, t: any, user: UserProfile }> =
     const [selectedSupportChat, setSelectedSupportChat] = useState<any>(null);
     const [editingUser, setEditingUser] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const [userSearchTerm, setUserSearchTerm] = useState('');
 
     useEffect(() => {
         const db = firebase.firestore();
@@ -620,6 +621,15 @@ const AdminPanel: React.FC<{ onClose: () => void, t: any, user: UserProfile }> =
         });
         return () => { unsubsUsers(); unsubsSupport(); unsubsRedeem(); };
     }, []);
+
+    const filteredUsers = useMemo(() => {
+        if (!userSearchTerm.trim()) return users;
+        const lowerTerm = userSearchTerm.toLowerCase();
+        return users.filter(u => 
+            (u.displayName && u.displayName.toLowerCase().includes(lowerTerm)) || 
+            (u.email && u.email.toLowerCase().includes(lowerTerm))
+        );
+    }, [users, userSearchTerm]);
 
     const handleSaveUser = async (u: any) => {
         const db = firebase.firestore();
@@ -680,6 +690,18 @@ const AdminPanel: React.FC<{ onClose: () => void, t: any, user: UserProfile }> =
                          <h3 className="font-black text-xl sm:text-3xl uppercase italic text-[#2c3e50]">
                             {activeTab === 'users' ? 'User Database' : activeTab === 'support' ? 'Support Inbox' : 'Redemption History'}
                          </h3>
+                         {activeTab === 'users' && !editingUser && (
+                             <div className="relative w-full max-w-xs ml-4">
+                                 <i className="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-300"></i>
+                                 <input 
+                                    type="text" 
+                                    placeholder="Search user or email..." 
+                                    value={userSearchTerm}
+                                    onChange={(e) => setUserSearchTerm(e.target.value)}
+                                    className="w-full pl-11 pr-4 py-2 rounded-full border-2 border-gray-100 focus:border-[#3498db] outline-none font-bold text-sm transition-all shadow-sm"
+                                 />
+                             </div>
+                         )}
                     </header>
 
                     <div className="flex-1 overflow-y-auto p-6 sm:p-12">
@@ -714,7 +736,9 @@ const AdminPanel: React.FC<{ onClose: () => void, t: any, user: UserProfile }> =
                                         </div>
                                     ) : (
                                         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                                            {users.map(u => (
+                                            {filteredUsers.length === 0 ? (
+                                                <div className="col-span-full py-20 text-center text-gray-300 font-black uppercase italic tracking-widest">No matching citizens found</div>
+                                            ) : filteredUsers.map(u => (
                                                 <div key={u.uid} className="bg-white p-6 sm:p-8 rounded-[2rem] border border-gray-100 flex items-center justify-between shadow-sm hover:shadow-xl hover:scale-[1.02] transition-all group">
                                                     <div className="flex items-center gap-6">
                                                         <div className="w-16 h-16 bg-[#f8f9fa] text-[#2c3e50] rounded-2xl flex items-center justify-center text-2xl font-black group-hover:bg-[#3498db] group-hover:text-white transition-all shadow-inner">{u.displayName?.[0]?.toUpperCase()}</div>
