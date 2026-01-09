@@ -1400,6 +1400,17 @@ const AuthModal: React.FC<{onClose: () => void, t: any}> = ({onClose, t}) => {
         e.preventDefault();
         setAuthLoading(true);
         setAuthError(null);
+
+        // Registration-specific email validation
+        if (authMode === 1) {
+            const moeDomain = "moe-dl.edu.my";
+            if (!email.toLowerCase().endsWith(moeDomain)) {
+                setAuthError(`Registration required: Please use your official MOE account (@${moeDomain}).`);
+                setAuthLoading(false);
+                return;
+            }
+        }
+
         try {
             if (authMode === 0) {
                 await firebase.auth().signInWithEmailAndPassword(email, password);
@@ -1422,6 +1433,7 @@ const AuthModal: React.FC<{onClose: () => void, t: any}> = ({onClose, t}) => {
             if (err.code === 'auth/wrong-password') errorMsg = "Incorrect password. Please try again.";
             if (err.code === 'auth/user-not-found') errorMsg = "No account found with this email.";
             if (err.code === 'auth/invalid-email') errorMsg = "Invalid email address format.";
+            if (err.code === 'auth/email-already-in-use') errorMsg = "This email is already registered.";
             setAuthError(errorMsg);
         }
         finally { setAuthLoading(false); }
@@ -1431,12 +1443,18 @@ const AuthModal: React.FC<{onClose: () => void, t: any}> = ({onClose, t}) => {
         <div className="fixed inset-0 bg-black/80 z-[400] flex items-center justify-center p-4 backdrop-blur-xl" onClick={onClose}>
             <div className="bg-white w-full max-w-md rounded-2xl sm:rounded-[4rem] p-8 sm:p-12 relative shadow-2xl animate-in zoom-in duration-300 border-4 sm:border-8 border-white/20" onClick={(e) => e.stopPropagation()}>
                 <button onClick={onClose} className="absolute top-6 right-6 sm:top-10 sm:right-10 text-2xl sm:text-3xl text-gray-200 hover:text-red-500 transition-colors">&times;</button>
-                <h2 className="text-2xl sm:text-3xl font-black mb-8 sm:mb-12 text-center uppercase italic text-[#2c3e50] tracking-tighter">
+                <h2 className="text-2xl sm:text-3xl font-black mb-4 text-center uppercase italic text-[#2c3e50] tracking-tighter">
                     {authMode === 0 ? t('login') : authMode === 1 ? t('register') : t('reset_password')}
                 </h2>
                 
+                {authMode === 1 && (
+                    <p className="text-[10px] font-bold text-[#3498db] text-center uppercase tracking-widest mb-8 flex items-center justify-center gap-2">
+                        <i className="fas fa-info-circle"></i> Use @moe-dl.edu.my only
+                    </p>
+                )}
+                
                 {authError && (
-                    <div className="mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded-r-xl">
+                    <div className="mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded-r-xl animate-bounce">
                         <p className="text-red-600 text-[10px] font-black uppercase tracking-widest">{authError}</p>
                     </div>
                 )}
