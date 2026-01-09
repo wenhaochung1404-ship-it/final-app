@@ -123,7 +123,6 @@ const App: React.FC = () => {
             console.error("Firebase init error:", err);
             setLoading(false);
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     // Chat listener
@@ -278,7 +277,7 @@ const App: React.FC = () => {
 
             <main className="flex-1 container mx-auto px-4 py-4 sm:py-8 max-w-6xl">
                 {page === 'home' && <HomePage onNavigate={setPage} t={t} />}
-                {page === 'profile' && <ProfilePage user={user} t={t} onAuth={() => setIsAuthModalOpen(true)} onNavigate={setPage} onChat={openChat} />}
+                {page === 'profile' && <ProfilePage user={user} t={t} onAuth={() => setIsAuthModalOpen(true)} onNavigate={setPage} />}
                 {page === 'request-help' && <RequestHelpPage user={user} t={t} onAuth={() => setIsAuthModalOpen(true)} onNavigate={setPage} />}
                 {page === 'browse-requests' && <BrowseRequestsPage user={user} t={t} onAuth={() => setIsAuthModalOpen(true)} onChat={openChat} />}
                 {page === 'shop' && <ShopPage user={user} t={t} onAuth={() => setIsAuthModalOpen(true)} onRedeemConfirm={setItemToRedeem} />}
@@ -384,42 +383,9 @@ const HomePage: React.FC<{onNavigate: (p: string) => void, t: any}> = ({onNaviga
     </div>
 );
 
-const HistoryCard: React.FC<{title: string, status: string, date: any, points: number, icon: string, t: any, onChat: () => void, isKindness?: boolean}> = ({title, status, date, points, icon, t, onChat, isKindness}) => (
-    <div className="bg-white p-5 rounded-2xl border border-gray-100 flex items-center justify-between shadow-sm group hover:border-[#3498db] transition-all">
-        <div className="flex items-center gap-4">
-            <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-xl shadow-inner ${isKindness ? 'bg-green-50 text-green-500' : 'bg-blue-50 text-[#3498db]'}`}>
-                <i className={`fas fa-${icon}`}></i>
-            </div>
-            <div>
-                <div className="font-black uppercase italic text-[#2c3e50] text-sm truncate max-w-[150px] sm:max-w-[250px]">{title}</div>
-                <div className="flex items-center gap-2 mt-1">
-                    <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full ${status === 'pending' ? 'bg-gray-100 text-gray-400' : 'bg-green-50 text-green-500'}`}>
-                        {t(`status_${status}`)}
-                    </span>
-                    <span className="text-[8px] font-bold text-gray-200 uppercase">{date?.toDate().toLocaleDateString()}</span>
-                </div>
-            </div>
-        </div>
-        <div className="flex items-center gap-4">
-            <div className="text-right hidden sm:block">
-                <div className={`${isKindness ? 'text-green-500' : 'text-gray-300'} font-black text-sm`}>{isKindness ? '+' : ''}{points} <span className="text-[8px] uppercase">PTS</span></div>
-            </div>
-            {status !== 'pending' && (
-                <button onClick={onChat} className="w-10 h-10 bg-gray-50 text-gray-400 hover:bg-[#3498db] hover:text-white rounded-xl flex items-center justify-center transition-all shadow-sm">
-                    <i className="fas fa-comment"></i>
-                </button>
-            )}
-        </div>
-    </div>
-);
-
-const ProfilePage: React.FC<{user: UserProfile | null, t: any, onAuth: () => void, onNavigate: any, onChat: any}> = ({user, t, onAuth, onNavigate, onChat}) => {
+const ProfilePage: React.FC<{user: UserProfile | null, t: any, onAuth: () => void, onNavigate: any}> = ({user, t, onAuth, onNavigate}) => {
     const [isEditing, setIsEditing] = useState(false);
     const [editData, setEditData] = useState({ displayName: '', age: 0, phone: '', address: '' });
-    const [historyTab, setHistoryTab] = useState<'requests' | 'fulfillments' | 'redemptions'>('requests');
-    const [requests, setRequests] = useState<any[]>([]);
-    const [helped, setHelped] = useState<any[]>([]);
-    const [redemptions, setRedemptions] = useState<any[]>([]);
 
     useEffect(() => {
         if (user) {
@@ -428,17 +394,6 @@ const ProfilePage: React.FC<{user: UserProfile | null, t: any, onAuth: () => voi
                 age: user.age || 0, 
                 phone: user.phone || '', 
                 address: user.address || '' 
-            });
-            
-            const db = firebase.firestore();
-            db.collection('history').where('userId', '==', user.uid).orderBy('createdAt', 'desc').get().then((snap: any) => {
-                setRequests(snap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
-            });
-            db.collection('history').where('fulfilledBy', '==', user.uid).orderBy('createdAt', 'desc').get().then((snap: any) => {
-                setHelped(snap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
-            });
-            db.collection('redeem_history').where('userId', '==', user.uid).orderBy('redeemedAt', 'desc').get().then((snap: any) => {
-                setRedemptions(snap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
             });
         }
     }, [user]);
@@ -464,7 +419,7 @@ const ProfilePage: React.FC<{user: UserProfile | null, t: any, onAuth: () => voi
     );
 
     return (
-        <div className="max-w-5xl mx-auto space-y-6 sm:space-y-10 pb-20">
+        <div className="max-w-4xl mx-auto space-y-6 sm:space-y-10 pb-20">
             <div className="bg-[#2c3e50] p-8 sm:p-12 rounded-2xl sm:rounded-[3rem] shadow-xl text-white relative overflow-hidden border-b-8 border-[#f39c12]">
                 <div className="flex flex-col md:flex-row items-center gap-8 relative z-10">
                     <div className="w-24 h-24 sm:w-32 sm:h-32 bg-[#3498db] rounded-full flex items-center justify-center text-4xl sm:text-6xl font-black shadow-2xl ring-8 ring-white/10 uppercase">
@@ -493,103 +448,35 @@ const ProfilePage: React.FC<{user: UserProfile | null, t: any, onAuth: () => voi
                 <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-32 -mt-32 blur-3xl"></div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-10">
-                <div className="lg:col-span-1 space-y-6">
-                    <div className="bg-white p-8 sm:p-10 rounded-2xl sm:rounded-[2.5rem] shadow-xl border border-gray-100">
-                        <h2 className="text-xl font-black uppercase mb-8 text-[#2c3e50] flex items-center gap-3">
-                            <i className="fas fa-id-card text-[#3498db]"></i> {t('personal_info')}
-                        </h2>
-                        <div className="space-y-6">
-                            {[
-                                { key: 'displayName', label: t('full_name'), icon: 'user' },
-                                { key: 'age', label: t('age'), icon: 'calendar-alt', type: 'number' },
-                                { key: 'phone', label: t('phone_number'), icon: 'phone' },
-                                { key: 'address', label: t('home_address'), icon: 'map-marker-alt' }
-                            ].map(field => (
-                                <div key={field.key} className="space-y-2">
-                                    <label className="text-[10px] font-black text-gray-300 uppercase tracking-widest ml-1 flex items-center gap-2">
-                                        <i className={`fas fa-${field.icon} text-[8px]`}></i> {field.label}
-                                    </label>
-                                    <input 
-                                        disabled={!isEditing}
-                                        type={field.type || 'text'}
-                                        value={(editData as any)[field.key]}
-                                        onChange={e => setEditData({...editData, [field.key]: field.type === 'number' ? Number(e.target.value) : e.target.value})}
-                                        className={`w-full p-4 rounded-xl border-2 font-bold outline-none transition-all text-sm ${isEditing ? 'border-[#3498db] bg-white text-[#2c3e50] shadow-inner' : 'border-gray-50 bg-gray-50 text-gray-400 cursor-not-allowed'}`}
-                                    />
-                                </div>
-                            ))}
-                            {isEditing && (
-                                <button onClick={handleSave} className="w-full bg-[#2c3e50] text-white py-4 rounded-xl font-black uppercase tracking-widest shadow-xl hover:bg-[#3498db] transition-all">
-                                    {t('save_changes')}
-                                </button>
-                            )}
+            <div className="bg-white p-8 sm:p-12 rounded-2xl sm:rounded-[3rem] shadow-xl border border-gray-100 max-w-2xl mx-auto w-full">
+                <h2 className="text-2xl font-black uppercase mb-8 text-[#2c3e50] flex items-center gap-3 justify-center">
+                    <i className="fas fa-id-card text-[#3498db]"></i> {t('personal_info')}
+                </h2>
+                <div className="space-y-6">
+                    {[
+                        { key: 'displayName', label: t('full_name'), icon: 'user' },
+                        { key: 'age', label: t('age'), icon: 'calendar-alt', type: 'number' },
+                        { key: 'phone', label: t('phone_number'), icon: 'phone' },
+                        { key: 'address', label: t('home_address'), icon: 'map-marker-alt' }
+                    ].map(field => (
+                        <div key={field.key} className="space-y-2">
+                            <label className="text-[10px] font-black text-gray-300 uppercase tracking-widest ml-1 flex items-center gap-2">
+                                <i className={`fas fa-${field.icon} text-[8px]`}></i> {field.label}
+                            </label>
+                            <input 
+                                disabled={!isEditing}
+                                type={field.type || 'text'}
+                                value={(editData as any)[field.key]}
+                                onChange={e => setEditData({...editData, [field.key]: field.type === 'number' ? Number(e.target.value) : e.target.value})}
+                                className={`w-full p-5 rounded-xl border-2 font-bold outline-none transition-all text-sm ${isEditing ? 'border-[#3498db] bg-white text-[#2c3e50] shadow-inner' : 'border-gray-50 bg-gray-50 text-gray-400 cursor-not-allowed'}`}
+                            />
                         </div>
-                    </div>
-                </div>
-
-                <div className="lg:col-span-2">
-                    <div className="bg-white rounded-2xl sm:rounded-[2.5rem] shadow-xl border border-gray-100 overflow-hidden flex flex-col h-full min-h-[600px]">
-                        <div className="p-8 pb-0 border-b border-gray-100">
-                            <h2 className="text-xl font-black uppercase mb-6 text-[#2c3e50] flex items-center gap-3">
-                                <i className="fas fa-history text-[#3498db]"></i> {t('activity_summary')}
-                            </h2>
-                            <div className="flex gap-4 overflow-x-auto no-scrollbar">
-                                {[
-                                    { id: 'requests', label: t('my_requests'), icon: 'hand-holding-heart' },
-                                    { id: 'fulfillments', label: t('helped_others'), icon: 'handshake' },
-                                    { id: 'redemptions', label: t('redemptions'), icon: 'gift' }
-                                ].map(tab => (
-                                    <button 
-                                        key={tab.id}
-                                        onClick={() => setHistoryTab(tab.id as any)}
-                                        className={`px-6 py-3 rounded-t-2xl font-black uppercase tracking-widest text-[10px] whitespace-nowrap transition-all flex items-center gap-2 ${historyTab === tab.id ? 'bg-[#2c3e50] text-white shadow-lg' : 'text-gray-400 hover:bg-gray-50'}`}
-                                    >
-                                        <i className={`fas fa-${tab.icon}`}></i> {tab.label}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                        <div className="flex-1 bg-gray-50/50 p-6 sm:p-8 overflow-y-auto no-scrollbar">
-                            {historyTab === 'requests' && (
-                                <div className="space-y-4">
-                                    {requests.length === 0 ? <EmptyState icon="folder-open" msg="No requests posted yet." /> : 
-                                    requests.map(req => (
-                                        <HistoryCard key={req.id} title={req.name} status={req.status} date={req.createdAt} points={5} icon="heart" t={t} onChat={() => onChat(req)} />
-                                    ))}
-                                </div>
-                            )}
-                            {historyTab === 'fulfillments' && (
-                                <div className="space-y-4">
-                                    {helped.length === 0 ? <EmptyState icon="hands-helping" msg="You haven't helped anyone yet. Start today!" /> : 
-                                    helped.map(h => (
-                                        <HistoryCard key={h.id} title={h.name} status={h.status} date={h.createdAt} points={5} icon="check-circle" t={t} onChat={() => onChat(h)} isKindness />
-                                    ))}
-                                </div>
-                            )}
-                            {historyTab === 'redemptions' && (
-                                <div className="space-y-4">
-                                    {redemptions.length === 0 ? <EmptyState icon="gift" msg="No redemptions found. Save points for rewards!" /> : 
-                                    redemptions.map(r => (
-                                        <div key={r.id} className="bg-white p-6 rounded-2xl border border-gray-100 flex items-center justify-between shadow-sm">
-                                            <div className="flex items-center gap-4">
-                                                <div className="w-12 h-12 bg-orange-50 text-[#f39c12] rounded-xl flex items-center justify-center text-xl shadow-inner">
-                                                    <i className="fas fa-ticket-alt"></i>
-                                                </div>
-                                                <div>
-                                                    <div className="font-black uppercase italic text-[#2c3e50] text-sm">{r.itemName}</div>
-                                                    <div className="text-[10px] font-bold text-gray-300 uppercase">{r.redeemedAt?.toDate().toLocaleDateString()}</div>
-                                                </div>
-                                            </div>
-                                            <div className="text-right">
-                                                <div className="text-[#f39c12] font-black">-{r.itemPoints} <span className="text-[8px] uppercase">PTS</span></div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    </div>
+                    ))}
+                    {isEditing && (
+                        <button onClick={handleSave} className="w-full bg-[#2c3e50] text-white py-5 rounded-xl font-black uppercase tracking-widest shadow-xl hover:bg-[#3498db] transition-all">
+                            {t('save_changes')}
+                        </button>
+                    )}
                 </div>
             </div>
         </div>
@@ -1024,19 +911,30 @@ const BrowseRequestsPage: React.FC<{user: UserProfile | null, t: any, onAuth: ()
 };
 
 const HistoryPage: React.FC<{user: UserProfile | null, t: any, onAuth: any, onChat: (req: HelpRequest) => void}> = ({user, t, onAuth, onChat}) => {
-    const [tab, setTab] = useState<'mine' | 'helped'>('mine');
+    const [tab, setTab] = useState<'mine' | 'helped' | 'redemptions'>('mine');
     const [data, setData] = useState<any[]>([]);
+    const [redemptions, setRedemptions] = useState<any[]>([]);
 
     useEffect(() => {
         if (!user) return;
         const db = firebase.firestore();
-        const query = tab === 'mine' ? 
-            db.collection('history').where('userId', '==', user.uid) : 
-            db.collection('history').where('fulfilledBy', '==', user.uid);
+        
+        if (tab === 'redemptions') {
+            return db.collection('redeem_history')
+                .where('userId', '==', user.uid)
+                .orderBy('redeemedAt', 'desc')
+                .onSnapshot((snap: any) => {
+                    setRedemptions(snap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
+                });
+        } else {
+            const query = tab === 'mine' ? 
+                db.collection('history').where('userId', '==', user.uid).orderBy('createdAt', 'desc') : 
+                db.collection('history').where('fulfilledBy', '==', user.uid).orderBy('createdAt', 'desc');
 
-        return query.onSnapshot((snap: any) => {
-            setData(snap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
-        }, (err: any) => console.error("History listener error", err));
+            return query.onSnapshot((snap: any) => {
+                setData(snap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
+            }, (err: any) => console.error("History listener error", err));
+        }
     }, [user, tab]);
 
     if (!user) return <div className="text-center py-16 sm:py-20"><button onClick={onAuth} className="bg-[#3498db] text-white px-10 py-4 rounded-full font-black uppercase tracking-widest shadow-lg">Sign In to View History</button></div>;
@@ -1044,26 +942,49 @@ const HistoryPage: React.FC<{user: UserProfile | null, t: any, onAuth: any, onCh
     return (
         <div className="space-y-8 sm:space-y-12">
             <h1 className="text-2xl sm:text-4xl font-black italic tracking-tighter uppercase text-[#2c3e50]">{t('history')}</h1>
-            <div className="flex bg-white p-1.5 sm:p-2 rounded-full shadow-lg max-w-md mx-auto border border-gray-50">
+            <div className="flex bg-white p-1.5 sm:p-2 rounded-full shadow-lg max-w-2xl mx-auto border border-gray-50">
                 <button onClick={() => setTab('mine')} className={`flex-1 py-3 sm:py-4 rounded-full font-black text-[10px] sm:text-xs uppercase tracking-widest transition-all ${tab === 'mine' ? 'bg-[#2c3e50] text-white shadow-md' : 'text-gray-400'}`}>{t('my_requests')}</button>
                 <button onClick={() => setTab('helped')} className={`flex-1 py-3 sm:py-4 rounded-full font-black text-[10px] sm:text-xs uppercase tracking-widest transition-all ${tab === 'helped' ? 'bg-[#2c3e50] text-white shadow-md' : 'text-gray-400'}`}>{t('helped_others')}</button>
+                <button onClick={() => setTab('redemptions')} className={`flex-1 py-3 sm:py-4 rounded-full font-black text-[10px] sm:text-xs uppercase tracking-widest transition-all ${tab === 'redemptions' ? 'bg-[#2c3e50] text-white shadow-md' : 'text-gray-400'}`}>{t('redemptions')}</button>
             </div>
+            
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-                {data.length === 0 ? (
-                    <div className="col-span-full py-16 sm:py-20 text-center opacity-30 italic font-bold">No records found.</div>
-                ) : data.map(item => (
-                    <div key={item.id} className="bg-white p-6 sm:p-8 rounded-2xl sm:rounded-[2rem] border border-gray-100 shadow-xl flex items-center justify-between group hover:border-[#3498db] transition-all">
-                        <div>
-                            <h3 className="font-black text-base sm:text-xl uppercase italic text-[#2c3e50] mb-1">{item.name}</h3>
-                            <span className={`text-[8px] sm:text-[10px] font-black uppercase tracking-widest px-2.5 sm:px-3 py-1 rounded-full ${item.status === 'completed' ? 'bg-green-50 text-green-500' : 'bg-blue-50 text-blue-500'}`}>{item.status}</span>
+                {tab !== 'redemptions' ? (
+                    data.length === 0 ? (
+                        <div className="col-span-full py-16 sm:py-20 text-center opacity-30 italic font-bold">No records found.</div>
+                    ) : data.map(item => (
+                        <div key={item.id} className="bg-white p-6 sm:p-8 rounded-2xl sm:rounded-[2rem] border border-gray-100 shadow-xl flex items-center justify-between group hover:border-[#3498db] transition-all">
+                            <div>
+                                <h3 className="font-black text-base sm:text-xl uppercase italic text-[#2c3e50] mb-1">{item.name}</h3>
+                                <span className={`text-[8px] sm:text-[10px] font-black uppercase tracking-widest px-2.5 sm:px-3 py-1 rounded-full ${item.status === 'completed' ? 'bg-green-50 text-green-500' : 'bg-blue-50 text-blue-500'}`}>{item.status}</span>
+                            </div>
+                            {item.status !== 'pending' && (
+                                <button onClick={() => onChat(item)} className="bg-white border-2 border-blue-100 text-[#3498db] px-4 sm:px-6 py-2 sm:py-3 rounded-xl sm:rounded-2xl font-black text-[8px] sm:text-[10px] uppercase transition-all hover:bg-[#3498db] hover:text-white hover:border-[#3498db] shadow-sm flex items-center gap-1.5 sm:gap-2">
+                                    <i className="fas fa-comments text-sm sm:text-base"></i> {t('chat')}
+                                </button>
+                            )}
                         </div>
-                        {item.status !== 'pending' && (
-                            <button onClick={() => onChat(item)} className="bg-white border-2 border-blue-100 text-[#3498db] px-4 sm:px-6 py-2 sm:py-3 rounded-xl sm:rounded-2xl font-black text-[8px] sm:text-[10px] uppercase transition-all hover:bg-[#3498db] hover:text-white hover:border-[#3498db] shadow-sm flex items-center gap-1.5 sm:gap-2">
-                                <i className="fas fa-comments text-sm sm:text-base"></i> {t('chat')}
-                            </button>
-                        )}
-                    </div>
-                ))}
+                    ))
+                ) : (
+                    redemptions.length === 0 ? (
+                        <div className="col-span-full py-16 sm:py-20 text-center opacity-30 italic font-bold">No redemptions found.</div>
+                    ) : redemptions.map(r => (
+                        <div key={r.id} className="bg-white p-6 rounded-2xl border border-gray-100 flex items-center justify-between shadow-xl">
+                            <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 bg-orange-50 text-[#f39c12] rounded-xl flex items-center justify-center text-xl shadow-inner">
+                                    <i className="fas fa-ticket-alt"></i>
+                                </div>
+                                <div>
+                                    <div className="font-black uppercase italic text-[#2c3e50] text-sm">{r.itemName}</div>
+                                    <div className="text-[10px] font-bold text-gray-300 uppercase">{r.redeemedAt?.toDate().toLocaleDateString()}</div>
+                                </div>
+                            </div>
+                            <div className="text-right">
+                                <div className="text-[#f39c12] font-black">-{r.itemPoints} <span className="text-[8px] uppercase">PTS</span></div>
+                            </div>
+                        </div>
+                    ))
+                )}
             </div>
         </div>
     );
