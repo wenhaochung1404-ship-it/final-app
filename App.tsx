@@ -6,7 +6,7 @@ import { translations } from './translations';
 // Using declare to avoid TS errors for globally injected scripts
 declare const firebase: any;
 
-// Helper components defined outside to prevent re-renders
+// Helper components
 const MenuItem: React.FC<{icon: string, label: string, onClick: () => void, active?: boolean}> = ({icon, label, onClick, active}) => (
     <button onClick={onClick} className={`flex items-center gap-3 sm:gap-5 p-3 sm:p-5 rounded-xl sm:rounded-2xl transition-all ${active ? 'bg-[#3498db] text-white shadow-xl scale-105' : 'text-gray-400 hover:bg-gray-50 hover:text-[#2c3e50]'}`}>
         <div className={`w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center rounded-lg sm:rounded-xl ${active ? 'bg-white/20' : 'bg-gray-100'}`}>
@@ -16,56 +16,31 @@ const MenuItem: React.FC<{icon: string, label: string, onClick: () => void, acti
     </button>
 );
 
-const AdminMenuItem: React.FC<{icon: string, label: string, active: boolean, onClick: () => void}> = ({icon, label, active, onClick}) => (
-    <button 
-        onClick={onClick}
-        className={`w-full flex items-center gap-5 p-5 rounded-2xl transition-all group ${active ? 'bg-[#3498db] text-white shadow-xl translate-x-2' : 'text-gray-400 hover:bg-white/5'}`}
-    >
-        <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg ${active ? 'bg-white/20' : 'bg-white/5 group-hover:bg-[#3498db]/20 group-hover:text-[#3498db]'}`}>
-            <i className={`fas fa-${icon}`}></i>
-        </div>
-        <span className="hidden sm:inline font-black uppercase text-[11px] tracking-widest">{label}</span>
-    </button>
-);
-
 const AdminInput: React.FC<{label: string, value: any, onChange?: (v: any) => void, type?: string, disabled?: boolean, placeholder?: string}> = ({label, value, onChange, type = 'text', disabled = false, placeholder}) => (
     <div className="space-y-2">
-        <label className="text-[8px] font-black uppercase text-gray-300 tracking-[0.2em] ml-1">{label}</label>
+        <label className="text-[8px] font-black uppercase text-gray-400 tracking-[0.2em] ml-1">{label}</label>
         <input 
             type={type} 
             value={value} 
             disabled={disabled}
             placeholder={placeholder}
             onChange={e => onChange?.(type === 'number' ? Number(e.target.value) : e.target.value)}
-            className={`w-full p-4 rounded-2xl border-2 font-bold transition-all text-sm outline-none ${disabled ? 'bg-gray-50 border-gray-50 text-gray-300' : 'bg-white border-gray-100 focus:border-[#3498db] text-[#2c3e50]'}`}
+            className={`w-full p-3 rounded-xl border-2 font-bold transition-all text-sm outline-none ${disabled ? 'bg-gray-50 border-gray-50 text-gray-300' : 'bg-white border-gray-100 focus:border-[#3498db] text-[#2c3e50]'}`}
         />
     </div>
 );
 
-// Main Application Component
 const App: React.FC = () => {
     const [lang, setLang] = useState<Language>(Language.EN);
     const [user, setUser] = useState<UserProfile | null>(null);
     const [page, setPage] = useState<string>('home');
     const [isMenuOpen, setIsMenuOpen] = useState(false);
-    const [isLangOpen, setIsLangOpen] = useState(false);
     const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-    const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
-    const [isSupportOpen, setIsSupportOpen] = useState(false);
     const [loading, setLoading] = useState(true);
     const [itemToRedeem, setItemToRedeem] = useState<any>(null);
+    const [showAdminPanel, setShowAdminPanel] = useState(false);
     
-    const sidebarRef = useRef<HTMLElement>(null);
-    const langDropdownRef = useRef<HTMLDivElement>(null);
-
     const t = useCallback((key: string) => translations[lang][key] || key, [lang]);
-
-    const langDisplayNames: Record<Language, string> = {
-        [Language.EN]: 'ENGLISH',
-        [Language.BM]: 'B. MELAYU',
-        [Language.BC]: '中文 (BC)',
-        [Language.BI]: 'B.IBAN'
-    };
 
     useEffect(() => {
         try {
@@ -85,27 +60,18 @@ const App: React.FC = () => {
             const unsubscribeAuth = firebase.auth().onAuthStateChanged(async (authUser: any) => {
                 if (authUser) {
                     const db = firebase.firestore();
-                    const unsubscribeDoc = db.collection('users').doc(authUser.uid).onSnapshot((doc: any) => {
+                    db.collection('users').doc(authUser.uid).onSnapshot((doc: any) => {
                         if (doc.exists) {
-                            setUser(doc.data() as UserProfile);
+                            setUser({ ...doc.data(), uid: authUser.uid } as UserProfile);
                         } else {
-                            const fallbackUser: UserProfile = {
-                                uid: authUser.uid,
-                                email: authUser.email,
-                                displayName: authUser.displayName || authUser.email.split('@')[0],
-                                points: 10,
-                                settings: { autoShareContact: true, receiveNotifications: true, shareLocation: true, profileVisibility: 'public' }
-                            };
-                            setUser(fallbackUser);
+                            setUser({ uid: authUser.uid, email: authUser.email, points: 10 } as any);
                         }
-                    }, (err: any) => console.error("User doc error", err));
-                    return () => unsubscribeDoc();
+                    });
                 } else { 
                     setUser(null); 
                 }
                 setLoading(false);
             });
-
             return () => unsubscribeAuth();
         } catch (err) {
             console.error("Firebase init error:", err);
@@ -113,18 +79,7 @@ const App: React.FC = () => {
         }
     }, []);
 
-    const handleLogout = async () => {
-        try {
-            await firebase.auth().signOut();
-            setUser(null);
-            setPage('home');
-            setIsMenuOpen(false);
-            setIsAdminPanelOpen(false);
-            setIsSupportOpen(false);
-        } catch (err) {
-            console.error("Logout error", err);
-        }
-    };
+    const isAdmin = user?.isAdmin || user?.email === 'admin@gmail.com';
 
     if (loading) return (
         <div className="h-screen w-screen flex items-center justify-center bg-[#f8f9fa] text-[#3498db] font-black italic uppercase">
@@ -133,82 +88,68 @@ const App: React.FC = () => {
     );
 
     return (
-        <div className="min-h-screen flex flex-col bg-[#f8f9fa] font-sans selection:bg-blue-100 selection:text-blue-900">
-            <header className="bg-[#2c3e50] text-white shadow-xl sticky top-0 z-[100] h-14 sm:h-20 flex items-center">
+        <div className="min-h-screen flex flex-col bg-[#f8f9fa] font-sans">
+            <header className="bg-[#2c3e50] text-white shadow-xl sticky top-0 z-[100] h-16 sm:h-20 flex items-center">
                 <div className="container mx-auto px-4 flex items-center justify-between">
-                    <button onClick={(e) => { e.stopPropagation(); setIsMenuOpen(true); }} className="p-2 sm:p-3 hover:bg-white/10 rounded-xl transition-all flex items-center gap-2 sm:gap-3">
-                        <i className="fas fa-bars text-lg sm:text-xl"></i>
-                        <span className="hidden lg:inline font-bold uppercase tracking-widest text-xs">{t('menu')}</span>
+                    <button onClick={() => setIsMenuOpen(true)} className="p-3 hover:bg-white/10 rounded-xl transition-all flex items-center gap-3">
+                        <i className="fas fa-bars text-xl"></i>
                     </button>
-                    
-                    <div className="flex-1 text-center font-black tracking-tight sm:tracking-widest cursor-pointer text-sm sm:text-xl px-2 uppercase" onClick={() => setPage('home')}>
+                    <div className="flex-1 text-center font-black tracking-widest cursor-pointer text-sm sm:text-xl uppercase" onClick={() => setPage('home')}>
                         MIRI <span className="text-[#3498db]">CARE</span> CONNECT
                     </div>
-                    
-                    <div className="flex items-center gap-2 sm:gap-6">
-                        {user && (user.isAdmin || user.email === 'admin@gmail.com') && (
-                            <button onClick={() => setIsAdminPanelOpen(true)} className="hidden sm:flex bg-[#3498db] px-4 py-2 rounded-full text-xs font-black items-center gap-2 shadow-lg">
+                    <div className="flex items-center gap-4">
+                        {isAdmin && (
+                            <button onClick={() => setShowAdminPanel(!showAdminPanel)} className="hidden lg:flex bg-[#3498db] px-4 py-2 rounded-full text-[10px] font-black items-center gap-2 shadow-lg">
                                 <i className="fas fa-user-shield"></i> ADMIN
                             </button>
                         )}
-                        {user && (
-                            <div className="flex bg-[#f39c12] px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-[10px] sm:text-xs font-black items-center gap-1.5 sm:gap-2 shadow-lg cursor-pointer transition-all hover:scale-105" onClick={() => setPage('profile')}>
-                                <i className="fas fa-coins"></i><span>{user.points || 0} PTS</span>
-                            </div>
-                        )}
                         {user ? (
-                            <button onClick={handleLogout} className="bg-red-500 hover:bg-red-600 text-white px-3 sm:px-5 py-1.5 sm:py-2 rounded-full text-[10px] sm:text-xs font-black transition-all shadow-lg uppercase tracking-tight">
-                                <i className="fas fa-sign-out-alt sm:mr-2"></i><span className="hidden sm:inline">{t('logout')}</span>
+                            <button onClick={() => firebase.auth().signOut()} className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-full text-[10px] font-black uppercase">
+                                Logout
                             </button>
                         ) : (
-                            <button onClick={() => setIsAuthModalOpen(true)} className="bg-[#3498db] hover:bg-blue-600 px-4 sm:px-6 py-1.5 sm:py-2 rounded-full text-[10px] sm:text-xs font-black uppercase tracking-tight shadow-lg transition-all">{t('login_register')}</button>
+                            <button onClick={() => setIsAuthModalOpen(true)} className="bg-[#3498db] hover:bg-blue-600 px-4 py-2 rounded-full text-[10px] font-black uppercase">Login</button>
                         )}
                     </div>
                 </div>
             </header>
 
-            <div 
-                className={`fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] transition-opacity duration-500 ${isMenuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`} 
-                onClick={() => setIsMenuOpen(false)} 
-            />
-
-            <aside 
-                ref={sidebarRef}
-                className={`fixed top-0 left-0 h-full w-[85vw] sm:w-[33.33vw] bg-white z-[201] transform transition-transform duration-500 ease-in-out shadow-[20px_0_60px_rgba(0,0,0,0.3)] flex flex-col ${isMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}
-                onClick={(e) => e.stopPropagation()}
-            >
-                <div className="p-6 sm:p-12 flex flex-col h-full">
-                    <div className="flex justify-between items-center mb-8 sm:mb-12">
-                        <h2 className="text-xl sm:text-2xl font-black italic tracking-tighter text-[#2c3e50] uppercase">Miri Connect</h2>
-                        <button onClick={() => setIsMenuOpen(false)} className="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center rounded-full bg-gray-50 text-gray-400 hover:text-red-500 transition-colors">
-                            <i className="fas fa-times text-lg"></i>
-                        </button>
+            <div className="flex flex-1 overflow-hidden relative">
+                <main className={`flex-1 overflow-y-auto transition-all duration-300 ${isAdmin && showAdminPanel ? 'lg:mr-96' : ''}`}>
+                    <div className="container mx-auto px-4 py-8 max-w-6xl">
+                        {page === 'home' && <HomePage t={t} user={user} />}
+                        {page === 'offer_help' && <OfferHelpPage user={user} onAuth={() => setIsAuthModalOpen(true)} onNavigate={setPage} />}
+                        {page === 'profile' && <ProfilePage user={user} t={t} onAuth={() => setIsAuthModalOpen(true)} onNavigate={setPage} />}
+                        {page === 'shop' && <ShopPage user={user} t={t} onAuth={() => setIsAuthModalOpen(true)} onRedeemConfirm={setItemToRedeem} />}
+                        {page === 'history' && <HistoryPage user={user} t={t} onAuth={() => setIsAuthModalOpen(true)} />}
                     </div>
-                    <nav className="flex flex-col gap-1.5 sm:gap-2 flex-1 overflow-y-auto pr-2 custom-scrollbar">
-                        <MenuItem icon="home" label={t('home')} onClick={() => { setPage('home'); setIsMenuOpen(false); }} active={page === 'home'} />
-                        <MenuItem icon="hand-holding-heart" label="Offer Help" onClick={() => { 
-                            setPage('offer_help'); 
-                            setIsMenuOpen(false); 
-                        }} active={page === 'offer_help'} />
-                        <MenuItem icon="user" label={t('profile')} onClick={() => { setPage('profile'); setIsMenuOpen(false); }} active={page === 'profile'} />
-                        <MenuItem icon="shopping-cart" label={t('points_shop')} onClick={() => { setPage('shop'); setIsMenuOpen(false); }} active={page === 'shop'} />
-                        <MenuItem icon="history" label={t('history')} onClick={() => { setPage('history'); setIsMenuOpen(false); }} active={page === 'history'} />
+                </main>
+
+                {isAdmin && (
+                    <aside className={`fixed top-20 right-0 bottom-0 w-96 bg-white border-l border-gray-100 shadow-2xl z-[90] transition-transform duration-300 transform ${showAdminPanel ? 'translate-x-0' : 'translate-x-full'} hidden lg:block`}>
+                        <AdminPanelContent t={t} />
+                    </aside>
+                )}
+            </div>
+
+            <aside className={`fixed inset-y-0 left-0 w-[80vw] sm:w-80 bg-white z-[201] transform transition-transform duration-500 shadow-2xl flex flex-col ${isMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+                <div className="p-8 flex flex-col h-full">
+                    <div className="flex justify-between items-center mb-12">
+                        <h2 className="text-xl font-black italic text-[#2c3e50] uppercase tracking-tighter">Miri Connect</h2>
+                        <button onClick={() => setIsMenuOpen(false)} className="text-gray-400 hover:text-red-500"><i className="fas fa-times text-2xl"></i></button>
+                    </div>
+                    <nav className="flex flex-col gap-2">
+                        <MenuItem icon="home" label="Home" onClick={() => { setPage('home'); setIsMenuOpen(false); }} active={page === 'home'} />
+                        <MenuItem icon="hand-holding-heart" label="Offer Help" onClick={() => { setPage('offer_help'); setIsMenuOpen(false); }} active={page === 'offer_help'} />
+                        <MenuItem icon="user" label="Profile" onClick={() => { setPage('profile'); setIsMenuOpen(false); }} active={page === 'profile'} />
+                        <MenuItem icon="shopping-cart" label="Points Shop" onClick={() => { setPage('shop'); setIsMenuOpen(false); }} active={page === 'shop'} />
+                        <MenuItem icon="history" label="History" onClick={() => { setPage('history'); setIsMenuOpen(false); }} active={page === 'history'} />
                     </nav>
                 </div>
             </aside>
-
-            <main className="flex-1 container mx-auto px-4 py-4 sm:py-8 max-w-6xl">
-                {page === 'home' && <HomePage onNavigate={setPage} t={t} user={user} onAuth={() => setIsAuthModalOpen(true)} />}
-                {page === 'offer_help' && <OfferHelpPage user={user} onAuth={() => setIsAuthModalOpen(true)} onNavigate={setPage} />}
-                {page === 'profile' && <ProfilePage user={user} t={t} onAuth={() => setIsAuthModalOpen(true)} onNavigate={setPage} />}
-                {page === 'shop' && <ShopPage user={user} t={t} onAuth={() => setIsAuthModalOpen(true)} onRedeemConfirm={setItemToRedeem} />}
-                {page === 'history' && <HistoryPage user={user} t={t} onAuth={() => setIsAuthModalOpen(true)} />}
-            </main>
+            {isMenuOpen && <div className="fixed inset-0 bg-black/50 z-[200]" onClick={() => setIsMenuOpen(false)}></div>}
 
             {isAuthModalOpen && <AuthModal onClose={() => setIsAuthModalOpen(false)} t={t} />}
-            {isAdminPanelOpen && <AdminPanel onClose={() => setIsAdminPanelOpen(false)} t={t} user={user!} />}
-            {isSupportOpen && <SupportWindow user={user} onClose={() => setIsSupportOpen(false)} onAuth={() => setIsAuthModalOpen(true)} t={t} />}
-            
             {itemToRedeem && (
                 <RedeemConfirmModal 
                     item={itemToRedeem} 
@@ -223,91 +164,109 @@ const App: React.FC = () => {
                                 if (userDoc.data().points < itemToRedeem.cost) throw new Error("Not enough points");
                                 transaction.update(userRef, { points: userDoc.data().points - itemToRedeem.cost });
                                 transaction.set(db.collection('redeem_history').doc(), {
-                                    userId: user!.uid, userEmail: user!.email, fullName, userClass, itemName: itemToRedeem.name, 
+                                    userId: user!.uid, fullName, userClass, itemName: itemToRedeem.name, 
                                     itemPoints: itemToRedeem.cost, redeemedAt: firebase.firestore.FieldValue.serverTimestamp()
                                 });
                             });
                             setItemToRedeem(null);
-                            alert("Voucher redeemed! Check your collection point.");
-                        } catch (e) { alert("Redemption failed: " + e); }
+                            alert("Voucher redeemed!");
+                        } catch (e) { alert("Failed: " + e); }
                     }} 
-                    t={t} 
                 />
             )}
         </div>
     );
 };
 
-const HomePage: React.FC<{onNavigate: (p: string) => void, t: any, user: UserProfile | null, onAuth: () => void}> = ({onNavigate, t, user, onAuth}) => {
+const HomePage: React.FC<{t: any, user: UserProfile | null}> = ({t, user}) => {
     const [donations, setDonations] = useState<any[]>([]);
+    const [itemsAnnouncement, setItemsAnnouncement] = useState('');
+    const [isEditingAnn, setIsEditingAnn] = useState(false);
+    const [newAnn, setNewAnn] = useState('');
 
     useEffect(() => {
         const db = firebase.firestore();
-        const unsubscribe = db.collection('donations').orderBy('createdAt', 'desc').onSnapshot((snap: any) => {
+        const unsubDonations = db.collection('donations').orderBy('createdAt', 'desc').onSnapshot((snap: any) => {
             setDonations(snap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
         });
-        return () => unsubscribe();
+        const unsubAnn = db.collection('settings').doc('items_announcement').onSnapshot((doc: any) => {
+            if (doc.exists) {
+                setItemsAnnouncement(doc.data().text);
+                setNewAnn(doc.data().text);
+            }
+        });
+        return () => { unsubDonations(); unsubAnn(); };
     }, []);
 
+    const handleConfirmReceived = async (donation: any) => {
+        if (!user || (!user.isAdmin && user.email !== 'admin@gmail.com')) return;
+        const confirmResult = window.confirm(`Confirm receipt? Donor earns 5 points. Post stays in list unless you delete it in Admin Panel.`);
+        if (!confirmResult) return;
+        const db = firebase.firestore();
+        try {
+            const donorRef = db.collection('users').doc(donation.userId);
+            await db.runTransaction(async (transaction: any) => {
+                const donorDoc = await transaction.get(donorRef);
+                const currentPoints = donorDoc.exists ? (donorDoc.data().points || 0) : 0;
+                transaction.update(donorRef, { points: currentPoints + 5 });
+            });
+            alert("Points awarded to donor!");
+        } catch (err) { alert("Failed."); }
+    };
+
+    const isAdmin = user?.isAdmin || user?.email === 'admin@gmail.com';
+
     return (
-        <div className="space-y-12 pb-24">
-            <section className="bg-[#2c3e50] text-white rounded-2xl sm:rounded-[3rem] p-8 sm:p-24 text-center shadow-2xl relative border-b-4 sm:border-b-8 border-[#3498db]">
-                <h1 className="text-3xl sm:text-7xl font-black mb-3 sm:mb-8 italic uppercase tracking-tighter leading-tight">{t('hero_title')}</h1>
+        <div className="space-y-12 pb-24 animate-in fade-in duration-500">
+            <section className="bg-[#2c3e50] text-white rounded-3xl p-12 sm:p-24 text-center shadow-2xl relative border-b-8 border-[#3498db]">
+                <h1 className="text-4xl sm:text-7xl font-black mb-6 italic uppercase tracking-tighter leading-tight">{t('hero_title')}</h1>
                 <p className="text-sm sm:text-xl opacity-80 max-w-2xl mx-auto leading-relaxed font-bold uppercase">{t('hero_description')}</p>
             </section>
 
-            <div className="max-w-6xl mx-auto space-y-6">
-                <div className="bg-white rounded-2xl p-4 sm:p-6 shadow-sm border border-gray-100 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-[#3498db]">
-                            <i className="fas fa-box"></i>
-                        </div>
-                        <h2 className="text-xl font-black text-[#2c3e50] tracking-tight">Available Extra Items</h2>
+            <div className="max-w-6xl mx-auto">
+                <div className="bg-white rounded-2xl p-8 border border-gray-100 shadow-sm">
+                    <div className="flex items-center justify-between mb-6">
+                        <h2 className="text-3xl font-black text-[#2c3e50] tracking-tighter italic uppercase">Items</h2>
+                        {isAdmin && (
+                            <button onClick={() => isEditingAnn ? (firebase.firestore().collection('settings').doc('items_announcement').set({text: newAnn}), setIsEditingAnn(false)) : setIsEditingAnn(true)} className="bg-[#3498db] text-white px-4 py-2 rounded-lg text-[10px] font-black uppercase">
+                                {isEditingAnn ? 'Save' : 'Edit'}
+                            </button>
+                        )}
                     </div>
-                    <div className="bg-blue-50 text-[#3498db] px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
-                        <i className="fas fa-bolt text-[10px]"></i> LIVE UPDATES
+                    {isEditingAnn ? (
+                        <textarea value={newAnn} onChange={e => setNewAnn(e.target.value)} className="w-full h-32 p-4 border-2 border-gray-100 rounded-xl font-bold text-[#2c3e50] outline-none focus:border-[#3498db]" />
+                    ) : (
+                        <div className="min-h-[60px] text-gray-400 font-bold whitespace-pre-wrap">{itemsAnnouncement || "No updates for items today."}</div>
+                    )}
+                </div>
+            </div>
+
+            <div className="max-w-6xl mx-auto space-y-6">
+                <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex items-center justify-between">
+                    <h2 className="text-xl font-black text-[#2c3e50] tracking-tight uppercase">Available Extra Items</h2>
+                    <div className="bg-blue-50 text-[#3498db] px-4 py-1.5 rounded-full text-[10px] font-black flex items-center gap-2">
+                        <i className="fas fa-bolt"></i> LIVE UPDATES
                     </div>
                 </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {donations.length === 0 ? (
-                        <div className="col-span-full py-20 text-center text-gray-300 font-black uppercase italic tracking-widest bg-white rounded-2xl border-2 border-dashed border-gray-100">
-                            No active donations available
-                        </div>
-                    ) : donations.map(item => (
-                        <div key={item.id} className="bg-white p-6 rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.04)] border border-gray-100 flex flex-col hover:shadow-xl transition-all group">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {donations.map(item => (
+                        <div key={item.id} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col group relative">
                             <div className="flex justify-between items-start mb-4">
                                 <h3 className="text-2xl font-black text-[#2c3e50] leading-tight group-hover:text-[#3498db] transition-colors">{item.itemName}</h3>
-                                <div className="bg-blue-50 text-[#3498db] px-4 py-1.5 rounded-full text-[10px] font-black">
-                                    Qty: {item.qty}
-                                </div>
+                                <div className="bg-blue-50 text-[#3498db] px-3 py-1 rounded-full text-[10px] font-black">Qty: {item.qty}</div>
                             </div>
-                            
-                            <div className="mb-6">
-                                <span className="bg-gray-50 text-gray-400 px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-wider">
-                                    {item.category}
-                                </span>
+                            <div className="mb-6 flex gap-2">
+                                <span className="bg-gray-50 text-gray-400 px-3 py-1 rounded-md text-[10px] font-black uppercase">{item.category}</span>
                             </div>
-
-                            <div className="space-y-3 flex-1 mb-6">
-                                <div className="flex items-center gap-3 text-gray-400">
-                                    <i className="far fa-user w-4"></i>
-                                    <span className="text-sm font-bold">{item.donorName}</span>
-                                </div>
-                                <div className="flex items-center gap-3 text-gray-400">
-                                    <i className="far fa-calendar w-4"></i>
-                                    <span className="text-sm font-bold">
-                                        {item.createdAt ? item.createdAt.toDate().toLocaleDateString('en-GB') : 'Just now'}
-                                    </span>
-                                </div>
+                            <div className="space-y-3 flex-1 mb-6 text-gray-400 font-bold text-sm">
+                                <div><i className="far fa-user mr-2"></i>{item.donorName}</div>
+                                <div><i className="fas fa-map-marker-alt mr-2"></i>SMK Lutong</div>
                             </div>
-
-                            <div className="pt-4 border-t border-gray-50">
-                                <div className="flex items-center gap-2 text-[10px] font-black italic text-gray-300 uppercase tracking-tight">
-                                    <i className="fas fa-map-marker-alt"></i>
-                                    <span>Destination: SMK Lutong</span>
-                                </div>
-                            </div>
+                            {isAdmin && (
+                                <button onClick={() => handleConfirmReceived(item)} className="w-full bg-[#2ecc71] hover:bg-[#27ae60] text-white py-3 rounded-xl text-xs font-black uppercase shadow-md transition-all mt-auto">
+                                    <i className="fas fa-check-circle mr-2"></i> Confirm Received
+                                </button>
+                            )}
                         </div>
                     ))}
                 </div>
@@ -317,116 +276,59 @@ const HomePage: React.FC<{onNavigate: (p: string) => void, t: any, user: UserPro
 };
 
 const OfferHelpPage: React.FC<{user: UserProfile | null, onAuth: () => void, onNavigate: (p: string) => void}> = ({user, onAuth, onNavigate}) => {
-    const [itemName, setItemName] = useState('');
-    const [category, setCategory] = useState('Food');
-    const [qty, setQty] = useState(1);
-    const [donorName, setDonorName] = useState(user?.displayName || '');
-    const [isPosting, setIsPosting] = useState(false);
+    const [item, setItem] = useState({ itemName: '', category: 'Food', qty: 1, donorName: user?.displayName || '' });
+    const [posting, setPosting] = useState(false);
 
     const handlePost = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!user) { onAuth(); return; }
-        if (!itemName.trim() || !donorName.trim()) return;
-
-        setIsPosting(true);
-        const db = firebase.firestore();
+        setPosting(true);
         try {
+            const db = firebase.firestore();
             await db.collection('donations').add({
-                itemName,
-                category,
-                qty,
-                donorName,
+                ...item,
                 createdAt: firebase.firestore.FieldValue.serverTimestamp(),
                 userId: user.uid
             });
-            await db.collection('users').doc(user.uid).update({
-                points: (user.points || 0) + 10
-            });
-            alert("YOU HAD SUCCESSFULLY POST YOUR OFFER , PLEASE SEND YOUR ITEM TO BILIK PENGAWAS SMK LUTONG(DONATION IS AVAILABLE ON MONDAY , TUESDAY AND FRIDAY FROM 6.15AM-6.50AM)");
+            await db.collection('users').doc(user.uid).update({ points: (user.points || 0) + 5 });
+            alert("SUCCESSFULLY POSTED! PLEASE SEND TO BILIK PENGAWAS SMK LUTONG (MON/TUE/FRI 6:15-6:50AM)");
             onNavigate('home');
-        } catch (err) { console.error(err); } 
-        finally { setIsPosting(false); }
+        } catch (err) { alert("Failed."); } finally { setPosting(false); }
     };
 
-    if (!user) {
-        return (
-            <div className="max-w-4xl mx-auto py-24 px-4 flex flex-col items-center justify-center text-center">
-                <div className="w-32 h-32 bg-gray-100 rounded-full flex items-center justify-center mb-8 shadow-inner border-4 border-white">
-                    <i className="fas fa-lock text-5xl text-gray-300"></i>
-                </div>
-                <h2 className="text-4xl font-black text-[#2c3e50] mb-4 uppercase tracking-tighter">Page Locked</h2>
-                <p className="text-gray-400 font-bold max-w-md mb-10 leading-relaxed uppercase text-sm">
-                    Please log in to share your extra items with others and earn kindness points!
-                </p>
-                <button 
-                    onClick={onAuth}
-                    className="bg-[#3498db] text-white px-12 py-5 rounded-full font-black uppercase tracking-widest shadow-xl hover:bg-blue-600 hover:scale-105 active:scale-95 transition-all"
-                >
-                    Log In Now
-                </button>
-            </div>
-        );
-    }
+    if (!user) return (
+        <div className="max-w-4xl mx-auto py-24 text-center">
+            <div className="w-32 h-32 bg-gray-100 rounded-full flex items-center justify-center mb-8 mx-auto shadow-inner"><i className="fas fa-lock text-5xl text-gray-300"></i></div>
+            <h2 className="text-4xl font-black text-[#2c3e50] mb-2 uppercase tracking-tighter">Page Locked</h2>
+            <h3 className="text-xl font-black text-[#3498db] mb-10 uppercase italic">LOG IN TO SHARE YOUR EXTRA ITEMS</h3>
+            <button onClick={onAuth} className="bg-[#3498db] text-white px-12 py-5 rounded-full font-black uppercase tracking-widest shadow-xl hover:scale-105 transition-all">Log In Now</button>
+        </div>
+    );
 
     return (
-        <div className="max-w-4xl mx-auto py-12 px-4">
-            <div className="bg-white rounded-3xl shadow-2xl p-8 sm:p-12 border border-gray-50">
-                <div className="flex items-center gap-4 mb-10">
-                    <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center text-[#3498db]">
-                        <i className="far fa-heart text-2xl"></i>
+        <div className="max-w-2xl mx-auto py-12 animate-in zoom-in duration-300">
+            <div className="bg-white rounded-[3rem] shadow-2xl p-10 sm:p-16 border border-gray-50">
+                <h2 className="text-3xl font-black text-[#2c3e50] mb-2 leading-none uppercase italic">Share Extra Items</h2>
+                <h3 className="text-xs font-black text-[#3498db] mb-10 uppercase tracking-widest">Post your offer to earn points</h3>
+                <form onSubmit={handlePost} className="space-y-8">
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black text-gray-300 uppercase tracking-widest ml-1">Item Name</label>
+                        <input value={item.itemName} onChange={e => setItem({...item, itemName: e.target.value})} className="w-full p-5 rounded-2xl border-2 border-gray-100 focus:border-[#3498db] outline-none font-bold text-[#2c3e50]" required />
                     </div>
-                    <h2 className="text-3xl font-black text-[#2c3e50] tracking-tight">Share Your Extra Items</h2>
-                </div>
-
-                <form onSubmit={handlePost} className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-10">
-                    <div className="space-y-3">
-                        <label className="text-sm font-black text-[#2c3e50] uppercase tracking-widest ml-1">What are you donating?</label>
-                        <input 
-                            value={itemName}
-                            onChange={e => setItemName(e.target.value)}
-                            placeholder="Enter item name (e.g. Rice, Notebooks...)"
-                            className="w-full p-5 rounded-2xl border-2 border-gray-100 focus:border-[#3498db] outline-none transition-all font-bold text-[#2c3e50] bg-white"
-                        />
-                    </div>
-
-                    <div className="space-y-3">
-                        <label className="text-sm font-black text-[#2c3e50] uppercase tracking-widest ml-1">Category</label>
-                        <select 
-                            value={category}
-                            onChange={e => setCategory(e.target.value)}
-                            className="w-full p-5 rounded-2xl border-2 border-gray-100 focus:border-[#3498db] outline-none transition-all font-bold text-[#2c3e50] bg-white appearance-none"
-                        >
-                            <option>Food</option>
-                            <option>Clothing</option>
-                            <option>Stationary</option>
-                            <option>Others</option>
-                        </select>
-                    </div>
-
-                    <div className="space-y-3">
-                        <label className="text-sm font-black text-[#2c3e50] uppercase tracking-widest ml-1">How many pieces?</label>
-                        <div className="flex items-center gap-8 bg-gray-50 p-2 rounded-2xl border-2 border-gray-100">
-                            <button type="button" onClick={() => setQty(Math.max(1, qty-1))} className="w-14 h-14 rounded-xl bg-white hover:bg-gray-100 flex items-center justify-center text-xl text-[#2c3e50] shadow-sm transition-all"><i className="fas fa-minus"></i></button>
-                            <span className="text-3xl font-black text-[#2c3e50] flex-1 text-center">{qty}</span>
-                            <button type="button" onClick={() => setQty(qty+1)} className="w-14 h-14 rounded-xl bg-white hover:bg-gray-100 flex items-center justify-center text-xl text-[#2c3e50] shadow-sm transition-all"><i className="fas fa-plus"></i></button>
+                    <div className="grid grid-cols-2 gap-6">
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black text-gray-300 uppercase tracking-widest ml-1">Category</label>
+                            <select value={item.category} onChange={e => setItem({...item, category: e.target.value})} className="w-full p-5 rounded-2xl border-2 border-gray-100 outline-none font-bold text-[#2c3e50] bg-white">
+                                <option>Food</option><option>Clothing</option><option>Stationary</option><option>Others</option>
+                            </select>
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black text-gray-300 uppercase tracking-widest ml-1">Quantity</label>
+                            <input type="number" value={item.qty} onChange={e => setItem({...item, qty: Number(e.target.value)})} className="w-full p-5 rounded-2xl border-2 border-gray-100 outline-none font-bold text-[#2c3e50]" required />
                         </div>
                     </div>
-
-                    <div className="space-y-3">
-                        <label className="text-sm font-black text-[#2c3e50] uppercase tracking-widest ml-1">Your Name</label>
-                        <input 
-                            value={donorName}
-                            onChange={e => setDonorName(e.target.value)}
-                            className="w-full p-5 rounded-2xl border-2 border-gray-100 focus:border-[#3498db] outline-none transition-all font-bold text-[#2c3e50] bg-white"
-                        />
-                    </div>
-
-                    <button 
-                        type="submit" 
-                        disabled={isPosting}
-                        className="md:col-span-2 bg-[#4285f4] hover:bg-blue-600 text-white py-6 rounded-2xl font-black text-xl shadow-xl shadow-blue-100 transition-all active:scale-95 disabled:opacity-50 mt-4"
-                    >
-                        {isPosting ? 'Posting...' : 'Post Donation'}
+                    <button type="submit" disabled={posting} className="w-full bg-[#4285f4] hover:bg-blue-600 text-white py-6 rounded-2xl font-black text-xl shadow-xl active:scale-95 transition-all disabled:opacity-50">
+                        {posting ? 'POSTING...' : 'POST DONATION'}
                     </button>
                 </form>
             </div>
@@ -434,273 +336,137 @@ const OfferHelpPage: React.FC<{user: UserProfile | null, onAuth: () => void, onN
     );
 };
 
-const ProfilePage: React.FC<{user: UserProfile | null, t: any, onAuth: () => void, onNavigate: any}> = ({user, t, onAuth, onNavigate}) => {
-    const [isEditing, setIsEditing] = useState(false);
-    const [editData, setEditData] = useState({ displayName: '', age: 0, phone: '', address: '' });
+const AdminPanelContent: React.FC<{t: any}> = ({t}) => {
+    const [activeTab, setActiveTab] = useState<'users' | 'items'>('users');
+    const [data, setData] = useState<{users: any[], items: any[]}>({users: [], items: []});
+    const [editingUser, setEditingUser] = useState<any>(null);
 
     useEffect(() => {
-        if (user) {
-            setEditData({ 
-                displayName: user.displayName || '', 
-                age: user.age || 0, 
-                phone: user.phone || '', 
-                address: user.address || '' 
-            });
-        }
-    }, [user]);
-
-    const handleSave = async () => {
-        if (!user) return;
         const db = firebase.firestore();
-        try {
-            await db.collection('users').doc(user.uid).update(editData);
-            setIsEditing(false);
-            alert(t('update_success'));
-        } catch (e) { alert("Update failed: " + e); }
+        const unsubUsers = db.collection('users').onSnapshot((snap: any) => setData(prev => ({...prev, users: snap.docs.map((d: any) => ({...d.data(), uid: d.id}))})));
+        const unsubItems = db.collection('donations').onSnapshot((snap: any) => setData(prev => ({...prev, items: snap.docs.map((d: any) => ({...d.data(), id: d.id}))})));
+        return () => { unsubUsers(); unsubItems(); };
+    }, []);
+
+    const deleteItem = (id: string) => {
+        if (window.confirm("Delete this donation post?")) {
+            firebase.firestore().collection('donations').doc(id).delete();
+        }
     };
 
-    if (!user) return (
-        <div className="text-center py-16 sm:py-24 bg-white rounded-2xl sm:rounded-[3rem] shadow-xl max-w-xl mx-auto px-6 sm:px-8 border border-gray-100">
-            <div className="w-16 h-16 sm:w-24 sm:h-24 bg-gray-50 text-gray-200 rounded-full flex items-center justify-center mx-auto mb-6 sm:mb-8 text-3xl sm:text-5xl">
-                <i className="fas fa-user-lock"></i>
-            </div>
-            <h2 className="text-2xl sm:text-3xl font-black mb-4 uppercase tracking-tighter">{t('profile')}</h2>
-            <button onClick={onAuth} className="bg-[#3498db] text-white px-10 py-3 sm:px-12 sm:py-5 rounded-full font-black uppercase tracking-widest shadow-xl hover:scale-105 transition-all">Sign In</button>
-        </div>
-    );
-
     return (
-        <div className="max-w-4xl mx-auto space-y-6 sm:space-y-10 pb-20">
-            <div className="bg-[#2c3e50] p-8 sm:p-12 rounded-2xl sm:rounded-[3rem] shadow-xl text-white relative overflow-hidden border-b-8 border-[#f39c12]">
-                <div className="flex flex-col md:flex-row items-center gap-8 relative z-10">
-                    <div className="w-24 h-24 sm:w-32 sm:h-32 bg-[#3498db] rounded-full flex items-center justify-center text-4xl sm:text-6xl font-black shadow-2xl ring-8 ring-white/10 uppercase">
-                        {user.displayName?.[0] || '?'}
-                    </div>
-                    <div className="flex-1 text-center md:text-left">
-                        <div className="flex flex-col md:flex-row md:items-end gap-3 mb-2">
-                            <h1 className="text-3xl sm:text-5xl font-black uppercase italic tracking-tighter leading-none">{user.displayName}</h1>
-                            <span className="text-[#3498db] font-black uppercase text-xs tracking-widest mb-1">Miri Citizen</span>
-                        </div>
-                        <p className="text-white/60 font-bold text-sm sm:text-lg mb-6">{user.email}</p>
-                        <div className="flex flex-wrap justify-center md:justify-start gap-4">
-                            <div className="bg-white/10 px-6 py-3 rounded-2xl border border-white/10 backdrop-blur-sm">
-                                <div className="text-[10px] font-black uppercase text-white/40 tracking-widest mb-1">{t('points')}</div>
-                                <div className="text-2xl font-black text-[#f39c12]">{user.points} <span className="text-xs">PTS</span></div>
-                            </div>
-                            <button onClick={() => onNavigate('shop')} className="bg-[#f39c12] hover:bg-orange-500 text-white px-6 py-3 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center gap-2 transition-all shadow-lg active:scale-95">
-                                <i className="fas fa-shopping-basket"></i> {t('points_shop')}
-                            </button>
-                        </div>
-                    </div>
-                    <button onClick={() => setIsEditing(!isEditing)} className={`px-6 py-3 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all flex items-center gap-2 ${isEditing ? 'bg-red-500 text-white' : 'bg-white/10 text-white hover:bg-white/20'}`}>
-                        <i className={`fas fa-${isEditing ? 'times' : 'user-edit'}`}></i> {isEditing ? t('cancel') : t('edit_profile')}
-                    </button>
-                </div>
-                <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-32 -mt-32 blur-3xl"></div>
+        <div className="h-full flex flex-col p-6 overflow-hidden">
+            <h2 className="text-2xl font-black italic uppercase text-[#2c3e50] mb-8 border-b-4 border-[#3498db] pb-2 inline-block">Admin Panel</h2>
+            <div className="flex gap-2 mb-6">
+                <button onClick={() => setActiveTab('users')} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase transition-all ${activeTab === 'users' ? 'bg-[#2c3e50] text-white' : 'bg-gray-100 text-gray-400'}`}>Users</button>
+                <button onClick={() => setActiveTab('items')} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase transition-all ${activeTab === 'items' ? 'bg-[#2c3e50] text-white' : 'bg-gray-100 text-gray-400'}`}>Donations</button>
             </div>
 
-            <div className="bg-white p-8 sm:p-12 rounded-2xl sm:rounded-[3rem] shadow-xl border border-gray-100 max-w-2xl mx-auto w-full">
-                <h2 className="text-2xl font-black uppercase mb-8 text-[#2c3e50] flex items-center gap-3 justify-center">
-                    <i className="fas fa-id-card text-[#3498db]"></i> {t('personal_info')}
-                </h2>
-                <div className="space-y-6">
-                    {[
-                        { key: 'displayName', label: t('full_name'), icon: 'user' },
-                        { key: 'age', label: t('age'), icon: 'calendar-alt', type: 'number' },
-                        { key: 'phone', label: t('phone_number'), icon: 'phone' },
-                        { key: 'address', label: t('home_address'), icon: 'map-marker-alt' }
-                    ].map(field => (
-                        <div key={field.key} className="space-y-2">
-                            <label className="text-[10px] font-black text-gray-300 uppercase tracking-widest ml-1 flex items-center gap-2">
-                                <i className={`fas fa-${field.icon} text-[8px]`}></i> {field.label}
-                            </label>
-                            <input 
-                                disabled={!isEditing}
-                                type={field.type || 'text'}
-                                value={(editData as any)[field.key]}
-                                onChange={e => setEditData({...editData, [field.key]: field.type === 'number' ? Number(e.target.value) : e.target.value})}
-                                className={`w-full p-5 rounded-xl border-2 font-bold outline-none transition-all text-sm ${isEditing ? 'border-[#3498db] bg-white text-[#2c3e50] shadow-inner' : 'border-gray-50 bg-gray-50 text-gray-400 cursor-not-allowed'}`}
-                            />
+            <div className="flex-1 overflow-y-auto space-y-4">
+                {activeTab === 'users' ? (
+                    editingUser ? (
+                        <div className="space-y-4 bg-gray-50 p-6 rounded-2xl border border-gray-100">
+                            <h4 className="font-black text-xs uppercase text-gray-400 mb-2">Editing: {editingUser.email}</h4>
+                            <AdminInput label="Full Name" value={editingUser.displayName || ''} onChange={v => setEditingUser({...editingUser, displayName: v})} />
+                            <AdminInput label="Points" type="number" value={editingUser.points || 0} onChange={v => setEditingUser({...editingUser, points: v})} />
+                            <div className="flex gap-2 pt-4">
+                                <button onClick={() => { firebase.firestore().collection('users').doc(editingUser.uid).update(editingUser); setEditingUser(null); }} className="flex-1 bg-[#2ecc71] text-white py-3 rounded-xl font-black text-[10px] uppercase">Save</button>
+                                <button onClick={() => setEditingUser(null)} className="flex-1 bg-red-400 text-white py-3 rounded-xl font-black text-[10px] uppercase">Cancel</button>
+                            </div>
                         </div>
-                    ))}
-                    {isEditing && (
-                        <button onClick={handleSave} className="w-full bg-[#2c3e50] text-white py-5 rounded-xl font-black uppercase tracking-widest shadow-xl hover:bg-[#3498db] transition-all">
-                            {t('save_changes')}
-                        </button>
-                    )}
-                </div>
+                    ) : (
+                        data.users.map(u => (
+                            <div key={u.uid} className="bg-white p-4 rounded-xl border border-gray-100 flex items-center justify-between shadow-sm">
+                                <div className="truncate pr-4">
+                                    <div className="font-black text-sm uppercase text-[#2c3e50] truncate">{u.displayName || 'Unnamed'}</div>
+                                    <div className="text-[10px] font-bold text-[#3498db]">{u.points} PTS</div>
+                                </div>
+                                <button onClick={() => setEditingUser(u)} className="p-2 text-gray-300 hover:text-[#3498db] transition-all"><i className="fas fa-edit"></i></button>
+                            </div>
+                        ))
+                    )
+                ) : (
+                    data.items.map(i => (
+                        <div key={i.id} className="bg-white p-4 rounded-xl border border-gray-100 flex items-center justify-between shadow-sm">
+                            <div className="truncate pr-4">
+                                <div className="font-black text-sm uppercase text-[#2c3e50] truncate">{i.itemName}</div>
+                                <div className="text-[10px] font-bold text-gray-300">By: {i.donorName}</div>
+                            </div>
+                            <button onClick={() => deleteItem(i.id)} className="p-2 text-gray-300 hover:text-red-500 transition-all"><i className="fas fa-trash-alt"></i></button>
+                        </div>
+                    ))
+                )}
             </div>
         </div>
     );
 };
 
-const AdminPanel: React.FC<{ onClose: () => void, t: any, user: UserProfile }> = ({ onClose, t, user }) => {
-    const [activeTab, setActiveTab] = useState<'users' | 'redemptions'>('users');
-    const [users, setUsers] = useState<UserProfile[]>([]);
-    const [redeemHistory, setRedeemHistory] = useState<any[]>([]);
-    const [editingUser, setEditingUser] = useState<any>(null);
-    const [loading, setLoading] = useState(true);
-    const [userSearchTerm, setUserSearchTerm] = useState('');
-
-    useEffect(() => {
-        const db = firebase.firestore();
-        const unsubsUsers = db.collection('users').onSnapshot((snap: any) => {
-            setUsers(snap.docs.map((d: any) => d.data() as UserProfile));
-            setLoading(false);
-        });
-        const unsubsRedeem = db.collection('redeem_history').orderBy('redeemedAt', 'desc').onSnapshot((snap: any) => {
-            setRedeemHistory(snap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
-        });
-        return () => { unsubsUsers(); unsubsRedeem(); };
-    }, []);
-
-    const filteredUsers = useMemo(() => {
-        if (!userSearchTerm.trim()) return users;
-        const lowerTerm = userSearchTerm.toLowerCase();
-        return users.filter(u => 
-            (u.displayName && u.displayName.toLowerCase().includes(lowerTerm)) || 
-            (u.email && u.email.toLowerCase().includes(lowerTerm))
-        );
-    }, [users, userSearchTerm]);
-
-    const handleSaveUser = async (u: any) => {
-        const db = firebase.firestore();
-        try {
-            await db.collection('users').doc(u.uid).update({
-                points: Number(u.points),
-                displayName: u.displayName,
-                age: Number(u.age),
-                phone: u.phone,
-                address: u.address
-            });
-            alert("User data saved successfully!");
-            setEditingUser(null);
-        } catch (e) { alert("Update failed: " + e); }
-    };
-
+const ProfilePage: React.FC<{user: UserProfile | null, t: any, onAuth: any, onNavigate: any}> = ({user, t, onAuth}) => {
+    if (!user) return <div className="text-center py-20"><button onClick={onAuth} className="bg-[#3498db] text-white px-12 py-4 rounded-full font-black uppercase shadow-xl">Sign In to View Profile</button></div>;
     return (
-        <div className="fixed inset-0 bg-black/95 z-[600] flex items-center justify-center p-0 sm:p-8 backdrop-blur-xl animate-in fade-in duration-300">
-            <div className="bg-white w-full h-full max-w-[1400px] sm:h-[90vh] sm:rounded-[3rem] flex overflow-hidden shadow-2xl relative">
-                <aside className="w-20 sm:w-72 bg-[#2c3e50] text-white flex flex-col h-full border-r border-white/5">
-                    <div className="p-6 sm:p-10 border-b border-white/5 mb-4">
-                        <h2 className="hidden sm:block font-black text-2xl tracking-tighter italic uppercase text-[#3498db] leading-none">ADMIN<br/><span className="text-white">CONTROL</span></h2>
-                    </div>
-                    <nav className="flex-1 px-3 sm:px-6 space-y-2">
-                        <AdminMenuItem icon="users" label={t('user_management')} active={activeTab === 'users'} onClick={() => { setActiveTab('users'); setEditingUser(null); }} />
-                        <AdminMenuItem icon="ticket-alt" label="Redeem Tracker" active={activeTab === 'redemptions'} onClick={() => { setActiveTab('redemptions'); setEditingUser(null); }} />
-                    </nav>
-                    <div className="p-6">
-                        <button onClick={onClose} className="w-full bg-red-500 py-4 rounded-xl font-black text-xs uppercase shadow-lg">Close</button>
-                    </div>
-                </aside>
+        <div className="max-w-2xl mx-auto space-y-8">
+            <div className="bg-[#2c3e50] p-12 rounded-[3rem] shadow-xl text-white text-center border-b-8 border-[#f39c12]">
+                <div className="w-24 h-24 bg-[#3498db] rounded-full flex items-center justify-center text-4xl font-black mx-auto mb-6 uppercase shadow-2xl">{user.displayName?.[0] || '?'}</div>
+                <h1 className="text-3xl font-black uppercase italic tracking-tighter mb-2">{user.displayName || 'No Name Set'}</h1>
+                <p className="text-[#3498db] font-bold text-xl">{user.points} PTS</p>
+            </div>
+            <div className="bg-white p-10 rounded-[3rem] border border-gray-100 shadow-sm text-center">
+                <h2 className="text-lg font-black uppercase text-gray-400 tracking-widest mb-4">Member Info</h2>
+                <div className="text-[#2c3e50] font-bold">{user.email}</div>
+                {user.birthdate && <div className="text-gray-400 text-xs mt-2 font-bold uppercase">Born: {user.birthdate}</div>}
+                {user.phone && <div className="text-gray-400 text-xs mt-2 font-bold uppercase">Phone: {user.phone}</div>}
+            </div>
+        </div>
+    );
+};
 
-                <main className="flex-1 flex flex-col bg-gray-50 overflow-hidden relative">
-                    <header className="h-20 sm:h-24 border-b border-gray-100 flex items-center justify-between px-6 sm:px-12 bg-white">
-                         <h3 className="font-black text-xl sm:text-3xl uppercase italic text-[#2c3e50]">
-                            {activeTab === 'users' ? 'User Database' : 'Redemption History'}
-                         </h3>
-                         {activeTab === 'users' && !editingUser && (
-                             <input 
-                                type="text" 
-                                placeholder="Search citizens..." 
-                                value={userSearchTerm}
-                                onChange={e => setUserSearchTerm(e.target.value)}
-                                className="bg-gray-50 border-2 border-gray-100 p-3 rounded-full outline-none font-bold text-sm w-64"
-                             />
-                         )}
-                    </header>
-                    <div className="flex-1 overflow-y-auto p-6 sm:p-12">
-                        {loading ? <div className="h-full flex items-center justify-center"><i className="fas fa-spinner fa-spin text-4xl text-[#3498db]"></i></div> : (
-                            <>
-                                {activeTab === 'users' && (
-                                    editingUser ? (
-                                        <div className="max-w-2xl mx-auto bg-white p-10 rounded-[3rem] shadow-2xl border border-gray-100">
-                                            <h4 className="font-black text-2xl uppercase mb-8 text-[#2c3e50]">Edit Profile: {editingUser.email}</h4>
-                                            <div className="space-y-6">
-                                                <AdminInput label="Full Name" value={editingUser.displayName} onChange={v => setEditingUser({...editingUser, displayName: v})} />
-                                                <AdminInput label="Points" type="number" value={editingUser.points} onChange={v => setEditingUser({...editingUser, points: v})} />
-                                                <AdminInput label="Age" type="number" value={editingUser.age || 0} onChange={v => setEditingUser({...editingUser, age: v})} />
-                                                <AdminInput label="Phone" value={editingUser.phone || ''} onChange={v => setEditingUser({...editingUser, phone: v})} />
-                                                <AdminInput label="Address" value={editingUser.address || ''} onChange={v => setEditingUser({...editingUser, address: v})} />
-                                                <button onClick={() => handleSaveUser(editingUser)} className="w-full bg-[#2c3e50] text-white py-5 rounded-2xl font-black uppercase shadow-xl hover:bg-[#3498db] transition-all">Save Changes</button>
-                                                <button onClick={() => setEditingUser(null)} className="w-full text-gray-400 font-bold uppercase py-2">Cancel</button>
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                                            {filteredUsers.map(u => (
-                                                <div key={u.uid} className="bg-white p-6 sm:p-8 rounded-[2rem] border border-gray-100 flex items-center justify-between shadow-sm group">
-                                                    <div className="flex items-center gap-4">
-                                                        <div className="w-14 h-14 bg-gray-50 rounded-full flex items-center justify-center text-xl font-black text-[#3498db] shadow-inner">{u.displayName?.[0] || '?'}</div>
-                                                        <div>
-                                                            <div className="font-black text-lg uppercase italic text-[#2c3e50]">{u.displayName}</div>
-                                                            <div className="text-[10px] font-bold text-gray-300 uppercase tracking-widest">{u.email}</div>
-                                                        </div>
-                                                    </div>
-                                                    <button onClick={() => setEditingUser(u)} className="w-12 h-12 bg-[#2c3e50] text-white rounded-xl flex items-center justify-center hover:bg-[#3498db] transition-all shadow-lg active:scale-90"><i className="fas fa-user-edit"></i></button>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )
-                                )}
-
-                                {activeTab === 'redemptions' && (
-                                    <div className="bg-white rounded-[2rem] overflow-hidden shadow-xl">
-                                        <table className="w-full text-left">
-                                            <thead className="bg-gray-50 font-black uppercase text-[10px] text-gray-400">
-                                                <tr>
-                                                    <th className="p-6">Date</th>
-                                                    <th className="p-6">User</th>
-                                                    <th className="p-6">Item</th>
-                                                    <th className="p-6 text-right">Points</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-gray-50 font-bold text-sm">
-                                                {redeemHistory.map(r => (
-                                                    <tr key={r.id}>
-                                                        <td className="p-6 text-gray-300">{r.redeemedAt?.toDate().toLocaleDateString()}</td>
-                                                        <td className="p-6">{r.fullName} <span className="block text-[8px] text-gray-300">{r.userEmail}</span></td>
-                                                        <td className="p-6 italic">{r.itemName}</td>
-                                                        <td className="p-6 text-right text-red-400">-{r.itemPoints}</td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                )}
-                            </>
-                        )}
+const ShopPage: React.FC<{user: UserProfile | null, t: any, onAuth: any, onRedeemConfirm: (i: any) => void}> = ({user, onAuth, onRedeemConfirm}) => {
+    const items = [
+        { id: '1', name: 'RM5 Voucher', cost: 20, color: '#27ae60' },
+        { id: '2', name: 'RM10 Voucher', cost: 40, color: '#3498db' },
+        { id: '3', name: 'RM15 Voucher', cost: 50, color: '#f39c12' }
+    ];
+    return (
+        <div className="space-y-12 py-12">
+            <h1 className="text-5xl font-black italic uppercase text-[#2c3e50] text-center tracking-tighter">Points Shop</h1>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                {items.map(item => (
+                    <div key={item.id} className="bg-white rounded-[2.5rem] border border-gray-100 overflow-hidden shadow-xl text-center flex flex-col">
+                        <div className="p-12 flex-1">
+                            <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-6 text-3xl text-[#f39c12] shadow-inner"><i className="fas fa-gift"></i></div>
+                            <h3 className="font-black text-xl mb-2 uppercase italic text-[#2c3e50]">{item.name}</h3>
+                            <div className="text-3xl font-black text-[#f39c12]">{item.cost} <span className="text-sm">PTS</span></div>
+                        </div>
+                        <button onClick={() => user ? onRedeemConfirm(item) : onAuth()} className="w-full py-6 font-black uppercase text-white tracking-widest text-[10px]" style={{backgroundColor: item.color}}>Redeem Reward</button>
                     </div>
-                </main>
+                ))}
             </div>
         </div>
     );
 };
 
 const HistoryPage: React.FC<{user: UserProfile | null, t: any, onAuth: any}> = ({user, t, onAuth}) => {
-    const [redemptions, setRedemptions] = useState<any[]>([]);
+    const [history, setHistory] = useState<any[]>([]);
     useEffect(() => {
         if (!user) return;
-        const db = firebase.firestore();
-        return db.collection('redeem_history').where('userId', '==', user.uid).orderBy('redeemedAt', 'desc').onSnapshot((snap: any) => {
-            setRedemptions(snap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
-        });
+        const unsub = firebase.firestore().collection('redeem_history').where('userId', '==', user.uid).orderBy('redeemedAt', 'desc').onSnapshot((snap: any) => setHistory(snap.docs.map((d: any) => d.data())));
+        return unsub;
     }, [user]);
-    if (!user) return <div className="text-center py-20"><button onClick={onAuth} className="bg-[#3498db] text-white px-10 py-4 rounded-full font-black uppercase shadow-lg">Sign In</button></div>;
+    if (!user) return <div className="text-center py-20"><button onClick={onAuth} className="bg-[#3498db] text-white px-12 py-4 rounded-full font-black uppercase">Sign In to View History</button></div>;
     return (
-        <div className="space-y-12">
-            <h1 className="text-4xl font-black italic uppercase text-[#2c3e50]">{t('history')}</h1>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {redemptions.map(r => (
-                    <div key={r.id} className="bg-white p-6 rounded-2xl border border-gray-100 flex items-center justify-between shadow-xl">
+        <div className="max-w-4xl mx-auto space-y-10 py-12">
+            <h1 className="text-4xl font-black italic uppercase text-[#2c3e50] tracking-tighter">Redemption History</h1>
+            <div className="space-y-4">
+                {history.map((h, i) => (
+                    <div key={i} className="bg-white p-6 rounded-2xl border border-gray-100 flex items-center justify-between shadow-sm">
                         <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 bg-orange-50 text-[#f39c12] rounded-xl flex items-center justify-center text-xl"><i className="fas fa-ticket-alt"></i></div>
+                            <div className="w-12 h-12 bg-orange-50 text-[#f39c12] rounded-xl flex items-center justify-center text-xl shadow-inner"><i className="fas fa-ticket-alt"></i></div>
                             <div>
-                                <div className="font-black uppercase italic text-[#2c3e50]">{r.itemName}</div>
-                                <div className="text-[10px] font-bold text-gray-300 uppercase">{r.redeemedAt?.toDate().toLocaleDateString()}</div>
+                                <div className="font-black uppercase italic text-[#2c3e50]">{h.itemName}</div>
+                                <div className="text-[10px] font-bold text-gray-300 uppercase">{h.redeemedAt?.toDate().toLocaleDateString()}</div>
                             </div>
                         </div>
-                        <div className="text-[#f39c12] font-black">-{r.itemPoints} PTS</div>
+                        <div className="text-[#f39c12] font-black text-xl">-{h.itemPoints}</div>
                     </div>
                 ))}
             </div>
@@ -708,126 +474,116 @@ const HistoryPage: React.FC<{user: UserProfile | null, t: any, onAuth: any}> = (
     );
 };
 
-const ShopPage: React.FC<{user: UserProfile | null, t: any, onAuth: any, onRedeemConfirm: (item: any) => void}> = ({user, t, onAuth, onRedeemConfirm}) => {
-    const shopItems = [
-        { id: '1', name: t('voucher_5'), cost: 20, color: '#27ae60' },
-        { id: '2', name: t('voucher_10'), cost: 40, color: '#3498db' },
-        { id: '3', name: t('voucher_15'), cost: 50, color: '#f39c12' }
-    ];
-    return (
-        <div className="space-y-12">
-            <h1 className="text-6xl font-black italic uppercase text-[#2c3e50] text-center">{t('points_shop')}</h1>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
-                {shopItems.map(item => (
-                    <div key={item.id} className="bg-white rounded-[2.5rem] border border-gray-100 overflow-hidden shadow-xl text-center group transition-all">
-                        <div className="p-12">
-                            <div className="w-24 h-24 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-8 text-4xl text-[#f39c12]"><i className="fas fa-gift"></i></div>
-                            <h3 className="font-black text-2xl mb-2 uppercase italic text-[#2c3e50]">{item.name}</h3>
-                            <div className="text-4xl font-black text-[#f39c12] mb-10"><span className="text-xl">PTS</span> {item.cost}</div>
-                        </div>
-                        <button onClick={() => { if(!user) return onAuth(); onRedeemConfirm(item); }} className="w-full text-white py-6 font-black uppercase tracking-widest text-xs" style={{backgroundColor: item.color}}>Redeem Reward</button>
-                    </div>
-                ))}
-            </div>
-        </div>
-    );
-};
-
-const SupportWindow: React.FC<{user: UserProfile | null, onClose: () => void, onAuth: () => void, t: any}> = ({user, onClose, onAuth, t}) => (
-    <div className="fixed bottom-20 right-8 z-[150] bg-white w-[350px] h-[500px] rounded-[3rem] shadow-2xl flex flex-col animate-in zoom-in border border-gray-100 overflow-hidden">
-        <div className="p-6 bg-[#3498db] text-white flex justify-between items-center"><h3 className="font-black uppercase italic">Admin Support</h3><button onClick={onClose}>&times;</button></div>
-        <div className="flex-1 p-6 flex flex-col items-center justify-center text-center">
-            <i className="fas fa-headset text-4xl text-gray-100 mb-4"></i>
-            <p className="text-[10px] font-black uppercase text-gray-300">Our admin is ready to help.<br/>Start a chat below.</p>
-        </div>
-    </div>
-);
-
-const AuthModal: React.FC<{onClose: () => void, t: any}> = ({onClose, t}) => {
-    const [authMode, setAuthMode] = useState(0); 
-    const [email, setEmail] = useState('');
-    const [username, setUsername] = useState('');
-    const [fullName, setFullName] = useState('');
-    const [password, setPassword] = useState('');
+const AuthModal: React.FC<{onClose: () => void, t: any}> = ({onClose}) => {
+    const [mode, setMode] = useState<'login' | 'register'>('login');
+    const [data, setData] = useState({ email: '', password: '', name: '', birthdate: '', phone: '' });
+    const [loading, setLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
-    const [age, setAge] = useState('');
-    const [address, setAddress] = useState('');
-    const [phone, setPhone] = useState('');
-    const [authLoading, setAuthLoading] = useState(false);
-    const [authError, setAuthError] = useState<string | null>(null);
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    const submit = async (e: React.FormEvent) => {
         e.preventDefault();
-        setAuthLoading(true);
-        setAuthError(null);
-        if (authMode === 1 && !email.toLowerCase().endsWith("moe-dl.edu.my")) {
-            setAuthError(`Registration required: Please use your official MOE account (@moe-dl.edu.my).`);
-            setAuthLoading(false);
-            return;
-        }
+        setLoading(true);
         try {
-            if (authMode === 0) {
-                await firebase.auth().signInWithEmailAndPassword(email, password);
-                onClose();
-            } else if (authMode === 1) {
-                const { user: authUser } = await firebase.auth().createUserWithEmailAndPassword(email, password);
-                await firebase.firestore().collection('users').doc(authUser.uid).set({
-                    uid: authUser.uid, email, displayName: fullName, username, points: 10, age: Number(age), address, phone,
-                    settings: { autoShareContact: true, receiveNotifications: true, shareLocation: true, profileVisibility: 'public' }
+            if (mode === 'login') {
+                await firebase.auth().signInWithEmailAndPassword(data.email, data.password);
+            } else {
+                if (!data.email.toLowerCase().endsWith("@moe-dl.edu.my")) throw new Error("MOE Email Required (@moe-dl.edu.my)");
+                
+                // Calculate age
+                const birthYear = new Date(data.birthdate).getFullYear();
+                const currentYear = new Date().getFullYear();
+                const age = currentYear - birthYear;
+
+                const {user} = await firebase.auth().createUserWithEmailAndPassword(data.email, data.password);
+                await firebase.firestore().collection('users').doc(user.uid).set({ 
+                    email: data.email, 
+                    displayName: data.name, 
+                    points: 10,
+                    birthdate: data.birthdate,
+                    age: age,
+                    phone: data.phone
                 });
-                onClose();
             }
-        } catch (err: any) { 
-            setAuthError(err.message);
-        } finally { setAuthLoading(false); }
+            onClose();
+        } catch (err: any) { alert(err.message); } finally { setLoading(false); }
     };
 
     return (
-        <div className="fixed inset-0 bg-black/80 z-[400] flex items-center justify-center p-4 backdrop-blur-xl" onClick={onClose}>
-            <div className="bg-white w-full max-w-md rounded-[4rem] flex flex-col relative shadow-2xl animate-in zoom-in border-4 border-white/20 max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
-                <button onClick={onClose} className="absolute top-10 right-10 text-3xl text-gray-200 hover:text-red-500 z-10">&times;</button>
-                <div className="overflow-y-auto p-12 custom-scrollbar">
-                    <h2 className="text-3xl font-black mb-4 text-center uppercase italic text-[#2c3e50]">{authMode === 0 ? t('login') : t('register')}</h2>
-                    {authError && <div className="mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded-r-xl text-red-600 text-[10px] font-black uppercase">{authError}</div>}
-                    <form onSubmit={handleSubmit} className="space-y-4">
-                        <input type="email" placeholder={t('email_address')} value={email} onChange={e => setEmail(e.target.value)} className="w-full bg-gray-50 border-2 border-gray-100 p-6 rounded-[1.5rem] outline-none font-bold focus:border-[#3498db] transition-all text-sm text-[#2c3e50]" required />
-                        {authMode === 1 && (
-                            <>
-                                <input type="text" placeholder="Username" value={username} onChange={e => setUsername(e.target.value)} className="w-full bg-gray-50 border-2 border-gray-100 p-6 rounded-[1.5rem] outline-none font-bold focus:border-[#3498db] transition-all text-sm text-[#2c3e50]" required />
-                                <input type="text" placeholder={t('full_name')} value={fullName} onChange={e => setFullName(e.target.value)} className="w-full bg-gray-50 border-2 border-gray-100 p-6 rounded-[1.5rem] outline-none font-bold focus:border-[#3498db] transition-all text-sm text-[#2c3e50]" required />
-                            </>
-                        )}
+        <div className="fixed inset-0 bg-black/80 z-[400] flex items-center justify-center p-4 backdrop-blur-md" onClick={onClose}>
+            <div className="bg-white w-full max-w-md rounded-[3rem] p-10 sm:p-12 shadow-2xl relative animate-in zoom-in duration-300 overflow-y-auto max-h-[95vh]" onClick={e => e.stopPropagation()}>
+                <h2 className="text-3xl font-black text-center uppercase italic text-[#2c3e50] mb-8">{mode === 'login' ? 'Welcome Back' : 'Join Us'}</h2>
+                <form onSubmit={submit} className="space-y-4">
+                    {mode === 'register' && (
+                        <>
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Full Name (As IC)</label>
+                                <input placeholder="Your Name" value={data.name} onChange={e => setData({...data, name: e.target.value})} className="w-full bg-gray-50 border-2 border-gray-100 p-4 rounded-2xl outline-none font-bold" required />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Birth Date</label>
+                                <input type="date" value={data.birthdate} onChange={e => setData({...data, birthdate: e.target.value})} className="w-full bg-gray-50 border-2 border-gray-100 p-4 rounded-2xl outline-none font-bold" required />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Phone Number</label>
+                                <input type="tel" placeholder="e.g. 0123456789" value={data.phone} onChange={e => setData({...data, phone: e.target.value})} className="w-full bg-gray-50 border-2 border-gray-100 p-4 rounded-2xl outline-none font-bold" required />
+                            </div>
+                        </>
+                    )}
+                    <div className="space-y-1">
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Email Address</label>
+                        <input type="email" placeholder="email@moe-dl.edu.my" value={data.email} onChange={e => setData({...data, email: e.target.value})} className="w-full bg-gray-50 border-2 border-gray-100 p-4 rounded-2xl outline-none font-bold" required />
+                    </div>
+                    <div className="space-y-1">
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Password</label>
                         <div className="relative">
-                            <input type={showPassword ? "text" : "password"} placeholder={t('password')} value={password} onChange={e => setPassword(e.target.value)} className="w-full bg-gray-50 border-2 border-gray-100 p-6 rounded-[1.5rem] outline-none font-bold focus:border-[#3498db] transition-all text-sm text-[#2c3e50] pr-14" required />
-                            <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-6 top-1/2 -translate-y-1/2 text-gray-300"><i className={`fas fa-${showPassword ? 'eye-slash' : 'eye'}`}></i></button>
+                            <input 
+                                type={showPassword ? "text" : "password"} 
+                                placeholder="••••••••" 
+                                value={data.password} 
+                                onChange={e => setData({...data, password: e.target.value})} 
+                                className="w-full bg-gray-50 border-2 border-gray-100 p-4 rounded-2xl outline-none font-bold pr-12" 
+                                required 
+                            />
+                            <button 
+                                type="button" 
+                                onClick={() => setShowPassword(!showPassword)}
+                                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-300 hover:text-[#3498db] transition-colors"
+                            >
+                                <i className={`fas fa-eye${showPassword ? '-slash' : ''}`}></i>
+                            </button>
                         </div>
-                        {authMode === 1 && (
-                            <>
-                                <input type="number" placeholder={t('age')} value={age} onChange={e => setAge(e.target.value)} className="w-full bg-gray-50 border-2 border-gray-100 p-6 rounded-[1.5rem] outline-none font-bold focus:border-[#3498db] transition-all text-sm text-[#2c3e50]" required />
-                                <input type="text" placeholder={t('phone_number')} value={phone} onChange={e => setPhone(e.target.value)} className="w-full bg-gray-50 border-2 border-gray-100 p-6 rounded-[1.5rem] outline-none font-bold focus:border-[#3498db] transition-all text-sm text-[#2c3e50]" required />
-                                <input type="text" placeholder={t('home_address')} value={address} onChange={e => setAddress(e.target.value)} className="w-full bg-gray-50 border-2 border-gray-100 p-6 rounded-[1.5rem] outline-none font-bold focus:border-[#3498db] transition-all text-sm text-[#2c3e50]" required />
-                            </>
-                        )}
-                        <button type="submit" disabled={authLoading} className="w-full bg-[#3498db] text-white py-6 rounded-full font-black text-xl shadow-2xl mt-6 active:scale-95 disabled:opacity-50">{authLoading ? '...' : (authMode === 0 ? t('login') : t('register'))}</button>
-                    </form>
-                    <p className="text-center text-[10px] font-black uppercase text-gray-300 mt-8 cursor-pointer" onClick={() => setAuthMode(authMode === 0 ? 1 : 0)}>{authMode === 0 ? t('register') : t('login')}</p>
+                    </div>
+                    <button disabled={loading} className="w-full bg-[#3498db] text-white py-6 rounded-full font-black text-xl shadow-xl hover:scale-105 transition-all mt-6">{loading ? '...' : (mode === 'login' ? 'Login' : 'Register')}</button>
+                </form>
+                
+                {/* Switch Button clearly accessible under the form */}
+                <div className="mt-8 pt-4 border-t border-gray-50 flex flex-col items-center gap-4">
+                    <p className="text-[10px] font-black text-gray-300 uppercase tracking-[0.2em]">
+                        {mode === 'login' ? "Don't have an account?" : "Already have an account?"}
+                    </p>
+                    <button 
+                        onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setShowPassword(false); }}
+                        className="text-xs font-black uppercase text-[#3498db] hover:bg-blue-50 px-8 py-3 rounded-full transition-all border-2 border-[#3498db]"
+                    >
+                        {mode === 'login' ? 'Switch to Register' : 'Switch to Login'}
+                    </button>
                 </div>
             </div>
         </div>
     );
 };
 
-const RedeemConfirmModal: React.FC<{item: any, user: UserProfile, onCancel: () => void, onConfirm: (f: string, c: string) => void, t: any}> = ({item, user, onCancel, onConfirm, t}) => {
-    const [fullName, setFullName] = useState(user.displayName || '');
-    const [userClass, setUserClass] = useState('');
+const RedeemConfirmModal: React.FC<{item: any, user: UserProfile, onCancel: () => void, onConfirm: (f: string, c: string) => void}> = ({onCancel, onConfirm}) => {
+    const [f, setF] = useState('');
+    const [c, setC] = useState('');
     return (
-        <div className="fixed inset-0 bg-black/90 z-[600] flex items-center justify-center p-4 backdrop-blur-xl animate-in fade-in" onClick={onCancel}>
-            <div className="bg-white w-full max-w-lg rounded-[4rem] p-12 shadow-2xl relative" onClick={(e) => e.stopPropagation()}>
-                <h2 className="text-3xl font-black mb-6 italic uppercase text-[#2c3e50] text-center">Confirm Identity</h2>
-                <form onSubmit={e => { e.preventDefault(); onConfirm(fullName, userClass); }} className="space-y-6">
-                    <input value={fullName} onChange={e => setFullName(e.target.value)} placeholder="Full Name" className="w-full bg-gray-50 border-2 border-gray-100 p-6 rounded-[1.5rem] outline-none font-bold text-[#2c3e50]" required />
-                    <input value={userClass} onChange={e => setUserClass(e.target.value)} placeholder="Class" className="w-full bg-gray-50 border-2 border-gray-100 p-6 rounded-[1.5rem] outline-none font-bold text-[#2c3e50]" required />
-                    <button type="submit" className="w-full bg-[#3498db] text-white py-6 rounded-full font-black uppercase">Confirm Redeem</button>
+        <div className="fixed inset-0 bg-black/90 z-[500] flex items-center justify-center p-4 backdrop-blur-xl" onClick={onCancel}>
+            <div className="bg-white w-full max-w-md rounded-[3rem] p-12 shadow-2xl relative" onClick={e => e.stopPropagation()}>
+                <h2 className="text-2xl font-black mb-8 italic uppercase text-[#2c3e50] text-center">Confirm Identity</h2>
+                <form onSubmit={e => { e.preventDefault(); onConfirm(f, c); }} className="space-y-6">
+                    <input value={f} onChange={e => setF(e.target.value)} placeholder="Full Name" className="w-full bg-gray-50 border-2 border-gray-100 p-5 rounded-2xl font-bold" required />
+                    <input value={c} onChange={e => setC(e.target.value)} placeholder="Class/Section" className="w-full bg-gray-50 border-2 border-gray-100 p-5 rounded-2xl font-bold" required />
+                    <button type="submit" className="w-full bg-[#3498db] text-white py-6 rounded-full font-black uppercase">Verify & Redeem</button>
                 </form>
             </div>
         </div>
