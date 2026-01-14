@@ -82,12 +82,20 @@ const App: React.FC = () => {
                             }
                         });
 
+                        // Removed orderBy to avoid index requirement error.
+                        // Sorting is now handled client-side in the render logic or state update.
                         unsubNotifs = db.collection('notifications')
                             .where('userId', '==', authUser.uid)
-                            .orderBy('createdAt', 'desc')
-                            .limit(20)
+                            .limit(50)
                             .onSnapshot((snap: any) => {
-                                setNotifications(snap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
+                                const notifs = snap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+                                // Sort manually since Firestore index might not be ready
+                                notifs.sort((a: any, b: any) => {
+                                    const timeA = a.createdAt?.toMillis?.() || 0;
+                                    const timeB = b.createdAt?.toMillis?.() || 0;
+                                    return timeB - timeA;
+                                });
+                                setNotifications(notifs);
                             }, (err: any) => console.error("Notif error:", err));
                     } else { 
                         setUser(null); 
@@ -1131,4 +1139,3 @@ const RedeemConfirmModal: React.FC<{item: any, user: UserProfile, onCancel: () =
 };
 
 export default App;
-
