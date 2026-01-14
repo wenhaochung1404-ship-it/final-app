@@ -82,14 +82,11 @@ const App: React.FC = () => {
                             }
                         });
 
-                        // Removed orderBy to avoid index requirement error.
-                        // Sorting is now handled client-side in the render logic or state update.
                         unsubNotifs = db.collection('notifications')
                             .where('userId', '==', authUser.uid)
                             .limit(50)
                             .onSnapshot((snap: any) => {
                                 const notifs = snap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
-                                // Sort manually since Firestore index might not be ready
                                 notifs.sort((a: any, b: any) => {
                                     const timeA = a.createdAt?.toMillis?.() || 0;
                                     const timeB = b.createdAt?.toMillis?.() || 0;
@@ -148,6 +145,18 @@ const App: React.FC = () => {
                     </div>
                     
                     <div className="flex items-center gap-1 sm:gap-4 flex-shrink-0">
+                        {/* Language Selector */}
+                        <select 
+                            value={lang} 
+                            onChange={(e) => setLang(e.target.value as Language)}
+                            className="bg-transparent text-[10px] font-black uppercase border border-white/20 rounded-md p-1 outline-none cursor-pointer"
+                        >
+                            <option value={Language.EN} className="text-black">EN</option>
+                            <option value={Language.BM} className="text-black">BM</option>
+                            <option value={Language.BC} className="text-black">中文</option>
+                            <option value={Language.BI} className="text-black">Iban</option>
+                        </select>
+
                         {user && (
                             <div className="relative">
                                 <button 
@@ -183,7 +192,6 @@ const App: React.FC = () => {
                                                             <div className="flex-1 min-w-0">
                                                                 <p className="text-[11px] font-bold text-gray-800 leading-tight">{n.title}</p>
                                                                 <p className="text-[10px] text-gray-500 line-clamp-2 mt-0.5">{n.message}</p>
-                                                                <p className="text-[8px] text-gray-300 font-black uppercase mt-1">Activity Alert</p>
                                                             </div>
                                                         </div>
                                                     </div>
@@ -197,16 +205,16 @@ const App: React.FC = () => {
 
                         {user && (
                             <div className="flex items-center bg-[#f39c12] px-2 sm:px-4 py-1 rounded-full text-[8px] sm:text-xs font-black shadow-lg whitespace-nowrap">
-                                <i className="fas fa-star mr-1 sm:mr-2"></i> {user.points} <span className="ml-0.5">Points</span>
+                                <i className="fas fa-star mr-1 sm:mr-2"></i> {user.points} <span className="ml-0.5">{t('points')}</span>
                             </div>
                         )}
                         {user ? (
                             <button onClick={() => firebase.auth().signOut()} className="bg-red-500 hover:bg-red-600 text-white px-2 sm:px-4 py-1.5 rounded-full text-[8px] sm:text-[10px] font-black uppercase shadow-lg flex items-center gap-1 whitespace-nowrap">
                                 <i className="fas fa-sign-out-alt"></i>
-                                <span>Logout</span>
+                                <span>{t('logout')}</span>
                             </button>
                         ) : (
-                            <button onClick={() => setIsAuthModalOpen(true)} className="bg-[#3498db] hover:bg-blue-600 px-3 py-1.5 rounded-full text-[8px] sm:text-[10px] font-black uppercase shadow-lg">Login</button>
+                            <button onClick={() => setIsAuthModalOpen(true)} className="bg-[#3498db] hover:bg-blue-600 px-3 py-1.5 rounded-full text-[8px] sm:text-[10px] font-black uppercase shadow-lg">{t('login')}</button>
                         )}
                     </div>
                 </div>
@@ -219,7 +227,7 @@ const App: React.FC = () => {
                         className="fixed right-4 top-1/4 z-[110] bg-[#2c3e50] text-white w-12 h-12 sm:w-14 sm:h-14 rounded-full shadow-2xl flex flex-col items-center justify-center hover:scale-110 active:scale-95 transition-all group border-4 border-white"
                     >
                         <i className={`fas fa-${showAdminPanel ? 'times' : 'user-shield'} text-lg sm:text-xl`}></i>
-                        <span className="text-[6px] sm:text-[7px] font-black uppercase mt-1">Panel</span>
+                        <span className="text-[6px] sm:text-[7px] font-black uppercase mt-1">Admin</span>
                     </button>
                 )}
 
@@ -229,14 +237,14 @@ const App: React.FC = () => {
                             <div className="w-[85vw] sm:w-80 h-[450px] bg-white rounded-3xl shadow-2xl border border-gray-100 flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 mb-2 origin-bottom-right">
                                 <div className="bg-[#3498db] p-4 text-white flex justify-between items-center">
                                     <div className="font-black uppercase text-xs flex items-center gap-2">
-                                        <i className="fas fa-comment-dots"></i>
-                                        Admin Support
+                                        <i className="fas fa-headset"></i>
+                                        {t('admin_support')}
                                     </div>
                                     <button onClick={() => setShowSupportChat(false)} className="hover:rotate-90 transition-transform p-1">
                                         <i className="fas fa-times text-lg"></i>
                                     </button>
                                 </div>
-                                <SupportChatBody userId={user.uid} userName={user.displayName} />
+                                <SupportChatBody userId={user.uid} userName={user.displayName} t={t} />
                             </div>
                         )}
                         <button 
@@ -251,7 +259,7 @@ const App: React.FC = () => {
                 <main className={`flex-1 overflow-y-auto transition-all duration-300 ${isAdmin && showAdminPanel ? 'lg:mr-96' : ''}`}>
                     <div className="container mx-auto px-4 py-8 max-w-6xl">
                         {page === 'home' && <HomePage t={t} user={user} />}
-                        {page === 'offer_help' && <OfferHelpPage user={user} onAuth={() => setIsAuthModalOpen(true)} onNavigate={setPage} />}
+                        {page === 'offer_help' && <OfferHelpPage user={user} t={t} onAuth={() => setIsAuthModalOpen(true)} onNavigate={setPage} />}
                         {page === 'profile' && <ProfilePage user={user} t={t} onAuth={() => setIsAuthModalOpen(true)} onNavigate={setPage} />}
                         {page === 'shop' && <ShopPage user={user} t={t} onAuth={() => setIsAuthModalOpen(true)} onRedeemConfirm={setItemToRedeem} />}
                         {page === 'history' && <HistoryPage user={user} t={t} onAuth={() => setIsAuthModalOpen(true)} />}
@@ -273,16 +281,16 @@ const App: React.FC = () => {
                     </div>
                     {user && (
                         <div className="mb-8 p-4 bg-gray-50 rounded-2xl">
-                            <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Your Balance</div>
-                            <div className="text-2xl font-black text-[#f39c12]">{user.points} <span className="text-xs">Points</span></div>
+                            <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">{t('kindness_level')}</div>
+                            <div className="text-2xl font-black text-[#f39c12]">{user.points} <span className="text-xs">{t('points')}</span></div>
                         </div>
                     )}
                     <nav className="flex flex-col gap-2">
-                        <MenuItem icon="home" label="Home" onClick={() => { setPage('home'); setIsMenuOpen(false); }} active={page === 'home'} />
-                        <MenuItem icon="hand-holding-heart" label="Offer Help" onClick={() => { setPage('offer_help'); setIsMenuOpen(false); }} active={page === 'offer_help'} />
-                        <MenuItem icon="user" label="Profile" onClick={() => { setPage('profile'); setIsMenuOpen(false); }} active={page === 'profile'} />
-                        <MenuItem icon="shopping-cart" label="Points Shop" onClick={() => { setPage('shop'); setIsMenuOpen(false); }} active={page === 'shop'} />
-                        <MenuItem icon="history" label="History" onClick={() => { setPage('history'); setIsMenuOpen(false); }} active={page === 'history'} />
+                        <MenuItem icon="home" label={t('home')} onClick={() => { setPage('home'); setIsMenuOpen(false); }} active={page === 'home'} />
+                        <MenuItem icon="hand-holding-heart" label={t('offer_help')} onClick={() => { setPage('offer_help'); setIsMenuOpen(false); }} active={page === 'offer_help'} />
+                        <MenuItem icon="user" label={t('profile')} onClick={() => { setPage('profile'); setIsMenuOpen(false); }} active={page === 'profile'} />
+                        <MenuItem icon="shopping-cart" label={t('points_shop')} onClick={() => { setPage('shop'); setIsMenuOpen(false); }} active={page === 'shop'} />
+                        <MenuItem icon="history" label={t('history')} onClick={() => { setPage('history'); setIsMenuOpen(false); }} active={page === 'history'} />
                     </nav>
                 </div>
             </aside>
@@ -293,6 +301,7 @@ const App: React.FC = () => {
                 <RedeemConfirmModal 
                     item={itemToRedeem} 
                     user={user!} 
+                    t={t}
                     onCancel={() => setItemToRedeem(null)} 
                     onConfirm={async (fullName, userClass) => {
                         const db = firebase.firestore();
@@ -309,7 +318,7 @@ const App: React.FC = () => {
                             });
                             setItemToRedeem(null);
                             alert("Voucher redeemed!");
-                        } catch (e) { alert("Failed: " + e); }
+                        } catch (e: any) { alert("Failed: " + e.message); }
                     }} 
                 />
             )}
@@ -317,7 +326,7 @@ const App: React.FC = () => {
     );
 };
 
-const SupportChatBody: React.FC<{userId: string, userName: string}> = ({userId, userName}) => {
+const SupportChatBody: React.FC<{userId: string, userName: string, t: any}> = ({userId, userName, t}) => {
     const [msgs, setMsgs] = useState<any[]>([]);
     const [input, setInput] = useState('');
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -358,7 +367,7 @@ const SupportChatBody: React.FC<{userId: string, userName: string}> = ({userId, 
                 {msgs.length === 0 && (
                     <div className="text-center py-10 px-4">
                         <i className="fas fa-headset text-3xl text-gray-300 mb-2"></i>
-                        <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Hi! Ask an admin anything.</p>
+                        <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest">{t('support_desc')}</p>
                     </div>
                 )}
                 {msgs.map((m, i) => (
@@ -380,7 +389,7 @@ const SupportChatBody: React.FC<{userId: string, userName: string}> = ({userId, 
                 <input 
                     value={input} 
                     onChange={e => setInput(e.target.value)} 
-                    placeholder="Type a message..." 
+                    placeholder={t('type_message')} 
                     className="flex-1 bg-gray-100 p-3 rounded-2xl text-xs font-bold outline-none border-2 border-transparent focus:border-[#3498db] transition-all" 
                 />
                 <button className="bg-[#3498db] text-white w-10 h-10 rounded-xl flex items-center justify-center transition-transform active:scale-90 shadow-lg">
@@ -453,27 +462,9 @@ const HomePage: React.FC<{t: any, user: UserProfile | null}> = ({t, user}) => {
                 <p className="text-sm sm:text-xl opacity-80 max-w-2xl mx-auto leading-relaxed font-bold uppercase">{t('hero_description')}</p>
             </section>
 
-            <div className="max-w-6xl mx-auto">
-                <div className="bg-white rounded-2xl p-6 sm:p-8 border border-gray-100 shadow-sm">
-                    <div className="flex items-center justify-between mb-6">
-                        <h2 className="text-2xl sm:text-3xl font-black text-[#2c3e50] tracking-tighter italic uppercase">Announcement</h2>
-                        {isAdmin && (
-                            <button onClick={() => isEditingAnn ? (firebase.firestore().collection('settings').doc('items_announcement').set({text: newAnn}), setIsEditingAnn(false)) : setIsEditingAnn(true)} className="bg-[#3498db] text-white px-4 py-2 rounded-lg text-[10px] font-black uppercase">
-                                {isEditingAnn ? 'Save' : 'Edit'}
-                            </button>
-                        )}
-                    </div>
-                    {isEditingAnn ? (
-                        <textarea value={newAnn} onChange={e => setNewAnn(e.target.value)} className="w-full h-32 p-4 border-2 border-gray-100 rounded-xl font-bold text-[#2c3e50] outline-none focus:border-[#3498db]" />
-                    ) : (
-                        <div className="min-h-[60px] text-gray-400 font-bold whitespace-pre-wrap">{itemsAnnouncement || "No updates for items today."}</div>
-                    )}
-                </div>
-            </div>
-
             <div className="max-w-6xl mx-auto space-y-6">
                 <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex items-center justify-between">
-                    <h2 className="text-lg sm:text-xl font-black text-[#2c3e50] tracking-tight uppercase">Recent Offers</h2>
+                    <h2 className="text-lg sm:text-xl font-black text-[#2c3e50] tracking-tight uppercase">{t('offer_help')}</h2>
                     <div className="bg-blue-50 text-[#3498db] px-4 py-1.5 rounded-full text-[10px] font-black flex items-center gap-2">
                         <i className="fas fa-bolt"></i> LIVE
                     </div>
@@ -494,20 +485,20 @@ const HomePage: React.FC<{t: any, user: UserProfile | null}> = ({t, user}) => {
                             </div>
                             {isAdmin && (
                                 <button onClick={() => handleConfirmReceived(item)} className="w-full bg-[#2ecc71] hover:bg-[#27ae60] text-white py-3 rounded-xl text-xs font-black uppercase shadow-md transition-all mt-auto">
-                                    <i className="fas fa-check-circle mr-2"></i> Confirm Received
+                                    <i className="fas fa-check-circle mr-2"></i> {t('confirm_received')}
                                 </button>
                             )}
                         </div>
                     ))}
-                    {donations.length === 0 && <div className="col-span-full py-20 text-center font-black text-gray-300 uppercase italic">No active offers</div>}
+                    {donations.length === 0 && <div className="col-span-full py-20 text-center font-black text-gray-300 uppercase italic">{t('no_requests')}</div>}
                 </div>
             </div>
         </div>
     );
 };
 
-const OfferHelpPage: React.FC<{user: UserProfile | null, onAuth: () => void, onNavigate: (p: string) => void}> = ({user, onAuth, onNavigate}) => {
-    const [item, setItem] = useState({ itemName: '', category: 'Food', qty: 1, donorName: user?.displayName || '' });
+const OfferHelpPage: React.FC<{user: UserProfile | null, t: any, onAuth: () => void, onNavigate: (p: string) => void}> = ({user, t, onAuth, onNavigate}) => {
+    const [item, setItem] = useState({ itemName: '', category: t('category_food'), qty: 1, donorName: user?.displayName || '' });
     const [posting, setPosting] = useState(false);
 
     const handlePost = async (e: React.FormEvent) => {
@@ -542,15 +533,15 @@ const OfferHelpPage: React.FC<{user: UserProfile | null, onAuth: () => void, onN
 
     if (!user) return (
         <div className="max-w-4xl mx-auto py-24 text-center">
-            <h2 className="text-4xl font-black text-[#2c3e50] mb-2 uppercase tracking-tighter">Login Required</h2>
-            <button onClick={onAuth} className="bg-[#3498db] text-white px-12 py-5 rounded-full font-black uppercase tracking-widest shadow-xl hover:scale-105 transition-all mt-8">Log In Now</button>
+            <h2 className="text-4xl font-black text-[#2c3e50] mb-2 uppercase tracking-tighter">{t('login_register')}</h2>
+            <button onClick={onAuth} className="bg-[#3498db] text-white px-12 py-5 rounded-full font-black uppercase tracking-widest shadow-xl hover:scale-105 transition-all mt-8">{t('login')}</button>
         </div>
     );
 
     return (
         <div className="max-w-2xl mx-auto py-12 animate-in zoom-in duration-300">
             <div className="bg-white rounded-[3rem] shadow-2xl p-10 sm:p-16 border border-gray-50">
-                <h2 className="text-3xl font-black text-[#2c3e50] mb-2 leading-none uppercase italic">Offer Assistance</h2>
+                <h2 className="text-3xl font-black text-[#2c3e50] mb-2 leading-none uppercase italic">{t('offer_help')}</h2>
                 <form onSubmit={handlePost} className="space-y-8 mt-10">
                     <div className="space-y-2">
                         <label className="text-[10px] font-black text-gray-300 uppercase tracking-widest ml-1">Item Name</label>
@@ -565,7 +556,11 @@ const OfferHelpPage: React.FC<{user: UserProfile | null, onAuth: () => void, onN
                         <div className="space-y-2">
                             <label className="text-[10px] font-black text-gray-300 uppercase tracking-widest ml-1">Category</label>
                             <select value={item.category} onChange={e => setItem({...item, category: e.target.value})} className="w-full p-5 rounded-2xl border-2 border-gray-100 outline-none font-bold text-black bg-white">
-                                <option>Food</option><option>Clothing</option><option>Stationary</option><option>Others</option>
+                                <option>{t('category_food')}</option>
+                                <option>{t('category_clothing')}</option>
+                                <option>{t('category_books')}</option>
+                                <option>{t('category_furniture')}</option>
+                                <option>{t('category_toiletries')}</option>
                             </select>
                         </div>
                         <div className="space-y-2">
@@ -580,7 +575,7 @@ const OfferHelpPage: React.FC<{user: UserProfile | null, onAuth: () => void, onN
                         </div>
                     </div>
                     <button type="submit" disabled={posting} className="w-full bg-[#4285f4] hover:bg-blue-600 text-white py-6 rounded-2xl font-black text-xl shadow-xl active:scale-95 transition-all disabled:opacity-50 uppercase">
-                        {posting ? 'POSTING...' : 'Post Offer'}
+                        {posting ? '...' : t('submit_request')}
                     </button>
                 </form>
             </div>
@@ -699,12 +694,12 @@ const AdminPanelContent: React.FC<{t: any, user: UserProfile | null}> = ({t, use
 
     return (
         <div className="h-full flex flex-col p-4 sm:p-6 overflow-hidden bg-white">
-            <h2 className="text-xl sm:text-2xl font-black italic uppercase text-[#2c3e50] mb-4 border-b-4 border-[#3498db] pb-2 inline-block">Admin Control</h2>
+            <h2 className="text-xl sm:text-2xl font-black italic uppercase text-[#2c3e50] mb-4 border-b-4 border-[#3498db] pb-2 inline-block">{t('admin_panel')}</h2>
             
             <div className="flex gap-1 mb-4">
-                <button onClick={() => { setActiveTab('users'); setActiveSupportUser(null); setSelectedOffer(null); }} className={`flex-1 py-2 rounded-xl text-[8px] font-black uppercase transition-all ${activeTab === 'users' ? 'bg-[#2c3e50] text-white' : 'bg-gray-100 text-gray-400'}`}>Users</button>
-                <button onClick={() => { setActiveTab('items'); setActiveSupportUser(null); setSelectedOffer(null); }} className={`flex-1 py-2 rounded-xl text-[8px] font-black uppercase transition-all ${activeTab === 'items' ? 'bg-[#2c3e50] text-white' : 'bg-gray-100 text-gray-400'}`}>Offers</button>
-                <button onClick={() => { setActiveTab('chats'); setActiveSupportUser(null); setSelectedOffer(null); }} className={`flex-1 py-2 rounded-xl text-[8px] font-black uppercase transition-all ${activeTab === 'chats' ? 'bg-[#2c3e50] text-white' : 'bg-gray-100 text-gray-400'}`}>Support</button>
+                <button onClick={() => { setActiveTab('users'); setActiveSupportUser(null); setSelectedOffer(null); }} className={`flex-1 py-2 rounded-xl text-[8px] font-black uppercase transition-all ${activeTab === 'users' ? 'bg-[#2c3e50] text-white' : 'bg-gray-100 text-gray-400'}`}>{t('user_management')}</button>
+                <button onClick={() => { setActiveTab('items'); setActiveSupportUser(null); setSelectedOffer(null); }} className={`flex-1 py-2 rounded-xl text-[8px] font-black uppercase transition-all ${activeTab === 'items' ? 'bg-[#2c3e50] text-white' : 'bg-gray-100 text-gray-400'}`}>{t('offer_help')}</button>
+                <button onClick={() => { setActiveTab('chats'); setActiveSupportUser(null); setSelectedOffer(null); }} className={`flex-1 py-2 rounded-xl text-[8px] font-black uppercase transition-all ${activeTab === 'chats' ? 'bg-[#2c3e50] text-white' : 'bg-gray-100 text-gray-400'}`}>{t('support_inbox')}</button>
             </div>
 
             <div className="flex-1 overflow-y-auto space-y-4 pr-1">
@@ -712,13 +707,13 @@ const AdminPanelContent: React.FC<{t: any, user: UserProfile | null}> = ({t, use
                     <div className="space-y-4">
                         {editingUser ? (
                             <form onSubmit={handleUpdateUser} className="bg-gray-50 p-4 rounded-2xl border space-y-3">
-                                <AdminInput label="Username" value={editingUser.displayName} onChange={v => setEditingUser({...editingUser, displayName: v})} />
-                                <AdminInput label="Points" type="number" value={editingUser.points} onChange={v => setEditingUser({...editingUser, points: v})} />
-                                <AdminInput label="Phone" value={editingUser.phone} onChange={v => setEditingUser({...editingUser, phone: v})} />
-                                <AdminInput label="Address" value={editingUser.address} onChange={v => setEditingUser({...editingUser, address: v})} />
+                                <AdminInput label={t('full_name')} value={editingUser.displayName} onChange={v => setEditingUser({...editingUser, displayName: v})} />
+                                <AdminInput label={t('points')} type="number" value={editingUser.points} onChange={v => setEditingUser({...editingUser, points: v})} />
+                                <AdminInput label={t('phone_number')} value={editingUser.phone} onChange={v => setEditingUser({...editingUser, phone: v})} />
+                                <AdminInput label={t('home_address')} value={editingUser.address} onChange={v => setEditingUser({...editingUser, address: v})} />
                                 <div className="flex gap-2">
-                                    <button type="submit" className="flex-1 bg-[#2ecc71] text-white py-2 rounded-lg font-black text-[10px] uppercase">Save</button>
-                                    <button type="button" onClick={() => setEditingUser(null)} className="flex-1 bg-gray-200 text-gray-600 py-2 rounded-lg font-black text-[10px] uppercase">Cancel</button>
+                                    <button type="submit" className="flex-1 bg-[#2ecc71] text-white py-2 rounded-lg font-black text-[10px] uppercase">{t('save_changes')}</button>
+                                    <button type="button" onClick={() => setEditingUser(null)} className="flex-1 bg-gray-200 text-gray-600 py-2 rounded-lg font-black text-[10px] uppercase">{t('cancel')}</button>
                                 </div>
                             </form>
                         ) : (
@@ -769,15 +764,15 @@ const AdminPanelContent: React.FC<{t: any, user: UserProfile | null}> = ({t, use
                                 </div>
                                 {!selectedOffer.completedAt && (
                                     <button onClick={() => handleApproveFromPanel(selectedOffer)} className="w-full bg-[#2ecc71] text-white py-3 rounded-xl font-black text-xs uppercase shadow-md transition-all">
-                                        Approve & Gift Points
+                                        {t('confirm_received')}
                                     </button>
                                 )}
-                                <button onClick={() => setSelectedOffer(null)} className="w-full bg-[#2c3e50] text-white py-2 rounded-lg font-black text-[10px] uppercase">Back</button>
+                                <button onClick={() => setSelectedOffer(null)} className="w-full bg-[#2c3e50] text-white py-2 rounded-lg font-black text-[10px] uppercase">{t('cancel')}</button>
                             </div>
                         ) : (
                             <>
                                 <div>
-                                    <h3 className="text-[10px] font-black uppercase text-[#e74c3c] mb-2 tracking-widest bg-red-50 p-2 rounded-lg inline-block">Pending Approval ({data.items.length})</h3>
+                                    <h3 className="text-[10px] font-black uppercase text-[#e74c3c] mb-2 tracking-widest bg-red-50 p-2 rounded-lg inline-block">{t('status_pending')} ({data.items.length})</h3>
                                     <div className="space-y-2">
                                         {data.items.map(i => (
                                             <div key={i.id} onClick={() => setSelectedOffer(i)} className="bg-white p-3 border border-red-100 rounded-xl cursor-pointer hover:shadow-md transition-all">
@@ -788,7 +783,7 @@ const AdminPanelContent: React.FC<{t: any, user: UserProfile | null}> = ({t, use
                                     </div>
                                 </div>
                                 <div>
-                                    <h3 className="text-[10px] font-black uppercase text-[#2ecc71] mb-2 tracking-widest bg-green-50 p-2 rounded-lg inline-block">Approved Offers ({data.completedItems.length})</h3>
+                                    <h3 className="text-[10px] font-black uppercase text-[#2ecc71] mb-2 tracking-widest bg-green-50 p-2 rounded-lg inline-block">{t('status_completed')} ({data.completedItems.length})</h3>
                                     <div className="space-y-2">
                                         {data.completedItems.map(i => (
                                             <div key={i.id} onClick={() => setSelectedOffer(i)} className="bg-white p-3 border border-green-100 rounded-xl cursor-pointer opacity-80 hover:opacity-100 hover:shadow-md transition-all">
@@ -809,8 +804,8 @@ const AdminPanelContent: React.FC<{t: any, user: UserProfile | null}> = ({t, use
                             <button onClick={() => setActiveSupportUser(null)} className="text-[10px] font-black uppercase text-gray-400 flex items-center gap-2"><i className="fas fa-arrow-left"></i> All</button>
                             <ChatLogWindow userId={activeSupportUser.userId} />
                             <form onSubmit={sendAdminReply} className="flex gap-2">
-                                <input value={adminReply} onChange={e => setAdminReply(e.target.value)} placeholder="Reply..." className="flex-1 bg-gray-100 p-2 rounded-xl text-xs font-bold border outline-none" />
-                                <button className="bg-[#2c3e50] text-white px-4 rounded-xl text-[10px] font-black">Send</button>
+                                <input value={adminReply} onChange={e => setAdminReply(e.target.value)} placeholder={t('type_official_response')} className="flex-1 bg-gray-100 p-2 rounded-xl text-xs font-bold border outline-none" />
+                                <button className="bg-[#2c3e50] text-white px-4 rounded-xl text-[10px] font-black">{t('send')}</button>
                             </form>
                         </div>
                     ) : (
@@ -875,15 +870,15 @@ const ProfilePage: React.FC<{user: UserProfile | null, t: any, onAuth: any, onNa
                 age: editData.birthdate ? (new Date().getFullYear() - new Date(editData.birthdate).getFullYear()) : (user.age || 0)
             });
             setIsEditing(false);
-            alert("Profile updated successfully!");
-        } catch (err) {
-            alert("Failed to update profile.");
+            alert(t('update_success'));
+        } catch (err: any) {
+            alert("Failed: " + err.message);
         } finally {
             setIsSaving(false);
         }
     };
 
-    if (!user) return <div className="text-center py-20"><button onClick={onAuth} className="bg-[#3498db] text-white px-12 py-4 rounded-full font-black uppercase">Sign In</button></div>;
+    if (!user) return <div className="text-center py-20"><button onClick={onAuth} className="bg-[#3498db] text-white px-12 py-4 rounded-full font-black uppercase">{t('login')}</button></div>;
 
     return (
         <div className="max-w-2xl mx-auto space-y-8 animate-in fade-in pb-20">
@@ -892,26 +887,26 @@ const ProfilePage: React.FC<{user: UserProfile | null, t: any, onAuth: any, onNa
                     {user.displayName?.[0] || '?'}
                 </div>
                 <h1 className="text-2xl font-black uppercase italic mb-2 tracking-tighter">{user.displayName || 'Guest'}</h1>
-                <p className="text-[#f39c12] font-black text-xl">{user.points} Points</p>
+                <p className="text-[#f39c12] font-black text-xl">{user.points} {t('points')}</p>
             </div>
 
             <div className="bg-white p-8 rounded-[2rem] border border-gray-100 shadow-sm space-y-6">
                 <div className="flex justify-between items-center border-b pb-2">
                     <h3 className="text-sm font-black uppercase text-gray-400 tracking-widest flex items-center gap-2">
-                        <i className="fas fa-info-circle"></i> Personal Information
+                        <i className="fas fa-info-circle"></i> {t('personal_info')}
                     </h3>
                     <button 
                         onClick={() => isEditing ? handleSave({ preventDefault: () => {} } as any) : setIsEditing(true)} 
                         className={`text-[10px] font-black uppercase px-4 py-1.5 rounded-full shadow-sm transition-all ${isEditing ? 'bg-[#2ecc71] text-white' : 'bg-[#3498db] text-white'}`}
                         disabled={isSaving}
                     >
-                        {isSaving ? 'Saving...' : (isEditing ? 'Save Changes' : 'Edit Info')}
+                        {isSaving ? '...' : (isEditing ? t('save_changes') : t('edit_profile'))}
                     </button>
                 </div>
                 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div>
-                        <label className="text-[8px] font-black uppercase text-gray-400 block mb-1 tracking-widest">Full Name</label>
+                        <label className="text-[8px] font-black uppercase text-gray-400 block mb-1 tracking-widest">{t('full_name')}</label>
                         {isEditing ? (
                             <input value={editData.displayName} onChange={e => setEditData({...editData, displayName: e.target.value})} className="w-full bg-gray-50 border p-2 rounded-lg font-bold text-sm outline-none focus:border-[#3498db]" />
                         ) : (
@@ -919,32 +914,20 @@ const ProfilePage: React.FC<{user: UserProfile | null, t: any, onAuth: any, onNa
                         )}
                     </div>
                     <div>
-                        <label className="text-[8px] font-black uppercase text-gray-400 block mb-1 tracking-widest">Contact Number</label>
+                        <label className="text-[8px] font-black uppercase text-gray-400 block mb-1 tracking-widest">{t('phone_number')}</label>
                         {isEditing ? (
                             <input type="tel" value={editData.phone} onChange={e => setEditData({...editData, phone: e.target.value})} className="w-full bg-gray-50 border p-2 rounded-lg font-bold text-sm outline-none focus:border-[#3498db]" />
                         ) : (
-                            <p className="font-bold text-sm text-[#2c3e50]">{user.phone || 'Not Provided'}</p>
+                            <p className="font-bold text-sm text-[#2c3e50]">{user.phone || '...'}</p>
                         )}
                     </div>
                     <div className="sm:col-span-2">
-                        <label className="text-[8px] font-black uppercase text-gray-400 block mb-1 tracking-widest">Home Area</label>
+                        <label className="text-[8px] font-black uppercase text-gray-400 block mb-1 tracking-widest">{t('home_address')}</label>
                         {isEditing ? (
                             <input value={editData.address} onChange={e => setEditData({...editData, address: e.target.value})} className="w-full bg-gray-50 border p-2 rounded-lg font-bold text-sm outline-none focus:border-[#3498db]" />
                         ) : (
-                            <p className="font-bold text-sm text-[#2c3e50]">{user.address || 'Not Provided'}</p>
+                            <p className="font-bold text-sm text-[#2c3e50]">{user.address || '...'}</p>
                         )}
-                    </div>
-                    <div>
-                        <label className="text-[8px] font-black uppercase text-gray-400 block mb-1 tracking-widest">Birthdate</label>
-                        {isEditing ? (
-                            <input type="date" value={editData.birthdate} onChange={e => setEditData({...editData, birthdate: e.target.value})} className="w-full bg-gray-50 border p-2 rounded-lg font-bold text-sm outline-none focus:border-[#3498db]" />
-                        ) : (
-                            <p className="font-bold text-sm text-[#2c3e50]">{user.birthdate || 'Not Provided'}</p>
-                        )}
-                    </div>
-                    <div>
-                        <label className="text-[8px] font-black uppercase text-gray-400 block mb-1 tracking-widest">Email (Login Only)</label>
-                        <p className="font-bold text-sm text-gray-400 italic">{user.email}</p>
                     </div>
                 </div>
             </div>
@@ -952,24 +935,24 @@ const ProfilePage: React.FC<{user: UserProfile | null, t: any, onAuth: any, onNa
     );
 };
 
-const ShopPage: React.FC<{user: UserProfile | null, t: any, onAuth: any, onRedeemConfirm: (i: any) => void}> = ({user, onAuth, onRedeemConfirm}) => {
+const ShopPage: React.FC<{user: UserProfile | null, t: any, onAuth: any, onRedeemConfirm: (i: any) => void}> = ({user, t, onAuth, onRedeemConfirm}) => {
     const items = [
-        { id: '1', name: 'Koperasi RM5 Voucher', cost: 20, color: '#27ae60' },
-        { id: '2', name: 'Koperasi RM10 Voucher', cost: 40, color: '#3498db' },
-        { id: '3', name: 'Koperasi RM15 Voucher', cost: 50, color: '#f39c12' }
+        { id: '1', name: t('voucher_5'), cost: 20, color: '#27ae60' },
+        { id: '2', name: t('voucher_10'), cost: 40, color: '#3498db' },
+        { id: '3', name: t('voucher_15'), cost: 50, color: '#f39c12' }
     ];
     return (
         <div className="space-y-12 py-12 pb-24">
-            <h1 className="text-3xl font-black italic uppercase text-[#2c3e50] text-center tracking-tighter">Kindness Shop</h1>
+            <h1 className="text-3xl font-black italic uppercase text-[#2c3e50] text-center tracking-tighter">{t('points_shop')}</h1>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                 {items.map(item => (
                     <div key={item.id} className="bg-white rounded-[2.5rem] border border-gray-100 overflow-hidden shadow-xl text-center flex flex-col hover:scale-105 transition-transform">
                         <div className="p-8 flex-1">
                             <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-6 text-2xl text-[#f39c12]"><i className="fas fa-gift"></i></div>
                             <h3 className="font-black text-lg mb-2 uppercase italic text-[#2c3e50]">{item.name}</h3>
-                            <div className="text-2xl font-black text-[#f39c12]">{item.cost} Points</div>
+                            <div className="text-2xl font-black text-[#f39c12]">{item.cost} {t('points')}</div>
                         </div>
-                        <button onClick={() => user ? onRedeemConfirm(item) : onAuth()} className="w-full py-6 font-black uppercase text-white tracking-widest text-[11px]" style={{backgroundColor: item.color}}>Redeem Now</button>
+                        <button onClick={() => user ? onRedeemConfirm(item) : onAuth()} className="w-full py-6 font-black uppercase text-white tracking-widest text-[11px]" style={{backgroundColor: item.color}}>{t('redeem_now')}</button>
                     </div>
                 ))}
             </div>
@@ -985,13 +968,13 @@ const HistoryPage: React.FC<{user: UserProfile | null, t: any, onAuth: any}> = (
         return unsub;
     }, [user]);
     
-    if (!user) return <div className="text-center py-20 font-black uppercase text-gray-300">Login to view history</div>;
+    if (!user) return <div className="text-center py-20 font-black uppercase text-gray-300">{t('login_register')}</div>;
     
     return (
         <div className="max-w-4xl mx-auto space-y-10 py-12 pb-24">
-            <h1 className="text-3xl font-black italic uppercase text-[#2c3e50] tracking-tighter">Activity History</h1>
+            <h1 className="text-3xl font-black italic uppercase text-[#2c3e50] tracking-tighter">{t('history')}</h1>
             <div className="space-y-4">
-                <h2 className="text-[10px] font-black uppercase text-gray-400 tracking-widest px-2">Redemptions</h2>
+                <h2 className="text-[10px] font-black uppercase text-gray-400 tracking-widest px-2">{t('redemptions')}</h2>
                 {history.map((h, i) => (
                     <div key={i} className="bg-white p-6 rounded-2xl border border-gray-100 flex items-center justify-between shadow-sm animate-in slide-in-from-bottom">
                         <div className="flex items-center gap-4">
@@ -1004,13 +987,13 @@ const HistoryPage: React.FC<{user: UserProfile | null, t: any, onAuth: any}> = (
                         <div className="text-[#e74c3c] font-black text-xl">-{h.itemPoints}</div>
                     </div>
                 ))}
-                {history.length === 0 && <div className="text-center py-10 text-gray-300 font-black uppercase italic bg-white rounded-2xl border">No redemptions found</div>}
+                {history.length === 0 && <div className="text-center py-10 text-gray-300 font-black uppercase italic bg-white rounded-2xl border">...</div>}
             </div>
         </div>
     );
 };
 
-const AuthModal: React.FC<{onClose: () => void, t: any}> = ({onClose}) => {
+const AuthModal: React.FC<{onClose: () => void, t: any}> = ({onClose, t}) => {
     const [mode, setMode] = useState<'login' | 'register'>('login');
     const [data, setData] = useState({ email: '', password: '', name: '', birthdate: '', phone: '', address: '' });
     const [loading, setLoading] = useState(false);
@@ -1052,36 +1035,36 @@ const AuthModal: React.FC<{onClose: () => void, t: any}> = ({onClose}) => {
                     <i className="fas fa-times text-gray-400 group-hover:text-white"></i>
                 </button>
 
-                <h2 className="text-2xl sm:text-3xl font-black text-center uppercase italic text-[#2c3e50] mb-8 tracking-tighter">{mode === 'login' ? 'Welcome Back' : 'Create Account'}</h2>
+                <h2 className="text-2xl sm:text-3xl font-black text-center uppercase italic text-[#2c3e50] mb-8 tracking-tighter">{mode === 'login' ? t('login') : t('register')}</h2>
                 <form onSubmit={submit} className="space-y-4">
                     {mode === 'register' && (
                         <>
                             <div className="space-y-1">
-                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Full Name (As IC)</label>
+                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">{t('full_name')}</label>
                                 <input placeholder="Your Name" value={data.name} onChange={e => setData({...data, name: e.target.value})} className="w-full bg-gray-50 border-2 border-gray-100 p-4 rounded-2xl outline-none font-bold text-black text-sm" required />
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-1">
-                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Birth Date</label>
+                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">{t('age')}</label>
                                     <input type="date" value={data.birthdate} onChange={e => setData({...data, birthdate: e.target.value})} className="w-full bg-gray-50 border-2 border-gray-100 p-4 rounded-2xl outline-none font-bold text-black text-sm" required />
                                 </div>
                                 <div className="space-y-1">
-                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Phone</label>
+                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">{t('phone_number')}</label>
                                     <input type="tel" placeholder="012-345..." value={data.phone} onChange={e => setData({...data, phone: e.target.value})} className="w-full bg-gray-50 border-2 border-gray-100 p-4 rounded-2xl outline-none font-bold text-black text-sm" required />
                                 </div>
                             </div>
                             <div className="space-y-1">
-                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Home Address (Miri Area)</label>
-                                <input placeholder="e.g. Lutong, Piasau..." value={data.address} onChange={e => setData({...data, address: e.target.value})} className="w-full bg-gray-50 border-2 border-gray-100 p-4 rounded-2xl outline-none font-bold text-black text-sm" required />
+                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">{t('home_address')}</label>
+                                <input placeholder="..." value={data.address} onChange={e => setData({...data, address: e.target.value})} className="w-full bg-gray-50 border-2 border-gray-100 p-4 rounded-2xl outline-none font-bold text-black text-sm" required />
                             </div>
                         </>
                     )}
                     <div className="space-y-1">
-                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Email Address</label>
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">{t('email_address')}</label>
                         <input type="email" placeholder="email@moe-dl.edu.my" value={data.email} onChange={e => setData({...data, email: e.target.value})} className="w-full bg-gray-50 border-2 border-gray-100 p-4 rounded-2xl outline-none font-bold text-black text-sm" required />
                     </div>
                     <div className="space-y-1">
-                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Password</label>
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">{t('password')}</label>
                         <div className="relative">
                             <input 
                                 type={showPassword ? "text" : "password"} 
@@ -1101,19 +1084,16 @@ const AuthModal: React.FC<{onClose: () => void, t: any}> = ({onClose}) => {
                         </div>
                     </div>
                     <button disabled={loading} className="w-full bg-[#3498db] text-white py-6 rounded-full font-black text-xl shadow-xl hover:scale-105 transition-all mt-6 tracking-widest uppercase">
-                        {loading ? 'Processing...' : (mode === 'login' ? 'Log In' : 'Create Account')}
+                        {loading ? '...' : (mode === 'login' ? t('login') : t('register'))}
                     </button>
                 </form>
                 
                 <div className="mt-8 pt-6 border-t border-gray-100 flex flex-col items-center gap-4">
-                    <p className="text-[10px] font-bold text-gray-400 uppercase">
-                        {mode === 'login' ? "Don't have an account?" : "Already have an account?"}
-                    </p>
                     <button 
                         onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setShowPassword(false); }} 
                         className="text-xs font-black uppercase text-[#3498db] hover:underline"
                     >
-                        {mode === 'login' ? 'Register Now' : 'Log In Here'}
+                        {mode === 'login' ? t('register') : t('login')}
                     </button>
                 </div>
             </div>
@@ -1121,17 +1101,17 @@ const AuthModal: React.FC<{onClose: () => void, t: any}> = ({onClose}) => {
     );
 };
 
-const RedeemConfirmModal: React.FC<{item: any, user: UserProfile, onCancel: () => void, onConfirm: (f: string, c: string) => void}> = ({onCancel, onConfirm}) => {
+const RedeemConfirmModal: React.FC<{item: any, user: UserProfile, t: any, onCancel: () => void, onConfirm: (f: string, c: string) => void}> = ({item, t, onCancel, onConfirm}) => {
     const [f, setF] = useState('');
     const [c, setC] = useState('');
     return (
         <div className="fixed inset-0 bg-black/90 z-[500] flex items-center justify-center p-4 backdrop-blur-xl" onClick={onCancel}>
             <div className="bg-white w-full max-w-md rounded-[2rem] p-10 shadow-2xl animate-in zoom-in" onClick={e => e.stopPropagation()}>
-                <h2 className="text-xl sm:text-2xl font-black mb-8 italic uppercase text-[#2c3e50] text-center tracking-tighter">Confirmation</h2>
+                <h2 className="text-xl sm:text-2xl font-black mb-8 italic uppercase text-[#2c3e50] text-center tracking-tighter">{t('confirm_redeem_title')}</h2>
                 <form onSubmit={e => { e.preventDefault(); onConfirm(f, c); }} className="space-y-6">
-                    <input value={f} onChange={e => setF(e.target.value)} placeholder="Full Name (IC)" className="w-full bg-gray-50 border-2 border-gray-100 p-5 rounded-2xl font-bold text-black text-sm" required />
-                    <input value={c} onChange={e => setC(e.target.value)} placeholder="Class / Group" className="w-full bg-gray-50 border-2 border-gray-100 p-5 rounded-2xl font-bold text-black text-sm" required />
-                    <button type="submit" className="w-full bg-[#3498db] text-white py-6 rounded-full font-black uppercase shadow-xl tracking-widest">Complete Redemption</button>
+                    <input value={f} onChange={e => setF(e.target.value)} placeholder={t('full_name')} className="w-full bg-gray-50 border-2 border-gray-100 p-5 rounded-2xl font-bold text-black text-sm" required />
+                    <input value={c} onChange={e => setC(e.target.value)} placeholder={t('class_label')} className="w-full bg-gray-50 border-2 border-gray-100 p-5 rounded-2xl font-bold text-black text-sm" required />
+                    <button type="submit" className="w-full bg-[#3498db] text-white py-6 rounded-full font-black uppercase shadow-xl tracking-widest">{t('confirm')}</button>
                 </form>
             </div>
         </div>
