@@ -146,16 +146,26 @@ const App: React.FC = () => {
                     
                     <div className="flex items-center gap-1 sm:gap-4 flex-shrink-0">
                         {/* Language Selector */}
-                        <select 
-                            value={lang} 
-                            onChange={(e) => setLang(e.target.value as Language)}
-                            className="bg-transparent text-[10px] font-black uppercase border border-white/20 rounded-md p-1 outline-none cursor-pointer"
-                        >
-                            <option value={Language.EN} className="text-black">EN</option>
-                            <option value={Language.BM} className="text-black">BM</option>
-                            <option value={Language.BC} className="text-black">中文</option>
-                            <option value={Language.BI} className="text-black">Iban</option>
-                        </select>
+                        <div className="relative group">
+                            <button className="p-2 bg-white/10 rounded-lg text-[10px] font-black uppercase flex items-center gap-2">
+                                <i className="fas fa-language text-lg"></i>
+                                <span className="hidden xs:inline">{lang}</span>
+                            </button>
+                            <div className="absolute top-full right-0 mt-1 bg-white shadow-2xl rounded-xl border border-gray-100 hidden group-hover:block overflow-hidden z-[200]">
+                                {(Object.values(Language) as Language[]).map(l => (
+                                    <button 
+                                        key={l}
+                                        onClick={() => setLang(l)}
+                                        className={`w-full px-6 py-2 text-left text-[10px] font-black uppercase transition-colors hover:bg-gray-50 ${lang === l ? 'text-[#3498db] bg-blue-50' : 'text-gray-500'}`}
+                                    >
+                                        {l === Language.EN && 'English'}
+                                        {l === Language.BM && 'Bahasa Melayu'}
+                                        {l === Language.BC && '中文'}
+                                        {l === Language.BI && 'Bahasa Iban'}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
 
                         {user && (
                             <div className="relative">
@@ -227,7 +237,7 @@ const App: React.FC = () => {
                         className="fixed right-4 top-1/4 z-[110] bg-[#2c3e50] text-white w-12 h-12 sm:w-14 sm:h-14 rounded-full shadow-2xl flex flex-col items-center justify-center hover:scale-110 active:scale-95 transition-all group border-4 border-white"
                     >
                         <i className={`fas fa-${showAdminPanel ? 'times' : 'user-shield'} text-lg sm:text-xl`}></i>
-                        <span className="text-[6px] sm:text-[7px] font-black uppercase mt-1">Admin</span>
+                        <span className="text-[6px] sm:text-[7px] font-black uppercase mt-1">{t('admin_panel')}</span>
                     </button>
                 )}
 
@@ -402,22 +412,13 @@ const SupportChatBody: React.FC<{userId: string, userName: string, t: any}> = ({
 
 const HomePage: React.FC<{t: any, user: UserProfile | null}> = ({t, user}) => {
     const [donations, setDonations] = useState<any[]>([]);
-    const [itemsAnnouncement, setItemsAnnouncement] = useState('');
-    const [isEditingAnn, setIsEditingAnn] = useState(false);
-    const [newAnn, setNewAnn] = useState('');
 
     useEffect(() => {
         const db = firebase.firestore();
         const unsubDonations = db.collection('donations').orderBy('createdAt', 'desc').onSnapshot((snap: any) => {
             setDonations(snap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
         });
-        const unsubAnn = db.collection('settings').doc('items_announcement').onSnapshot((doc: any) => {
-            if (doc.exists) {
-                setItemsAnnouncement(doc.data().text);
-                setNewAnn(doc.data().text);
-            }
-        });
-        return () => { unsubDonations(); unsubAnn(); };
+        return () => { unsubDonations(); };
     }, []);
 
     const handleConfirmReceived = async (donation: any) => {
@@ -544,7 +545,7 @@ const OfferHelpPage: React.FC<{user: UserProfile | null, t: any, onAuth: () => v
                 <h2 className="text-3xl font-black text-[#2c3e50] mb-2 leading-none uppercase italic">{t('offer_help')}</h2>
                 <form onSubmit={handlePost} className="space-y-8 mt-10">
                     <div className="space-y-2">
-                        <label className="text-[10px] font-black text-gray-300 uppercase tracking-widest ml-1">Item Name</label>
+                        <label className="text-[10px] font-black text-gray-300 uppercase tracking-widest ml-1">{t('full_name')}</label>
                         <input 
                             value={item.itemName} 
                             onChange={e => setItem({...item, itemName: e.target.value})} 
