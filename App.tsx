@@ -536,6 +536,28 @@ const AdminPanelContent: React.FC<{t: any, user: UserProfile | null}> = ({t, use
         });
     };
 
+    const handleApproveFromPanel = async (donation: any) => {
+        const confirmResult = window.confirm(`Confirm receipt for ${donation.itemName}?`);
+        if (!confirmResult) return;
+        const db = firebase.firestore();
+        try {
+            const donorRef = db.collection('users').doc(donation.userId);
+            await db.runTransaction(async (transaction: any) => {
+                const donorDoc = await transaction.get(donorRef);
+                const currentPoints = donorDoc.exists ? (donorDoc.data().points || 0) : 0;
+                transaction.update(donorRef, { points: currentPoints + 5 });
+                transaction.set(db.collection('completed_donations').doc(donation.id), {
+                    ...donation,
+                    completedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    confirmedBy: user?.uid
+                });
+                transaction.delete(db.collection('donations').doc(donation.id));
+            });
+            setSelectedOffer(null);
+            alert("Approved!");
+        } catch (err) { alert("Failed."); }
+    };
+
     return (
         <div className="h-full flex flex-col p-4 sm:p-6 overflow-hidden bg-white">
             <h2 className="text-xl sm:text-2xl font-black italic uppercase text-[#2c3e50] mb-4 border-b-4 border-[#3498db] pb-2 inline-block">Admin Control</h2>
@@ -591,20 +613,32 @@ const AdminPanelContent: React.FC<{t: any, user: UserProfile | null}> = ({t, use
                     <div className="space-y-6">
                         {selectedOffer ? (
                             <div className="bg-gray-50 p-4 rounded-2xl border space-y-4">
-                                <h3 className="font-black uppercase text-xs border-b pb-2">Offer Details</h3>
+                                <div className="flex justify-between items-center border-b pb-2">
+                                    <h3 className="font-black uppercase text-xs">Offer Details</h3>
+                                    <button onClick={() => setSelectedOffer(null)} className="text-gray-400 hover:text-red-500"><i className="fas fa-times"></i></button>
+                                </div>
                                 <div className="grid grid-cols-2 gap-4 text-[10px] font-bold">
-                                    <div><label className="text-gray-400 block uppercase text-[8px]">Item</label> {selectedOffer.itemName}</div>
+                                    <div className="col-span-2"><label className="text-gray-400 block uppercase text-[8px]">Item Name</label> {selectedOffer.itemName}</div>
                                     <div><label className="text-gray-400 block uppercase text-[8px]">Qty</label> {selectedOffer.qty}</div>
                                     <div><label className="text-gray-400 block uppercase text-[8px]">Category</label> {selectedOffer.category}</div>
                                     <div><label className="text-gray-400 block uppercase text-[8px]">Donor</label> {selectedOffer.donorName}</div>
-                                    <div className="col-span-2"><label className="text-gray-400 block uppercase text-[8px]">Status</label> {selectedOffer.completedAt ? 'Approved & Completed' : 'Pending Approval'}</div>
+                                    <div><label className="text-gray-400 block uppercase text-[8px]">Status</label> 
+                                        <span className={selectedOffer.completedAt ? 'text-green-500' : 'text-red-500'}>
+                                            {selectedOffer.completedAt ? 'Approved' : 'Pending Approval'}
+                                        </span>
+                                    </div>
                                 </div>
+                                {!selectedOffer.completedAt && (
+                                    <button onClick={() => handleApproveFromPanel(selectedOffer)} className="w-full bg-[#2ecc71] text-white py-3 rounded-xl font-black text-xs uppercase shadow-md transition-all">
+                                        Approve & Gift Points
+                                    </button>
+                                )}
                                 <button onClick={() => setSelectedOffer(null)} className="w-full bg-[#2c3e50] text-white py-2 rounded-lg font-black text-[10px] uppercase">Back</button>
                             </div>
                         ) : (
                             <>
                                 <div>
-                                    <h3 className="text-[10px] font-black uppercase text-[#e74c3c] mb-2 tracking-widest bg-red-50 p-2 rounded-lg inline-block">Haven't Approved ({data.items.length})</h3>
+                                    <h3 className="text-[10px] font-black uppercase text-[#e74c3c] mb-2 tracking-widest bg-red-50 p-2 rounded-lg inline-block">Pending Approval ({data.items.length})</h3>
                                     <div className="space-y-2">
                                         {data.items.map(i => (
                                             <div key={i.id} onClick={() => setSelectedOffer(i)} className="bg-white p-3 border border-red-100 rounded-xl cursor-pointer hover:shadow-md transition-all">
