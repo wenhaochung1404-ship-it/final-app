@@ -435,7 +435,12 @@ const OfferHelpPage: React.FC<{user: UserProfile | null, onAuth: () => void, onN
                 <form onSubmit={handlePost} className="space-y-8 mt-10">
                     <div className="space-y-2">
                         <label className="text-[10px] font-black text-gray-300 uppercase tracking-widest ml-1">Item Name</label>
-                        <input value={item.itemName} onChange={e => setItem({...item, itemName: e.target.value})} className="w-full p-5 rounded-2xl border-2 border-gray-100 focus:border-[#3498db] outline-none font-bold text-black" required />
+                        <input 
+                            value={item.itemName} 
+                            onChange={e => setItem({...item, itemName: e.target.value})} 
+                            className="w-full p-5 rounded-2xl border-2 border-gray-100 focus:border-[#3498db] outline-none font-bold bg-white text-black" 
+                            required 
+                        />
                     </div>
                     <div className="grid grid-cols-2 gap-6">
                         <div className="space-y-2">
@@ -446,7 +451,13 @@ const OfferHelpPage: React.FC<{user: UserProfile | null, onAuth: () => void, onN
                         </div>
                         <div className="space-y-2">
                             <label className="text-[10px] font-black text-gray-300 uppercase tracking-widest ml-1">Quantity</label>
-                            <input type="number" value={item.qty} onChange={e => setItem({...item, qty: Number(e.target.value)})} className="w-full p-5 rounded-2xl border-2 border-gray-100 outline-none font-bold text-black" required />
+                            <input 
+                                type="number" 
+                                value={item.qty} 
+                                onChange={e => setItem({...item, qty: Number(e.target.value)})} 
+                                className="w-full p-5 rounded-2xl border-2 border-gray-100 outline-none font-bold bg-white text-black" 
+                                required 
+                            />
                         </div>
                     </div>
                     <button type="submit" disabled={posting} className="w-full bg-[#4285f4] hover:bg-blue-600 text-white py-6 rounded-2xl font-black text-xl shadow-xl active:scale-95 transition-all disabled:opacity-50 uppercase">
@@ -666,35 +677,101 @@ const ChatLogWindow: React.FC<{userId: string}> = ({userId}) => {
 };
 
 const ProfilePage: React.FC<{user: UserProfile | null, t: any, onAuth: any, onNavigate: any}> = ({user, t, onAuth}) => {
+    const [isEditing, setIsEditing] = useState(false);
+    const [editData, setEditData] = useState({ displayName: '', phone: '', address: '', birthdate: '' });
+    const [isSaving, setIsSaving] = useState(false);
+
+    useEffect(() => {
+        if (user) {
+            setEditData({
+                displayName: user.displayName || '',
+                phone: user.phone || '',
+                address: user.address || '',
+                birthdate: user.birthdate || ''
+            });
+        }
+    }, [user]);
+
+    const handleSave = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!user) return;
+        setIsSaving(true);
+        try {
+            await firebase.firestore().collection('users').doc(user.uid).update({
+                ...editData,
+                age: editData.birthdate ? (new Date().getFullYear() - new Date(editData.birthdate).getFullYear()) : (user.age || 0)
+            });
+            setIsEditing(false);
+            alert("Profile updated successfully!");
+        } catch (err) {
+            alert("Failed to update profile.");
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
     if (!user) return <div className="text-center py-20"><button onClick={onAuth} className="bg-[#3498db] text-white px-12 py-4 rounded-full font-black uppercase">Sign In</button></div>;
+
     return (
         <div className="max-w-2xl mx-auto space-y-8 animate-in fade-in pb-20">
             <div className="bg-[#2c3e50] p-8 sm:p-12 rounded-[2rem] shadow-xl text-white text-center border-b-8 border-[#f39c12]">
-                <div className="w-20 h-20 bg-[#3498db] rounded-full flex items-center justify-center text-3xl font-black mx-auto mb-6 uppercase">{user.displayName?.[0] || '?'}</div>
+                <div className="w-20 h-20 bg-[#3498db] rounded-full flex items-center justify-center text-3xl font-black mx-auto mb-6 uppercase">
+                    {user.displayName?.[0] || '?'}
+                </div>
                 <h1 className="text-2xl font-black uppercase italic mb-2 tracking-tighter">{user.displayName || 'Guest'}</h1>
                 <p className="text-[#f39c12] font-black text-xl">{user.points} Points</p>
             </div>
 
             <div className="bg-white p-8 rounded-[2rem] border border-gray-100 shadow-sm space-y-6">
-                <h3 className="text-sm font-black uppercase text-gray-400 tracking-widest border-b pb-2 flex items-center gap-2">
-                    <i className="fas fa-info-circle"></i> Personal Information
-                </h3>
+                <div className="flex justify-between items-center border-b pb-2">
+                    <h3 className="text-sm font-black uppercase text-gray-400 tracking-widest flex items-center gap-2">
+                        <i className="fas fa-info-circle"></i> Personal Information
+                    </h3>
+                    <button 
+                        onClick={() => isEditing ? handleSave({ preventDefault: () => {} } as any) : setIsEditing(true)} 
+                        className={`text-[10px] font-black uppercase px-4 py-1.5 rounded-full shadow-sm transition-all ${isEditing ? 'bg-[#2ecc71] text-white' : 'bg-[#3498db] text-white'}`}
+                        disabled={isSaving}
+                    >
+                        {isSaving ? 'Saving...' : (isEditing ? 'Save Changes' : 'Edit Info')}
+                    </button>
+                </div>
+                
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div>
-                        <label className="text-[8px] font-black uppercase text-gray-400 block mb-1">Email Address</label>
-                        <p className="font-bold text-sm text-[#2c3e50]">{user.email}</p>
+                        <label className="text-[8px] font-black uppercase text-gray-400 block mb-1 tracking-widest">Full Name</label>
+                        {isEditing ? (
+                            <input value={editData.displayName} onChange={e => setEditData({...editData, displayName: e.target.value})} className="w-full bg-gray-50 border p-2 rounded-lg font-bold text-sm outline-none focus:border-[#3498db]" />
+                        ) : (
+                            <p className="font-bold text-sm text-[#2c3e50]">{user.displayName}</p>
+                        )}
                     </div>
                     <div>
-                        <label className="text-[8px] font-black uppercase text-gray-400 block mb-1">Contact Number</label>
-                        <p className="font-bold text-sm text-[#2c3e50]">{user.phone || 'Not Provided'}</p>
+                        <label className="text-[8px] font-black uppercase text-gray-400 block mb-1 tracking-widest">Contact Number</label>
+                        {isEditing ? (
+                            <input type="tel" value={editData.phone} onChange={e => setEditData({...editData, phone: e.target.value})} className="w-full bg-gray-50 border p-2 rounded-lg font-bold text-sm outline-none focus:border-[#3498db]" />
+                        ) : (
+                            <p className="font-bold text-sm text-[#2c3e50]">{user.phone || 'Not Provided'}</p>
+                        )}
                     </div>
                     <div className="sm:col-span-2">
-                        <label className="text-[8px] font-black uppercase text-gray-400 block mb-1">Home Area</label>
-                        <p className="font-bold text-sm text-[#2c3e50]">{user.address || 'Not Provided'}</p>
+                        <label className="text-[8px] font-black uppercase text-gray-400 block mb-1 tracking-widest">Home Area</label>
+                        {isEditing ? (
+                            <input value={editData.address} onChange={e => setEditData({...editData, address: e.target.value})} className="w-full bg-gray-50 border p-2 rounded-lg font-bold text-sm outline-none focus:border-[#3498db]" />
+                        ) : (
+                            <p className="font-bold text-sm text-[#2c3e50]">{user.address || 'Not Provided'}</p>
+                        )}
                     </div>
                     <div>
-                        <label className="text-[8px] font-black uppercase text-gray-400 block mb-1">Birthdate</label>
-                        <p className="font-bold text-sm text-[#2c3e50]">{user.birthdate || 'Not Provided'}</p>
+                        <label className="text-[8px] font-black uppercase text-gray-400 block mb-1 tracking-widest">Birthdate</label>
+                        {isEditing ? (
+                            <input type="date" value={editData.birthdate} onChange={e => setEditData({...editData, birthdate: e.target.value})} className="w-full bg-gray-50 border p-2 rounded-lg font-bold text-sm outline-none focus:border-[#3498db]" />
+                        ) : (
+                            <p className="font-bold text-sm text-[#2c3e50]">{user.birthdate || 'Not Provided'}</p>
+                        )}
+                    </div>
+                    <div>
+                        <label className="text-[8px] font-black uppercase text-gray-400 block mb-1 tracking-widest">Email (Login Only)</label>
+                        <p className="font-bold text-sm text-gray-400 italic">{user.email}</p>
                     </div>
                 </div>
             </div>
@@ -798,7 +875,6 @@ const AuthModal: React.FC<{onClose: () => void, t: any}> = ({onClose}) => {
     return (
         <div className="fixed inset-0 bg-black/80 z-[400] flex items-center justify-center p-4 backdrop-blur-md" onClick={onClose}>
             <div className="bg-white w-full max-w-md rounded-[2.5rem] p-8 sm:p-12 shadow-2xl relative animate-in zoom-in duration-300 overflow-y-auto max-h-[95vh]" onClick={e => e.stopPropagation()}>
-                {/* EXIT BUTTON */}
                 <button onClick={onClose} className="absolute top-6 right-6 bg-gray-100 hover:bg-red-500 hover:text-white w-10 h-10 rounded-full flex items-center justify-center transition-all group">
                     <i className="fas fa-times text-gray-400 group-hover:text-white"></i>
                 </button>
@@ -852,7 +928,7 @@ const AuthModal: React.FC<{onClose: () => void, t: any}> = ({onClose}) => {
                         </div>
                     </div>
                     <button disabled={loading} className="w-full bg-[#3498db] text-white py-6 rounded-full font-black text-xl shadow-xl hover:scale-105 transition-all mt-6 tracking-widest uppercase">
-                        {loading ? 'Processing...' : mode}
+                        {loading ? 'Processing...' : (mode === 'login' ? 'Log In' : 'Create Account')}
                     </button>
                 </form>
                 
