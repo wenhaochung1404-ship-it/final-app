@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Language, UserProfile, HelpRequest, ChatMessage, ChatRoom } from './types';
 import { translations } from './translations';
+import { GoogleGenAI } from "@google/genai";
 
 // Using declare to avoid TS errors for globally injected scripts
 declare const firebase: any;
@@ -83,33 +84,35 @@ const App: React.FC = () => {
     const isAdmin = user?.isAdmin || user?.email === 'admin@gmail.com';
 
     if (loading) return (
-        <div className="h-screen w-screen flex items-center justify-center bg-[#f8f9fa] text-[#3498db] font-black italic uppercase">
-            <i className="fas fa-spinner fa-spin text-5xl mr-4"></i>Loading
+        <div className="h-screen w-screen flex items-center justify-center bg-[#f8f9fa] text-[#3498db] font-black italic uppercase text-center">
+            <i className="fas fa-spinner fa-spin text-5xl mb-4 block"></i>
+            Connecting Warga Miri
         </div>
     );
 
     return (
         <div className="min-h-screen flex flex-col bg-[#f8f9fa] font-sans">
             <header className="bg-[#2c3e50] text-white shadow-xl sticky top-0 z-[100] h-16 sm:h-20 flex items-center">
-                <div className="container mx-auto px-2 sm:px-4 flex items-center justify-between gap-1">
-                    <button onClick={() => setIsMenuOpen(true)} className="p-2 hover:bg-white/10 rounded-xl transition-all">
+                <div className="container mx-auto px-2 sm:px-4 flex items-center justify-between gap-1 overflow-hidden">
+                    <button onClick={() => setIsMenuOpen(true)} className="p-2 hover:bg-white/10 rounded-xl transition-all flex-shrink-0">
                         <i className="fas fa-bars text-lg sm:text-xl"></i>
                     </button>
-                    <div className="flex-1 text-center font-black tracking-tighter cursor-pointer text-[10px] sm:text-lg uppercase" onClick={() => setPage('home')}>
+                    <div className="flex-grow text-center font-black tracking-tighter cursor-pointer text-[10px] xs:text-[13px] sm:text-lg uppercase whitespace-nowrap overflow-hidden" onClick={() => setPage('home')}>
                         MIRI <span className="text-[#3498db]">CARE</span> CONNECT
                     </div>
-                    <div className="flex items-center gap-2 sm:gap-4">
+                    <div className="flex items-center gap-1 sm:gap-4 flex-shrink-0">
                         {user && (
-                            <div className="flex items-center bg-[#f39c12] px-2 sm:px-4 py-1 rounded-full text-[9px] sm:text-xs font-black shadow-lg">
-                                <i className="fas fa-star mr-1 sm:mr-2"></i> {user.points}<span className="hidden xs:inline ml-1">PTS</span>
+                            <div className="flex items-center bg-[#f39c12] px-2 sm:px-4 py-1 rounded-full text-[8px] sm:text-xs font-black shadow-lg">
+                                <i className="fas fa-star mr-1 sm:mr-2"></i> {user.points} <span className="ml-0.5">Points</span>
                             </div>
                         )}
                         {user ? (
-                            <button onClick={() => firebase.auth().signOut()} className="bg-red-500 hover:bg-red-600 text-white px-2 sm:px-4 py-1.5 rounded-full text-[9px] sm:text-[10px] font-black uppercase shadow-lg">
-                                <i className="fas fa-sign-out-alt sm:hidden"></i><span className="hidden sm:inline">Logout</span>
+                            <button onClick={() => firebase.auth().signOut()} className="bg-red-500 hover:bg-red-600 text-white px-2 sm:px-4 py-1.5 rounded-full text-[8px] sm:text-[10px] font-black uppercase shadow-lg flex items-center gap-1">
+                                <i className="fas fa-sign-out-alt"></i>
+                                <span>Logout</span>
                             </button>
                         ) : (
-                            <button onClick={() => setIsAuthModalOpen(true)} className="bg-[#3498db] hover:bg-blue-600 px-3 py-1.5 rounded-full text-[9px] sm:text-[10px] font-black uppercase shadow-lg">Login</button>
+                            <button onClick={() => setIsAuthModalOpen(true)} className="bg-[#3498db] hover:bg-blue-600 px-3 py-1.5 rounded-full text-[8px] sm:text-[10px] font-black uppercase shadow-lg">Login</button>
                         )}
                     </div>
                 </div>
@@ -120,7 +123,7 @@ const App: React.FC = () => {
                 {isAdmin && (
                     <button 
                         onClick={() => setShowAdminPanel(!showAdminPanel)}
-                        className="fixed right-4 top-1/4 z-[110] bg-[#3498db] text-white w-12 h-12 sm:w-14 sm:h-14 rounded-full shadow-2xl flex flex-col items-center justify-center hover:scale-110 active:scale-95 transition-all group border-4 border-white"
+                        className="fixed right-4 top-1/4 z-[110] bg-[#2c3e50] text-white w-12 h-12 sm:w-14 sm:h-14 rounded-full shadow-2xl flex flex-col items-center justify-center hover:scale-110 active:scale-95 transition-all group border-4 border-white"
                         title="Toggle Admin Panel"
                     >
                         <i className={`fas fa-${showAdminPanel ? 'times' : 'user-shield'} text-lg sm:text-xl`}></i>
@@ -128,23 +131,28 @@ const App: React.FC = () => {
                     </button>
                 )}
 
-                {/* USER SUPPORT CHAT TOGGLE */}
+                {/* AI & ADMIN SUPPORT CHAT TOGGLE - RIGHT SIDE BOTTOM (FAITHFUL TO PHOTO) */}
                 {user && !isAdmin && (
-                    <div className="fixed right-4 bottom-4 z-[110] flex flex-col items-end gap-3">
+                    <div className="fixed right-6 bottom-6 z-[200] flex flex-col items-end gap-4">
                         {showSupportChat && (
-                            <div className="w-72 sm:w-80 h-[400px] bg-white rounded-2xl shadow-2xl border border-gray-100 flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 mb-2">
-                                <div className="bg-[#2c3e50] p-4 text-white flex justify-between items-center">
-                                    <div className="font-black uppercase text-xs">Admin Support</div>
-                                    <button onClick={() => setShowSupportChat(false)}><i className="fas fa-times"></i></button>
+                            <div className="w-72 sm:w-80 h-[450px] bg-white rounded-3xl shadow-2xl border border-gray-100 flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 mb-2 origin-bottom-right">
+                                <div className="bg-[#3498db] p-4 text-white flex justify-between items-center">
+                                    <div className="font-black uppercase text-xs flex items-center gap-2">
+                                        <i className="fas fa-robot"></i>
+                                        Gemini Support AI
+                                    </div>
+                                    <button onClick={() => setShowSupportChat(false)} className="hover:rotate-90 transition-transform p-1">
+                                        <i className="fas fa-times text-lg"></i>
+                                    </button>
                                 </div>
                                 <SupportChatBody userId={user.uid} userName={user.displayName} />
                             </div>
                         )}
                         <button 
                             onClick={() => setShowSupportChat(!showSupportChat)}
-                            className="bg-[#3498db] text-white w-12 h-12 sm:w-14 sm:h-14 rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all border-4 border-white"
+                            className="bg-[#3498db] text-white w-16 h-16 rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] flex items-center justify-center hover:scale-110 active:scale-95 transition-all border-4 border-white z-[201]"
                         >
-                            <i className="fas fa-comments text-lg sm:text-xl"></i>
+                            <i className="fas fa-comment-dots text-3xl"></i>
                         </button>
                     </div>
                 )}
@@ -166,7 +174,7 @@ const App: React.FC = () => {
                 )}
             </div>
 
-            <aside className={`fixed inset-y-0 left-0 w-[80vw] sm:w-80 bg-white z-[201] transform transition-transform duration-500 shadow-2xl flex flex-col ${isMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+            <aside className={`fixed inset-y-0 left-0 w-[80vw] sm:w-80 bg-white z-[301] transform transition-transform duration-500 shadow-2xl flex flex-col ${isMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
                 <div className="p-8 flex flex-col h-full">
                     <div className="flex justify-between items-center mb-12">
                         <h2 className="text-xl font-black italic text-[#2c3e50] uppercase tracking-tighter">Miri Connect</h2>
@@ -175,7 +183,7 @@ const App: React.FC = () => {
                     {user && (
                         <div className="mb-8 p-4 bg-gray-50 rounded-2xl">
                             <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Your Balance</div>
-                            <div className="text-2xl font-black text-[#f39c12]">{user.points} <span className="text-xs">PTS</span></div>
+                            <div className="text-2xl font-black text-[#f39c12]">{user.points} <span className="text-xs">Points</span></div>
                         </div>
                     )}
                     <nav className="flex flex-col gap-2">
@@ -187,7 +195,7 @@ const App: React.FC = () => {
                     </nav>
                 </div>
             </aside>
-            {isMenuOpen && <div className="fixed inset-0 bg-black/50 z-[200]" onClick={() => setIsMenuOpen(false)}></div>}
+            {isMenuOpen && <div className="fixed inset-0 bg-black/50 z-[300]" onClick={() => setIsMenuOpen(false)}></div>}
 
             {isAuthModalOpen && <AuthModal onClose={() => setIsAuthModalOpen(false)} t={t} />}
             {itemToRedeem && (
@@ -218,9 +226,11 @@ const App: React.FC = () => {
     );
 };
 
+// AI INTEGRATION - SupportChatBody
 const SupportChatBody: React.FC<{userId: string, userName: string}> = ({userId, userName}) => {
     const [msgs, setMsgs] = useState<any[]>([]);
     const [input, setInput] = useState('');
+    const [isTyping, setIsTyping] = useState(false);
     const scrollRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -236,38 +246,108 @@ const SupportChatBody: React.FC<{userId: string, userName: string}> = ({userId, 
 
     useEffect(() => {
         if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }, [msgs]);
+    }, [msgs, isTyping]);
 
     const send = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!input.trim()) return;
+        if (!input.trim() || isTyping) return;
         const msg = input;
         setInput('');
-        await firebase.firestore().collection('support_chats').add({
+        
+        const db = firebase.firestore();
+        const chatRef = db.collection('support_chats');
+
+        // Add user message
+        await chatRef.add({
             userId,
             userName: userName || 'User',
             text: msg,
             sender: 'user',
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
         });
+
+        setIsTyping(true);
+
+        try {
+            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+            
+            // Build simple context from recent messages
+            const recentContext = msgs.slice(-5).map(m => `${m.sender}: ${m.text}`).join('\n');
+            const prompt = `You are a friendly administrator for 'Miri Care Connect', a community donation platform for Miri, Sarawak. 
+            Citizens donate extra items (food, clothes, stationary) to SMK Lutong Bilik Pengawas.
+            Donor earn 5 points. Points can be spent on Koperasi vouchers.
+            
+            Previous messages:
+            ${recentContext}
+            
+            User says: ${msg}
+            
+            Keep your answer short, professional and helpful. If you don't know, tell them an admin will check manually soon.`;
+
+            const response = await ai.models.generateContent({
+                model: 'gemini-3-pro-preview',
+                contents: prompt,
+            });
+
+            // Add AI response to firestore
+            await chatRef.add({
+                userId,
+                userName: userName || 'User',
+                text: response.text || "I'm sorry, I'm having trouble thinking right now.",
+                sender: 'ai',
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+        } catch (error) {
+            console.error("Gemini Error:", error);
+        } finally {
+            setIsTyping(false);
+        }
     };
 
     return (
-        <div className="flex-1 flex flex-col bg-gray-50">
+        <div className="flex-1 flex flex-col bg-gray-50 overflow-hidden">
             <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3">
-                {msgs.length === 0 && <div className="text-center text-[10px] font-bold text-gray-400 uppercase mt-10">How can we help you today?</div>}
+                {msgs.length === 0 && (
+                    <div className="flex flex-col items-center justify-center h-full text-center px-4">
+                        <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
+                            <i className="fas fa-robot text-[#3498db] text-2xl"></i>
+                        </div>
+                        <div className="font-black text-[#2c3e50] uppercase text-[10px] mb-1 tracking-widest">Hi! Ask Gemini anything.</div>
+                        <p className="text-[9px] text-gray-400 font-bold leading-relaxed">I'm Miri Care AI. Ask me about donations, points, or vouchers!</p>
+                    </div>
+                )}
                 {msgs.map((m, i) => (
                     <div key={i} className={`flex flex-col ${m.sender === 'user' ? 'items-end' : 'items-start'}`}>
-                        <div className={`max-w-[80%] p-3 rounded-2xl text-xs font-bold ${m.sender === 'user' ? 'bg-[#3498db] text-white rounded-tr-none' : 'bg-white text-[#2c3e50] border border-gray-200 rounded-tl-none'}`}>
+                        <div className={`max-w-[85%] p-3 rounded-2xl text-xs font-bold ${
+                            m.sender === 'user' 
+                            ? 'bg-[#3498db] text-white rounded-tr-none' 
+                            : m.sender === 'ai' 
+                                ? 'bg-[#2ecc71] text-white rounded-tl-none shadow-sm' 
+                                : 'bg-white text-[#2c3e50] border border-gray-200 rounded-tl-none shadow-sm'
+                        }`}>
                             {m.text}
                         </div>
-                        <span className="text-[8px] text-gray-400 mt-1 uppercase">{m.sender === 'user' ? 'You' : 'Admin'}</span>
+                        <span className="text-[8px] text-gray-400 mt-1 uppercase font-black">
+                            {m.sender === 'user' ? 'You' : m.sender === 'ai' ? 'Gemini AI' : 'Admin'}
+                        </span>
                     </div>
                 ))}
+                {isTyping && (
+                    <div className="flex items-start">
+                        <div className="bg-gray-200 p-3 rounded-2xl rounded-tl-none text-[8px] font-black uppercase tracking-widest text-gray-500 animate-pulse">
+                            Gemini is thinking...
+                        </div>
+                    </div>
+                )}
             </div>
-            <form onSubmit={send} className="p-3 bg-white border-t flex gap-2">
-                <input value={input} onChange={e => setInput(e.target.value)} placeholder="Type a question..." className="flex-1 bg-gray-100 p-2 rounded-xl text-xs font-bold outline-none focus:bg-gray-200" />
-                <button className="bg-[#3498db] text-white w-8 h-8 rounded-lg flex items-center justify-center transition-transform active:scale-90"><i className="fas fa-paper-plane text-[10px]"></i></button>
+            <form onSubmit={send} className="p-4 bg-white border-t flex gap-2">
+                <input 
+                    value={input} 
+                    onChange={e => setInput(e.target.value)} 
+                    placeholder="Ask Gemini AI..." 
+                    className="flex-1 bg-gray-100 p-3 rounded-2xl text-xs font-bold outline-none focus:bg-gray-200 border-2 border-transparent focus:border-[#3498db] transition-all" 
+                />
+                <button className="bg-[#3498db] text-white w-10 h-10 rounded-xl flex items-center justify-center transition-transform active:scale-90 shadow-lg"><i className="fas fa-paper-plane text-xs"></i></button>
             </form>
         </div>
     );
@@ -328,7 +408,7 @@ const HomePage: React.FC<{t: any, user: UserProfile | null}> = ({t, user}) => {
             <div className="max-w-6xl mx-auto">
                 <div className="bg-white rounded-2xl p-6 sm:p-8 border border-gray-100 shadow-sm">
                     <div className="flex items-center justify-between mb-6">
-                        <h2 className="text-2xl sm:text-3xl font-black text-[#2c3e50] tracking-tighter italic uppercase">Items</h2>
+                        <h2 className="text-2xl sm:text-3xl font-black text-[#2c3e50] tracking-tighter italic uppercase">Announcement</h2>
                         {isAdmin && (
                             <button onClick={() => isEditingAnn ? (firebase.firestore().collection('settings').doc('items_announcement').set({text: newAnn}), setIsEditingAnn(false)) : setIsEditingAnn(true)} className="bg-[#3498db] text-white px-4 py-2 rounded-lg text-[10px] font-black uppercase">
                                 {isEditingAnn ? 'Save' : 'Edit'}
@@ -345,7 +425,7 @@ const HomePage: React.FC<{t: any, user: UserProfile | null}> = ({t, user}) => {
 
             <div className="max-w-6xl mx-auto space-y-6">
                 <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex items-center justify-between">
-                    <h2 className="text-lg sm:text-xl font-black text-[#2c3e50] tracking-tight uppercase">Available Extra Items</h2>
+                    <h2 className="text-lg sm:text-xl font-black text-[#2c3e50] tracking-tight uppercase">Extra Offers</h2>
                     <div className="bg-blue-50 text-[#3498db] px-4 py-1.5 rounded-full text-[10px] font-black flex items-center gap-2">
                         <i className="fas fa-bolt"></i> LIVE
                     </div>
@@ -452,7 +532,7 @@ const OfferHelpPage: React.FC<{user: UserProfile | null, onAuth: () => void, onN
 };
 
 const AdminPanelContent: React.FC<{t: any, user: UserProfile | null}> = ({t, user}) => {
-    const [activeTab, setActiveTab] = useState<'users' | 'items' | 'support'>('users');
+    const [activeTab, setActiveTab] = useState<'users' | 'items' | 'ai_chat'>('users');
     const [data, setData] = useState<{users: any[], items: any[], supportChats: any[], completedItems: any[]}>({users: [], items: [], supportChats: [], completedItems: []});
     const [editingUser, setEditingUser] = useState<any>(null);
     const [viewingItem, setViewingItem] = useState<any>(null);
@@ -465,6 +545,8 @@ const AdminPanelContent: React.FC<{t: any, user: UserProfile | null}> = ({t, use
         const unsubUsers = db.collection('users').onSnapshot((snap: any) => setData(prev => ({...prev, users: snap.docs.map((d: any) => ({...d.data(), uid: d.id}))})));
         const unsubItems = db.collection('donations').onSnapshot((snap: any) => setData(prev => ({...prev, items: snap.docs.map((d: any) => ({...d.data(), id: d.id}))})));
         const unsubCompleted = db.collection('completed_donations').orderBy('completedAt', 'desc').onSnapshot((snap: any) => setData(prev => ({...prev, completedItems: snap.docs.map((d: any) => ({...d.data(), id: d.id}))})));
+        
+        // Listen to AI support chats for the inbox
         const unsubSupport = db.collection('support_chats').orderBy('createdAt', 'desc').onSnapshot((snap: any) => {
             const grouped: any[] = [];
             const seen = new Set();
@@ -501,14 +583,6 @@ const AdminPanelContent: React.FC<{t: any, user: UserProfile | null}> = ({t, use
         } catch (e) { alert("Error updating user"); }
     };
 
-    const deleteItem = (id: string, type: 'active' | 'completed') => {
-        const collection = type === 'active' ? 'donations' : 'completed_donations';
-        if (window.confirm(`Delete this ${type} donation record permanently?`)) {
-            firebase.firestore().collection(collection).doc(id).delete();
-            if (viewingItem?.id === id) setViewingItem(null);
-        }
-    };
-
     const sendAdminReply = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!adminReply.trim() || !activeSupportUser) return;
@@ -528,9 +602,9 @@ const AdminPanelContent: React.FC<{t: any, user: UserProfile | null}> = ({t, use
             <h2 className="text-xl sm:text-2xl font-black italic uppercase text-[#2c3e50] mb-4 sm:mb-8 border-b-4 border-[#3498db] pb-2 inline-block">Admin Console</h2>
             
             <div className="flex gap-1 mb-4 sm:mb-6">
-                <button onClick={() => { setActiveTab('users'); setEditingUser(null); setActiveSupportUser(null); setViewingItem(null); }} className={`flex-1 py-2 rounded-xl text-[8px] font-black uppercase transition-all ${activeTab === 'users' ? 'bg-[#2c3e50] text-white' : 'bg-gray-100 text-gray-400'}`}>Citizens</button>
-                <button onClick={() => { setActiveTab('items'); setEditingUser(null); setActiveSupportUser(null); setViewingItem(null); }} className={`flex-1 py-2 rounded-xl text-[8px] font-black uppercase transition-all ${activeTab === 'items' ? 'bg-[#2c3e50] text-white' : 'bg-gray-100 text-gray-400'}`}>Donations</button>
-                <button onClick={() => { setActiveTab('support'); setEditingUser(null); setActiveSupportUser(null); setViewingItem(null); }} className={`flex-1 py-2 rounded-xl text-[8px] font-black uppercase transition-all ${activeTab === 'support' ? 'bg-[#2c3e50] text-white' : 'bg-gray-100 text-gray-400'}`}>Support</button>
+                <button onClick={() => { setActiveTab('users'); setEditingUser(null); setActiveSupportUser(null); }} className={`flex-1 py-2 rounded-xl text-[8px] font-black uppercase transition-all ${activeTab === 'users' ? 'bg-[#2c3e50] text-white' : 'bg-gray-100 text-gray-400'}`}>Citizens</button>
+                <button onClick={() => { setActiveTab('items'); setEditingUser(null); setActiveSupportUser(null); }} className={`flex-1 py-2 rounded-xl text-[8px] font-black uppercase transition-all ${activeTab === 'items' ? 'bg-[#2c3e50] text-white' : 'bg-gray-100 text-gray-400'}`}>Offers</button>
+                <button onClick={() => { setActiveTab('ai_chat'); setEditingUser(null); setActiveSupportUser(null); }} className={`flex-1 py-2 rounded-xl text-[8px] font-black uppercase transition-all ${activeTab === 'ai_chat' ? 'bg-[#2ecc71] text-white' : 'bg-gray-100 text-gray-400'}`}>AI & Help</button>
             </div>
 
             <div className="flex-1 overflow-y-auto space-y-4 pr-1">
@@ -539,7 +613,6 @@ const AdminPanelContent: React.FC<{t: any, user: UserProfile | null}> = ({t, use
                         <div className="space-y-4 bg-gray-50 p-4 sm:p-6 rounded-2xl border border-gray-100">
                             <AdminInput label="Full Name" value={editingUser.displayName || ''} onChange={v => setEditingUser({...editingUser, displayName: v})} />
                             <AdminInput label="Phone Number" value={editingUser.phone || ''} onChange={v => setEditingUser({...editingUser, phone: v})} />
-                            <AdminInput label="Home Address" value={editingUser.address || ''} onChange={v => setEditingUser({...editingUser, address: v})} />
                             <AdminInput label="Points Balance" type="number" value={editingUser.points || 0} onChange={v => setEditingUser({...editingUser, points: v})} />
                             <div className="flex gap-2">
                                 <button onClick={handleSaveUser} className="flex-1 bg-[#2ecc71] text-white py-3 rounded-xl font-black text-[10px] uppercase">Save</button>
@@ -552,8 +625,8 @@ const AdminPanelContent: React.FC<{t: any, user: UserProfile | null}> = ({t, use
                             {filteredUsers.map(u => (
                                 <div key={u.uid} className="bg-white p-3 border rounded-xl flex justify-between items-center">
                                     <div className="truncate flex-1">
-                                        <div className="font-black text-xs uppercase truncate">{u.displayName}</div>
-                                        <div className="text-[10px] text-gray-400 truncate">{u.email}</div>
+                                        <div className="font-black text-[10px] uppercase truncate">{u.displayName}</div>
+                                        <div className="text-[9px] text-gray-400 truncate">{u.email}</div>
                                     </div>
                                     <button onClick={() => setEditingUser(u)} className="p-2 text-[#3498db]"><i className="fas fa-edit"></i></button>
                                 </div>
@@ -563,81 +636,45 @@ const AdminPanelContent: React.FC<{t: any, user: UserProfile | null}> = ({t, use
                 )}
 
                 {activeTab === 'items' && (
-                    viewingItem ? (
-                        <div className="space-y-4 bg-gray-50 p-4 sm:p-6 rounded-2xl border border-gray-100 animate-in fade-in">
-                            <button onClick={() => setViewingItem(null)} className="text-[9px] font-black uppercase text-gray-400 mb-2 inline-block"><i className="fas fa-arrow-left mr-1"></i> Back</button>
-                            <h4 className="font-black text-lg uppercase text-[#2c3e50] mb-1 leading-tight">{viewingItem.itemName}</h4>
-                            <div className="bg-white p-4 rounded-xl space-y-3">
-                                <div className="flex justify-between border-b pb-2">
-                                    <span className="text-[10px] font-black text-gray-400 uppercase">Quantity</span>
-                                    <span className="font-bold text-sm">{viewingItem.qty}</span>
-                                </div>
-                                <div className="flex justify-between border-b pb-2">
-                                    <span className="text-[10px] font-black text-gray-400 uppercase">Donor</span>
-                                    <span className="font-bold text-sm">{viewingItem.donorName}</span>
-                                </div>
-                                <div className="flex justify-between border-b pb-2">
-                                    <span className="text-[10px] font-black text-gray-400 uppercase">Status</span>
-                                    <span className={`font-black text-[10px] uppercase px-2 py-0.5 rounded-full ${viewingItem.completedAt ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}`}>
-                                        {viewingItem.completedAt ? 'Completed' : 'Active'}
-                                    </span>
-                                </div>
+                    <div className="space-y-4">
+                        {data.items.map(i => (
+                            <div key={i.id} className="bg-white p-3 border rounded-xl">
+                                <div className="font-black text-xs uppercase">{i.itemName}</div>
+                                <div className="text-[10px] text-gray-400">Donor: {i.donorName} | Qty: {i.qty}</div>
                             </div>
-                            {!viewingItem.completedAt && (
-                                <button onClick={() => deleteItem(viewingItem.id, 'active')} className="w-full bg-red-500 text-white py-3 rounded-xl font-black text-[10px] uppercase">Delete Active</button>
-                            )}
-                        </div>
-                    ) : (
-                        <div className="space-y-6">
-                            <div>
-                                <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Active Donations</h3>
-                                <div className="space-y-2">
-                                    {data.items.map(i => (
-                                        <div key={i.id} onClick={() => setViewingItem(i)} className="bg-white p-3 border rounded-xl flex justify-between items-center cursor-pointer hover:border-[#3498db]">
-                                            <div className="truncate flex-1">
-                                                <div className="font-black text-xs uppercase truncate">{i.itemName}</div>
-                                                <div className="text-[10px] text-gray-400">{i.donorName}</div>
-                                            </div>
-                                            <i className="fas fa-chevron-right text-gray-200 text-xs"></i>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                            <div className="pt-4 border-t">
-                                <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Completed Records</h3>
-                                <div className="space-y-2">
-                                    {data.completedItems.map(i => (
-                                        <div key={i.id} onClick={() => setViewingItem(i)} className="bg-gray-50 p-3 border rounded-xl flex justify-between items-center opacity-70 cursor-pointer">
-                                            <div className="truncate flex-1">
-                                                <div className="font-black text-xs uppercase truncate">{i.itemName}</div>
-                                                <div className="text-[10px] text-gray-400">{i.donorName}</div>
-                                            </div>
-                                            <i className="fas fa-check text-green-500"></i>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-                    )
+                        ))}
+                    </div>
                 )}
 
-                {activeTab === 'support' && (
+                {activeTab === 'ai_chat' && (
                     activeSupportUser ? (
                         <div className="flex flex-col h-full space-y-4">
-                            <button onClick={() => setActiveSupportUser(null)} className="text-[10px] font-black uppercase text-gray-400"><i className="fas fa-arrow-left mr-2"></i> All Tickets</button>
-                            <div className="font-black uppercase text-xs border-b pb-2">User: {activeSupportUser.userName}</div>
-                            <AdminChatWindow userId={activeSupportUser.userId} />
+                            <button onClick={() => setActiveSupportUser(null)} className="text-[10px] font-black uppercase text-gray-400 flex items-center gap-2">
+                                <i className="fas fa-arrow-left"></i> Back to AI Inbox
+                            </button>
+                            <div className="font-black uppercase text-xs border-b pb-2 text-[#2c3e50] italic">Chat Log: {activeSupportUser.userName}</div>
+                            <AdminChatLogWindow userId={activeSupportUser.userId} />
                             <form onSubmit={sendAdminReply} className="flex gap-2">
-                                <input value={adminReply} onChange={e => setAdminReply(e.target.value)} placeholder="Type response..." className="flex-1 bg-gray-50 p-3 rounded-xl text-xs font-bold border outline-none" />
+                                <input 
+                                    value={adminReply} 
+                                    onChange={e => setAdminReply(e.target.value)} 
+                                    placeholder="Intervene manually..." 
+                                    className="flex-1 bg-gray-50 p-3 rounded-xl text-xs font-bold border outline-none focus:border-[#3498db]" 
+                                />
                                 <button className="bg-[#2c3e50] text-white px-4 rounded-xl text-[10px] font-black uppercase">Send</button>
                             </form>
                         </div>
                     ) : (
                         <div className="space-y-2">
+                            <h3 className="text-[10px] font-black uppercase text-gray-400 mb-3 tracking-widest px-1">AI Chat History</h3>
+                            {data.supportChats.length === 0 && <div className="text-center py-10 text-[10px] font-black text-gray-300">NO CHATS YET</div>}
                             {data.supportChats.map(s => (
-                                <div key={s.userId} onClick={() => setActiveSupportUser(s)} className="bg-white p-4 border rounded-xl cursor-pointer hover:border-[#3498db]">
-                                    <div className="font-black text-xs uppercase mb-1">{s.userName}</div>
-                                    <div className="text-[10px] text-gray-400 truncate">{s.lastMsg}</div>
+                                <div key={s.userId} onClick={() => setActiveSupportUser(s)} className="bg-white p-4 border rounded-xl cursor-pointer hover:border-[#3498db] hover:shadow-md transition-all">
+                                    <div className="font-black text-[11px] uppercase mb-1 flex justify-between">
+                                        {s.userName}
+                                        <i className="fas fa-robot text-[#2ecc71] opacity-50"></i>
+                                    </div>
+                                    <div className="text-[10px] text-gray-400 truncate font-bold">Latest: {s.lastMsg}</div>
                                 </div>
                             ))}
                         </div>
@@ -648,7 +685,7 @@ const AdminPanelContent: React.FC<{t: any, user: UserProfile | null}> = ({t, use
     );
 };
 
-const AdminChatWindow: React.FC<{userId: string}> = ({userId}) => {
+const AdminChatLogWindow: React.FC<{userId: string}> = ({userId}) => {
     const [msgs, setMsgs] = useState<any[]>([]);
     const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -665,12 +702,21 @@ const AdminChatWindow: React.FC<{userId: string}> = ({userId}) => {
     }, [msgs]);
 
     return (
-        <div ref={scrollRef} className="flex-1 h-64 overflow-y-auto bg-gray-50 rounded-xl p-4 space-y-2">
+        <div ref={scrollRef} className="flex-1 h-[400px] overflow-y-auto bg-gray-50 rounded-xl p-4 space-y-2 scrollbar-hide">
             {msgs.map((m, i) => (
-                <div key={i} className={`flex flex-col ${m.sender === 'admin' ? 'items-end' : 'items-start'}`}>
-                    <div className={`max-w-[85%] p-3 rounded-xl text-[10px] font-bold ${m.sender === 'admin' ? 'bg-[#2c3e50] text-white' : 'bg-white text-[#2c3e50] border'}`}>
+                <div key={i} className={`flex flex-col ${m.sender === 'user' ? 'items-start' : 'items-end'}`}>
+                    <div className={`max-w-[85%] p-3 rounded-xl text-[10px] font-bold ${
+                        m.sender === 'user' 
+                        ? 'bg-white text-[#2c3e50] border' 
+                        : m.sender === 'ai' 
+                            ? 'bg-[#2ecc71] text-white' 
+                            : 'bg-[#2c3e50] text-white'
+                    }`}>
                         {m.text}
                     </div>
+                    <span className="text-[7px] text-gray-400 mt-0.5 uppercase font-black px-1">
+                        {m.sender === 'user' ? 'Citizen' : m.sender === 'ai' ? 'AI Response' : 'Admin Intervention'}
+                    </span>
                 </div>
             ))}
         </div>
@@ -715,7 +761,7 @@ const ProfilePage: React.FC<{user: UserProfile | null, t: any, onAuth: any, onNa
                     {user.displayName?.[0] || '?'}
                 </div>
                 <h1 className="text-2xl sm:text-3xl font-black uppercase italic tracking-tighter mb-2">{user.displayName || 'No Name Set'}</h1>
-                <p className="text-[#f39c12] font-black text-xl sm:text-2xl">{user.points} <span className="text-sm">PTS</span></p>
+                <p className="text-[#f39c12] font-black text-xl sm:text-2xl">{user.points} <span className="text-sm uppercase">Points</span></p>
                 <button 
                     onClick={() => setIsEditing(!isEditing)} 
                     className="mt-4 bg-white/10 hover:bg-white/20 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all"
@@ -816,7 +862,7 @@ const ShopPage: React.FC<{user: UserProfile | null, t: any, onAuth: any, onRedee
                         <div className="p-8 sm:p-12 flex-1">
                             <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-6 text-2xl sm:text-3xl text-[#f39c12] shadow-inner"><i className="fas fa-gift"></i></div>
                             <h3 className="font-black text-lg sm:text-xl mb-2 uppercase italic text-[#2c3e50]">{item.name}</h3>
-                            <div className="text-2xl sm:text-3xl font-black text-[#f39c12]">{item.cost} <span className="text-sm">PTS</span></div>
+                            <div className="text-2xl sm:text-3xl font-black text-[#f39c12]">{item.cost} <span className="text-sm">Points</span></div>
                         </div>
                         <button onClick={() => user ? onRedeemConfirm(item) : onAuth()} className="w-full py-6 font-black uppercase text-white tracking-widest text-[11px]" style={{backgroundColor: item.color}}>Redeem Now</button>
                     </div>
@@ -836,7 +882,7 @@ const HistoryPage: React.FC<{user: UserProfile | null, t: any, onAuth: any}> = (
     if (!user) return <div className="text-center py-20"><button onClick={onAuth} className="bg-[#3498db] text-white px-12 py-4 rounded-full font-black uppercase">Sign In to View History</button></div>;
     return (
         <div className="max-w-4xl mx-auto space-y-10 py-12">
-            <h1 className="text-3xl sm:text-4xl font-black italic uppercase text-[#2c3e50] tracking-tighter">Reward History</h1>
+            <h1 className="text-3xl sm:text-4xl font-black italic uppercase text-[#2c3e50] tracking-tighter">History</h1>
             <div className="space-y-4">
                 {history.map((h, i) => (
                     <div key={i} className="bg-white p-6 rounded-2xl border border-gray-100 flex items-center justify-between shadow-sm animate-in slide-in-from-bottom">
@@ -893,7 +939,7 @@ const AuthModal: React.FC<{onClose: () => void, t: any}> = ({onClose}) => {
     return (
         <div className="fixed inset-0 bg-black/80 z-[400] flex items-center justify-center p-4 backdrop-blur-md" onClick={onClose}>
             <div className="bg-white w-full max-w-md rounded-[2rem] sm:rounded-[3rem] p-8 sm:p-12 shadow-2xl relative animate-in zoom-in duration-300 overflow-y-auto max-h-[95vh]" onClick={e => e.stopPropagation()}>
-                <h2 className="text-2xl sm:text-3xl font-black text-center uppercase italic text-[#2c3e50] mb-8">{mode === 'login' ? 'Welcome Back' : 'Create Account'}</h2>
+                <h2 className="text-2xl sm:text-3xl font-black text-center uppercase italic text-[#2c3e50] mb-8">{mode === 'login' ? 'Welcome Back' : 'Join Us'}</h2>
                 <form onSubmit={submit} className="space-y-4">
                     {mode === 'register' && (
                         <>
@@ -912,7 +958,7 @@ const AuthModal: React.FC<{onClose: () => void, t: any}> = ({onClose}) => {
                         </>
                     )}
                     <div className="space-y-1">
-                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Email Address</label>
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Email (@moe-dl.edu.my)</label>
                         <input type="email" placeholder="email@moe-dl.edu.my" value={data.email} onChange={e => setData({...data, email: e.target.value})} className="w-full bg-gray-50 border-2 border-gray-100 p-4 rounded-2xl outline-none font-bold text-black" required />
                     </div>
                     <div className="space-y-1">
