@@ -39,47 +39,85 @@ const App: React.FC = () => {
     const [itemToRedeem, setItemToRedeem] = useState<any>(null);
     const [showAdminPanel, setShowAdminPanel] = useState(false);
     const [showSupportChat, setShowSupportChat] = useState(false);
+    const [notifications, setNotifications] = useState<any[]>([]);
+    const [isNotifOpen, setIsNotifOpen] = useState(false);
     
     const t = useCallback((key: string) => translations[lang][key] || key, [lang]);
 
     useEffect(() => {
-        try {
-            const firebaseConfig = {
-                apiKey: "AIzaSyDOl93LVxhrfcz04Kj2D2dSQkp22jaeiog",
-                authDomain: "miri-care-connect-95a63.firebaseapp.com",
-                projectId: "miri-care-connect-95a63",
-                storageBucket: "miri-care-connect-95a63.firebasestorage.app",
-                messagingSenderId: "419556521920",
-                appId: "1:419556521920:web:628bc9d7195fca073a3a25",
-                measurementId: "G-7F4LG9P6EC"
-            };
-            if (typeof firebase !== 'undefined' && !firebase.apps.length) {
-                firebase.initializeApp(firebaseConfig);
-            }
+        let unsubscribeAuth: () => void = () => {};
+        let unsubNotifs: () => void = () => {};
 
-            const unsubscribeAuth = firebase.auth().onAuthStateChanged(async (authUser: any) => {
-                if (authUser) {
-                    const db = firebase.firestore();
-                    db.collection('users').doc(authUser.uid).onSnapshot((doc: any) => {
-                        if (doc.exists) {
-                            setUser({ ...doc.data(), uid: authUser.uid } as UserProfile);
-                        } else {
-                            setUser({ uid: authUser.uid, email: authUser.email, points: 10 } as any);
-                        }
-                    });
-                } else { 
-                    setUser(null); 
+        const initFirebase = async () => {
+            try {
+                if (typeof firebase === 'undefined') {
+                    console.error("Firebase SDK not found");
+                    setLoading(false);
+                    return;
                 }
+
+                const firebaseConfig = {
+                    apiKey: "AIzaSyDOl93LVxhrfcz04Kj2D2dSQkp22jaeiog",
+                    authDomain: "miri-care-connect-95a63.firebaseapp.com",
+                    projectId: "miri-care-connect-95a63",
+                    storageBucket: "miri-care-connect-95a63.firebasestorage.app",
+                    messagingSenderId: "419556521920",
+                    appId: "1:419556521920:web:628bc9d7195fca073a3a25",
+                    measurementId: "G-7F4LG9P6EC"
+                };
+
+                if (!firebase.apps.length) {
+                    firebase.initializeApp(firebaseConfig);
+                }
+
+                const db = firebase.firestore();
+
+                unsubscribeAuth = firebase.auth().onAuthStateChanged(async (authUser: any) => {
+                    if (authUser) {
+                        db.collection('users').doc(authUser.uid).onSnapshot((doc: any) => {
+                            if (doc.exists) {
+                                setUser({ ...doc.data(), uid: authUser.uid } as UserProfile);
+                            } else {
+                                setUser({ uid: authUser.uid, email: authUser.email, points: 10 } as any);
+                            }
+                        });
+
+                        unsubNotifs = db.collection('notifications')
+                            .where('userId', '==', authUser.uid)
+                            .orderBy('createdAt', 'desc')
+                            .limit(20)
+                            .onSnapshot((snap: any) => {
+                                setNotifications(snap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
+                            }, (err: any) => console.error("Notif error:", err));
+                    } else { 
+                        setUser(null); 
+                        setNotifications([]);
+                        if (unsubNotifs) unsubNotifs();
+                    }
+                    setLoading(false);
+                });
+            } catch (err) {
+                console.error("Firebase init error:", err);
                 setLoading(false);
-            });
-            return () => unsubscribeAuth();
-        } catch (err) {
-            console.error("Firebase init error:", err);
-            setLoading(false);
-        }
+            }
+        };
+
+        initFirebase();
+        return () => {
+            if (unsubscribeAuth) unsubscribeAuth();
+            if (unsubNotifs) unsubNotifs();
+        };
     }, []);
 
     const isAdmin = user?.isAdmin || user?.email === 'admin@gmail.com';
+
+    const markNotifRead = async (id: string) => {
+        try {
+            await firebase.firestore().collection('notifications').doc(id).update({ read: true });
+        } catch (e) {
+            console.error("Error marking read", e);
+        }
+    };
 
     if (loading) return (
         <div className="h-screen w-screen flex flex-col items-center justify-center bg-[#f8f9fa] text-[#3498db] font-black italic uppercase text-center">
@@ -87,6 +125,8 @@ const App: React.FC = () => {
             Connecting citizens...
         </div>
     );
+
+    const unreadCount = notifications.filter(n => !n.read).length;
 
     return (
         <div className="min-h-screen flex flex-col bg-[#f8f9fa] font-sans">
@@ -98,7 +138,55 @@ const App: React.FC = () => {
                     <div className="flex-grow text-center font-black tracking-tighter cursor-pointer text-[10px] xs:text-[13px] sm:text-lg uppercase whitespace-nowrap overflow-hidden px-1" onClick={() => setPage('home')}>
                         MIRI <span className="text-[#3498db]">CARE</span> CONNECT
                     </div>
+                    
                     <div className="flex items-center gap-1 sm:gap-4 flex-shrink-0">
+                        {user && (
+                            <div className="relative">
+                                <button 
+                                    onClick={() => setIsNotifOpen(!isNotifOpen)}
+                                    className="p-2 hover:bg-white/10 rounded-full transition-all relative"
+                                >
+                                    <i className="fas fa-bell text-lg"></i>
+                                    {unreadCount > 0 && (
+                                        <span className="absolute top-1 right-1 bg-red-500 text-white text-[8px] w-4 h-4 rounded-full flex items-center justify-center font-black border-2 border-[#2c3e50]">
+                                            {unreadCount}
+                                        </span>
+                                    )}
+                                </button>
+                                
+                                {isNotifOpen && (
+                                    <div className="absolute top-full right-0 mt-2 w-72 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden text-black z-[200] animate-in slide-in-from-top-2">
+                                        <div className="p-4 bg-gray-50 border-b flex justify-between items-center">
+                                            <span className="text-[10px] font-black uppercase text-gray-400">Notifications</span>
+                                            {unreadCount > 0 && (
+                                                <button onClick={() => notifications.forEach(n => !n.read && markNotifRead(n.id))} className="text-[8px] font-black uppercase text-[#3498db] hover:underline">Mark all read</button>
+                                            )}
+                                        </div>
+                                        <div className="max-h-80 overflow-y-auto">
+                                            {notifications.length === 0 ? (
+                                                <div className="p-8 text-center text-gray-300 italic text-xs uppercase font-black">No alerts</div>
+                                            ) : (
+                                                notifications.map(n => (
+                                                    <div key={n.id} onClick={() => markNotifRead(n.id)} className={`p-4 border-b hover:bg-gray-50 cursor-pointer transition-colors ${!n.read ? 'bg-blue-50/50' : ''}`}>
+                                                        <div className="flex gap-3">
+                                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-[10px] shrink-0 ${n.type === 'offer' ? 'bg-green-500' : n.type === 'message' ? 'bg-blue-500' : 'bg-orange-500'}`}>
+                                                                <i className={`fas fa-${n.type === 'offer' ? 'hand-holding-heart' : n.type === 'message' ? 'comment' : 'sync'}`}></i>
+                                                            </div>
+                                                            <div className="flex-1 min-w-0">
+                                                                <p className="text-[11px] font-bold text-gray-800 leading-tight">{n.title}</p>
+                                                                <p className="text-[10px] text-gray-500 line-clamp-2 mt-0.5">{n.message}</p>
+                                                                <p className="text-[8px] text-gray-300 font-black uppercase mt-1">Activity Alert</p>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ))
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
                         {user && (
                             <div className="flex items-center bg-[#f39c12] px-2 sm:px-4 py-1 rounded-full text-[8px] sm:text-xs font-black shadow-lg whitespace-nowrap">
                                 <i className="fas fa-star mr-1 sm:mr-2"></i> {user.points} <span className="ml-0.5">Points</span>
@@ -334,6 +422,16 @@ const HomePage: React.FC<{t: any, user: UserProfile | null}> = ({t, user}) => {
                 });
                 transaction.delete(db.collection('donations').doc(donation.id));
             });
+
+            await db.collection('notifications').add({
+                userId: donation.userId,
+                title: 'Offer Confirmed!',
+                message: `Your offer for ${donation.itemName} has been confirmed. You earned 5 points!`,
+                type: 'status',
+                read: false,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+
             alert("Confirmed!");
         } catch (err) { alert("Failed."); }
     };
@@ -416,6 +514,19 @@ const OfferHelpPage: React.FC<{user: UserProfile | null, onAuth: () => void, onN
                 userId: user.uid
             });
             await db.collection('users').doc(user.uid).update({ points: (user.points || 0) + 5 });
+            
+            const admins = await db.collection('users').where('isAdmin', '==', true).get();
+            admins.forEach(async (adminDoc: any) => {
+                await db.collection('notifications').add({
+                    userId: adminDoc.id,
+                    title: 'New Offer Received',
+                    message: `${user.displayName} offered ${item.itemName}.`,
+                    type: 'offer',
+                    read: false,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+            });
+
             alert("SUCCESSFULLY POSTED!");
             onNavigate('home');
         } catch (err) { alert("Failed."); } finally { setPosting(false); }
@@ -527,11 +638,21 @@ const AdminPanelContent: React.FC<{t: any, user: UserProfile | null}> = ({t, use
         if (!adminReply.trim() || !activeSupportUser) return;
         const reply = adminReply;
         setAdminReply('');
-        await firebase.firestore().collection('support_chats').add({
+        const db = firebase.firestore();
+        await db.collection('support_chats').add({
             userId: activeSupportUser.userId,
             userName: activeSupportUser.userName || 'User',
             text: reply,
             sender: 'admin',
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+        await db.collection('notifications').add({
+            userId: activeSupportUser.userId,
+            title: 'Admin Response',
+            message: 'An administrator replied to your support message.',
+            type: 'message',
+            read: false,
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
         });
     };
@@ -553,6 +674,16 @@ const AdminPanelContent: React.FC<{t: any, user: UserProfile | null}> = ({t, use
                 });
                 transaction.delete(db.collection('donations').doc(donation.id));
             });
+
+            await db.collection('notifications').add({
+                userId: donation.userId,
+                title: 'Offer Confirmed!',
+                message: `Admin confirmed your offer: ${donation.itemName}. Points added!`,
+                type: 'status',
+                read: false,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+
             setSelectedOffer(null);
             alert("Approved!");
         } catch (err) { alert("Failed."); }
@@ -1000,3 +1131,4 @@ const RedeemConfirmModal: React.FC<{item: any, user: UserProfile, onCancel: () =
 };
 
 export default App;
+
