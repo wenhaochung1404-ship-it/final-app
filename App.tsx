@@ -92,7 +92,6 @@ const App: React.FC = () => {
                             }
                         }, (err: any) => console.error("User snap error:", err));
 
-                        // Fetching all notifications for the user
                         unsubNotifs = db.collection('notifications')
                             .where('userId', '==', authUser.uid)
                             .onSnapshot((snap: any) => {
@@ -130,19 +129,6 @@ const App: React.FC = () => {
         if (typeof firebase === 'undefined') return;
         try {
             await firebase.firestore().collection('notifications').doc(notification.id).update({ read: true });
-            
-            const lowerMsg = notification.message.toLowerCase();
-            if (notification.type === 'status' || lowerMsg.includes('earned') || lowerMsg.includes('points')) {
-                const pointsMatch = notification.message.match(/(\d+)/);
-                const points = pointsMatch ? parseInt(pointsMatch[1]) : 5;
-                setEarnedPointsModal({
-                    show: true,
-                    amount: points,
-                    message: notification.message
-                });
-                
-                setTimeout(() => setEarnedPointsModal(prev => ({...prev, show: false})), 6000);
-            }
         } catch (e) {
             console.error("Error marking read", e);
         }
@@ -172,7 +158,7 @@ const App: React.FC = () => {
                         {user && (
                             <div className="relative">
                                 <button 
-                                    onClick={() => setIsNotifOpen(!isNotifOpen)}
+                                    onClick={() => setIsNotifOpen(true)}
                                     className="p-2 hover:bg-white/10 rounded-full transition-all relative"
                                 >
                                     <i className="fas fa-bell text-lg"></i>
@@ -182,44 +168,6 @@ const App: React.FC = () => {
                                         </span>
                                     )}
                                 </button>
-                                
-                                {isNotifOpen && (
-                                    <div className="absolute top-full right-0 mt-2 w-80 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden text-black z-[200] animate-in slide-in-from-top-2">
-                                        <div className="p-4 bg-gray-50 border-b flex justify-between items-center">
-                                            <span className="text-[10px] font-black uppercase text-gray-400">Activity & Alerts</span>
-                                            {unreadCount > 0 && (
-                                                <button onClick={() => notifications.forEach(n => !n.read && markNotifRead(n))} className="text-[8px] font-black uppercase text-[#3498db] hover:underline">Mark all read</button>
-                                            )}
-                                        </div>
-                                        <div className="max-h-96 overflow-y-auto">
-                                            {notifications.length === 0 ? (
-                                                <div className="p-8 text-center text-gray-300 italic text-xs uppercase font-black">No alerts yet</div>
-                                            ) : (
-                                                notifications.map(n => (
-                                                    <div key={n.id} onClick={() => markNotifRead(n)} className={`p-4 border-b hover:bg-gray-50 cursor-pointer transition-colors ${!n.read ? 'bg-blue-50/50' : ''}`}>
-                                                        <div className="flex gap-3">
-                                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-[10px] shrink-0 ${n.type === 'offer' ? 'bg-green-500' : n.type === 'message' ? 'bg-blue-500' : 'bg-orange-500'}`}>
-                                                                <i className={`fas fa-${n.type === 'offer' ? 'hand-holding-heart' : n.type === 'message' ? 'comment' : 'sync'}`}></i>
-                                                            </div>
-                                                            <div className="flex-1 min-w-0">
-                                                                <div className="flex justify-between items-start">
-                                                                    <p className="text-[11px] font-bold text-gray-800 leading-tight">{n.title}</p>
-                                                                    <span className="text-[7px] font-black text-gray-400 uppercase ml-2">
-                                                                        {n.createdAt?.toDate().toLocaleDateString('en-GB', {day: '2-digit', month: 'short'})}
-                                                                    </span>
-                                                                </div>
-                                                                <p className="text-[10px] text-gray-500 line-clamp-2 mt-0.5">{n.message}</p>
-                                                                <p className="text-[7px] font-black text-[#3498db] uppercase mt-1">
-                                                                    {n.createdAt?.toDate().toLocaleTimeString('en-GB', {hour: '2-digit', minute: '2-digit'})}
-                                                                </p>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                ))
-                                            )}
-                                        </div>
-                                    </div>
-                                )}
                             </div>
                         )}
 
@@ -229,7 +177,7 @@ const App: React.FC = () => {
                             </div>
                         )}
                         {user ? (
-                            <button onClick={() => firebase && firebase.auth().signOut()} className="bg-red-500 hover:bg-red-600 text-white px-2 sm:px-4 py-1.5 rounded-full text-[8px] sm:text-[10px] font-black uppercase shadow-lg flex items-center gap-1 whitespace-nowrap">
+                            <button onClick={() => typeof firebase !== 'undefined' && firebase.auth().signOut()} className="bg-red-500 hover:bg-red-600 text-white px-2 sm:px-4 py-1.5 rounded-full text-[8px] sm:text-[10px] font-black uppercase shadow-lg flex items-center gap-1 whitespace-nowrap">
                                 <i className="fas fa-sign-out-alt"></i>
                                 <span>{t('logout')}</span>
                             </button>
@@ -336,6 +284,71 @@ const App: React.FC = () => {
                 </div>
             </aside>
             {isMenuOpen && <div className="fixed inset-0 bg-black/50 z-[300]" onClick={() => setIsMenuOpen(false)}></div>}
+
+            {/* Notification Popup Modal */}
+            {isNotifOpen && (
+                <div className="fixed inset-0 bg-black/80 z-[600] flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setIsNotifOpen(false)}>
+                    <div className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl flex flex-col overflow-hidden animate-in zoom-in duration-300 max-h-[80vh]" onClick={e => e.stopPropagation()}>
+                        <div className="p-6 bg-gray-50 border-b flex justify-between items-center">
+                            <h3 className="font-black uppercase text-sm italic text-[#2c3e50] tracking-tighter">Activity Logs</h3>
+                            <button onClick={() => setIsNotifOpen(false)} className="w-10 h-10 bg-gray-200/50 rounded-full flex items-center justify-center hover:bg-red-500 hover:text-white transition-all">
+                                <i className="fas fa-times text-xs"></i>
+                            </button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                            {notifications.length === 0 ? (
+                                <div className="py-20 text-center flex flex-col items-center gap-4">
+                                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center text-gray-300">
+                                        <i className="fas fa-bell-slash text-2xl"></i>
+                                    </div>
+                                    <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Nothing here yet. Go offer some help!</p>
+                                </div>
+                            ) : (
+                                notifications.map(n => (
+                                    <div 
+                                        key={n.id} 
+                                        onClick={() => markNotifRead(n)}
+                                        className={`p-5 rounded-3xl border transition-all ${!n.read ? 'bg-blue-50/50 border-blue-100 ring-1 ring-blue-100' : 'bg-white border-gray-100'}`}
+                                    >
+                                        <div className="flex gap-4">
+                                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-white text-[14px] shrink-0 shadow-sm ${n.type === 'offer' ? 'bg-green-500' : n.type === 'message' ? 'bg-blue-500' : 'bg-[#f39c12]'}`}>
+                                                <i className={`fas fa-${n.type === 'offer' ? 'hand-holding-heart' : n.type === 'message' ? 'comment' : 'star'}`}></i>
+                                            </div>
+                                            <div className="flex-1">
+                                                <div className="flex justify-between items-start mb-1">
+                                                    <p className="text-[11px] font-black text-gray-800 uppercase tracking-tighter">{n.title}</p>
+                                                </div>
+                                                <p className="text-[10px] text-gray-500 leading-relaxed font-medium">{n.message}</p>
+                                                <div className="mt-3 pt-3 border-t border-gray-100 flex items-center gap-3">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <i className="far fa-calendar text-[8px] text-gray-400"></i>
+                                                        <span className="text-[8px] font-black text-gray-400 uppercase">
+                                                            {n.createdAt?.toDate().toLocaleDateString('en-GB', {day: '2-digit', month: 'short', year: 'numeric'})}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <i className="far fa-clock text-[8px] text-gray-400"></i>
+                                                        <span className="text-[8px] font-black text-[#3498db] uppercase">
+                                                            {n.createdAt?.toDate().toLocaleTimeString('en-GB', {hour: '2-digit', minute: '2-digit'})}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                        {notifications.length > 0 && (
+                            <div className="p-4 border-t bg-gray-50">
+                                <button onClick={() => notifications.forEach(n => !n.read && markNotifRead(n))} className="w-full py-3 text-[10px] font-black uppercase text-[#3498db] hover:bg-white rounded-xl transition-all">
+                                    Clear all unread
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
 
             {isAuthModalOpen && <AuthModal onClose={() => setIsAuthModalOpen(false)} t={t} />}
 
@@ -535,8 +548,8 @@ const HomePage: React.FC<{t: any, user: UserProfile | null}> = ({t, user}) => {
 
             await db.collection('notifications').add({
                 userId: donation.userId,
-                title: 'Points Earned!',
-                message: `You had earn 5 points for offering your item: ${donation.itemName}. Keep up the great work!`,
+                title: 'You had earn 5 points!',
+                message: `You had earn 5 points for offering your items: ${donation.itemName}. Thank you for your kindness!`,
                 type: 'status',
                 read: false,
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -550,9 +563,8 @@ const HomePage: React.FC<{t: any, user: UserProfile | null}> = ({t, user}) => {
 
     return (
         <div className="space-y-12 pb-24 animate-in fade-in duration-500">
-            {/* Conditional Rendering of Hero Section: Hidden when logged in */}
             {user === null && (
-                <section className="bg-[#2c3e50] text-white rounded-3xl p-12 sm:p-24 text-center shadow-2xl relative border-b-8 border-[#3498db] animate-in slide-in-from-top duration-700">
+                <section className="bg-[#2c3e50] text-white rounded-[2.5rem] p-12 sm:p-24 text-center shadow-2xl relative border-b-8 border-[#3498db] animate-in slide-in-from-top duration-700">
                     <h1 className="text-3xl sm:text-7xl font-black mb-6 italic uppercase tracking-tighter leading-tight">{t('hero_title')}</h1>
                     <p className="text-sm sm:text-xl opacity-80 max-w-2xl mx-auto leading-relaxed font-bold uppercase">{t('hero_description')}</p>
                 </section>
@@ -1184,8 +1196,11 @@ const AuthModal: React.FC<{onClose: () => void, t: any}> = ({onClose, t}) => {
         } catch (err: any) { 
             console.error("Auth error:", err);
             let msg = err.message;
-            if (err.code === 'auth/wrong-password') msg = "Incorrect password, please try again.";
-            if (err.code === 'auth/user-not-found') msg = "No account found with this email.";
+            if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-login-credentials' || (err.message && err.message.includes('INVALID_LOGIN_CREDENTIALS'))) {
+                msg = "Incorrect login credentials. Please try again.";
+            } else if (err.code === 'auth/user-not-found') {
+                msg = "No account found with this email.";
+            }
             setError(msg); 
         } finally { 
             setLoading(false); 
