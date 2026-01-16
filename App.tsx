@@ -130,7 +130,6 @@ const App: React.FC = () => {
         try {
             await firebase.firestore().collection('notifications').doc(notification.id).update({ read: true });
             
-            // Trigger pop-up if the notification is about points or status update
             const lowerMsg = notification.message.toLowerCase();
             if (notification.type === 'status' || lowerMsg.includes('earned') || lowerMsg.includes('points')) {
                 const pointsMatch = notification.message.match(/(\d+)/);
@@ -141,7 +140,6 @@ const App: React.FC = () => {
                     message: notification.message
                 });
                 
-                // Close after 6 seconds automatically
                 setTimeout(() => setEarnedPointsModal(prev => ({...prev, show: false})), 6000);
             }
         } catch (e) {
@@ -244,53 +242,51 @@ const App: React.FC = () => {
                     </button>
                 )}
 
-                {!isAdmin && (
-                    <div className="fixed right-6 bottom-6 z-[200] flex flex-col items-end gap-3 sm:gap-4">
-                        {showSupportChat && (
-                            <div className="w-[85vw] sm:w-80 h-[450px] bg-white rounded-3xl shadow-2xl border border-gray-100 flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 mb-2 origin-bottom-right">
-                                <div className="bg-[#3498db] p-4 text-white flex justify-between items-center">
-                                    <div className="font-black uppercase text-xs flex items-center gap-2">
-                                        <i className="fas fa-headset"></i>
-                                        {t('admin_support')}
-                                    </div>
-                                    <button onClick={() => setShowSupportChat(false)} className="hover:rotate-90 transition-transform p-1">
-                                        <i className="fas fa-times text-lg"></i>
-                                    </button>
+                <div className="fixed right-6 bottom-6 z-[200] flex flex-col items-end gap-3 sm:gap-4">
+                    {showSupportChat && (
+                        <div className="w-[85vw] sm:w-80 h-[450px] bg-white rounded-3xl shadow-2xl border border-gray-100 flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 mb-2 origin-bottom-right">
+                            <div className="bg-[#3498db] p-4 text-white flex justify-between items-center">
+                                <div className="font-black uppercase text-xs flex items-center gap-2">
+                                    <i className="fas fa-headset"></i>
+                                    {t('admin_support')}
                                 </div>
-                                <SupportChatBody userId={user ? user.uid : guestId} userName={user ? user.displayName : 'Guest'} t={t} isGuest={!user} />
-                            </div>
-                        )}
-                        
-                        <div className="flex items-center gap-3">
-                            <div className="relative group">
-                                <button className="bg-white text-[#2c3e50] w-12 h-12 sm:w-14 sm:h-14 rounded-full shadow-xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all border-4 border-gray-50">
-                                    <i className="fas fa-language text-xl sm:text-2xl"></i>
+                                <button onClick={() => setShowSupportChat(false)} className="hover:rotate-90 transition-transform p-1">
+                                    <i className="fas fa-times text-lg"></i>
                                 </button>
-                                <div className="absolute bottom-full right-0 mb-3 bg-white shadow-2xl rounded-2xl border border-gray-100 hidden group-hover:block overflow-hidden z-[210] min-w-[140px] animate-in slide-in-from-bottom-2">
-                                    {(Object.values(Language) as Language[]).map(l => (
-                                        <button 
-                                            key={l}
-                                            onClick={() => setLang(l)}
-                                            className={`w-full px-5 py-3 text-left text-[10px] font-black uppercase transition-colors hover:bg-gray-50 ${lang === l ? 'text-[#3498db] bg-blue-50' : 'text-gray-500'}`}
-                                        >
-                                            {l === Language.EN && 'English'}
-                                            {l === Language.BM && 'Bahasa Melayu'}
-                                            {l === Language.BC && '中文'}
-                                            {l === Language.BI && 'Bahasa Iban'}
-                                        </button>
-                                    ))}
-                                </div>
                             </div>
-
-                            <button 
-                                onClick={() => setShowSupportChat(!showSupportChat)}
-                                className="bg-[#3498db] text-white w-16 h-16 rounded-full shadow-[0_8px_32px_rgba(52,152,219,0.3)] flex items-center justify-center hover:scale-110 active:scale-95 transition-all border-4 border-white z-[201]"
-                            >
-                                <i className="fas fa-comment-dots text-3xl"></i>
-                            </button>
+                            <SupportChatBody userId={user ? user.uid : guestId} userName={user ? user.displayName : 'Guest'} t={t} isGuest={!user} />
                         </div>
+                    )}
+                    
+                    <div className="flex items-center gap-3">
+                        <div className="relative group">
+                            <button className="bg-white text-[#2c3e50] w-12 h-12 sm:w-14 sm:h-14 rounded-full shadow-xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all border-4 border-gray-50">
+                                <i className="fas fa-language text-xl sm:text-2xl"></i>
+                            </button>
+                            <div className="absolute bottom-full right-0 mb-3 bg-white shadow-2xl rounded-2xl border border-gray-100 hidden group-hover:block overflow-hidden z-[210] min-w-[140px] animate-in slide-in-from-bottom-2">
+                                {(Object.values(Language) as Language[]).map(l => (
+                                    <button 
+                                        key={l}
+                                        onClick={() => setLang(l)}
+                                        className={`w-full px-5 py-3 text-left text-[10px] font-black uppercase transition-colors hover:bg-gray-50 ${lang === l ? 'text-[#3498db] bg-blue-50' : 'text-gray-500'}`}
+                                    >
+                                        {l === Language.EN && 'English'}
+                                        {l === Language.BM && 'Bahasa Melayu'}
+                                        {l === Language.BC && '中文'}
+                                        {l === Language.BI && 'Bahasa Iban'}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <button 
+                            onClick={() => setShowSupportChat(!showSupportChat)}
+                            className="bg-[#3498db] text-white w-16 h-16 rounded-full shadow-[0_8px_32px_rgba(52,152,219,0.3)] flex items-center justify-center hover:scale-110 active:scale-95 transition-all border-4 border-white z-[201]"
+                        >
+                            <i className="fas fa-comment-dots text-3xl"></i>
+                        </button>
                     </div>
-                )}
+                </div>
 
                 <main className={`flex-1 overflow-y-auto transition-all duration-300 ${isAdmin && showAdminPanel ? 'lg:mr-96' : ''}`}>
                     <div className="container mx-auto px-4 py-8 max-w-6xl">
@@ -334,7 +330,6 @@ const App: React.FC = () => {
 
             {isAuthModalOpen && <AuthModal onClose={() => setIsAuthModalOpen(false)} t={t} />}
 
-            {/* Points Earned Pop-up */}
             {earnedPointsModal.show && (
                 <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in zoom-in duration-300">
                     <div className="bg-white rounded-[2.5rem] p-10 shadow-2xl text-center max-w-sm border-t-8 border-[#f39c12] relative overflow-hidden">
@@ -549,7 +544,6 @@ const HomePage: React.FC<{t: any, user: UserProfile | null}> = ({t, user}) => {
             </section>
 
             <div className="max-w-6xl mx-auto space-y-10">
-                {/* Admin Message Section (The requested blank space for admin) */}
                 <div className="space-y-4">
                     <div className="flex items-center justify-between px-2">
                         <h3 className="text-xs font-black uppercase text-gray-400 tracking-[0.2em]">{t('admin_support')} / ANNOUNCEMENTS</h3>
@@ -602,7 +596,6 @@ const HomePage: React.FC<{t: any, user: UserProfile | null}> = ({t, user}) => {
                     </div>
                 </div>
 
-                {/* Offer Help Column */}
                 <div className="space-y-6">
                     <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex items-center justify-between">
                         <h2 className="text-lg sm:text-xl font-black text-[#2c3e50] tracking-tight uppercase">{t('offer_help')}</h2>
@@ -1129,23 +1122,31 @@ const HistoryPage: React.FC<{user: UserProfile | null, t: any, onAuth: any}> = (
 };
 
 const AuthModal: React.FC<{onClose: () => void, t: any}> = ({onClose, t}) => {
-    const [mode, setMode] = useState<'login' | 'register'>('login');
+    const [mode, setMode] = useState<'login' | 'register' | 'forgot'>('login');
     const [data, setData] = useState({ email: '', password: '', name: '', birthdate: '', phone: '', address: '' });
     const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [success, setSuccess] = useState<string | null>(null);
     const [showPassword, setShowPassword] = useState(false);
 
     const submit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
+        setError(null);
+        setSuccess(null);
         try {
             if (mode === 'login') {
                 await firebase.auth().signInWithEmailAndPassword(data.email, data.password);
+                onClose();
+            } else if (mode === 'forgot') {
+                await firebase.auth().sendPasswordResetEmail(data.email);
+                setSuccess(t('reset_link_sent'));
+                setTimeout(() => setMode('login'), 3000);
             } else {
                 if (!data.email.toLowerCase().endsWith("@moe-dl.edu.my") && data.email !== 'admin@gmail.com') throw new Error("MOE Email Required (@moe-dl.edu.my)");
                 
                 const birthYear = new Date(data.birthdate).getFullYear();
-                const currentYear = new Date().getFullYear();
-                const age = currentYear - birthYear;
+                const age = new Date().getFullYear() - birthYear;
 
                 const {user} = await firebase.auth().createUserWithEmailAndPassword(data.email, data.password);
                 await firebase.firestore().collection('users').doc(user.uid).set({ 
@@ -1158,9 +1159,17 @@ const AuthModal: React.FC<{onClose: () => void, t: any}> = ({onClose, t}) => {
                     address: data.address,
                     isAdmin: data.email === 'admin@gmail.com'
                 });
+                onClose();
             }
-            onClose();
-        } catch (err: any) { alert(err.message); } finally { setLoading(false); }
+        } catch (err: any) { 
+            console.error("Auth error:", err);
+            let msg = err.message;
+            if (err.code === 'auth/wrong-password') msg = "Incorrect password, please try again.";
+            if (err.code === 'auth/user-not-found') msg = "No account found with this email.";
+            setError(msg); 
+        } finally { 
+            setLoading(false); 
+        }
     };
 
     return (
@@ -1170,7 +1179,26 @@ const AuthModal: React.FC<{onClose: () => void, t: any}> = ({onClose, t}) => {
                     <i className="fas fa-times text-gray-400 group-hover:text-white"></i>
                 </button>
 
-                <h2 className="text-2xl sm:text-3xl font-black text-center uppercase italic text-[#2c3e50] mb-8 tracking-tighter">{mode === 'login' ? t('login') : t('register')}</h2>
+                <h2 className="text-2xl sm:text-3xl font-black text-center uppercase italic text-[#2c3e50] mb-8 tracking-tighter">
+                    {mode === 'login' ? t('login') : mode === 'forgot' ? t('reset_password') : t('register')}
+                </h2>
+
+                {error && (
+                    <div className="mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded-xl animate-in fade-in slide-in-from-top-1">
+                        <p className="text-[10px] font-black uppercase text-red-600 tracking-wider flex items-center gap-2">
+                            <i className="fas fa-exclamation-circle"></i> {error}
+                        </p>
+                    </div>
+                )}
+
+                {success && (
+                    <div className="mb-6 bg-green-50 border-l-4 border-green-500 p-4 rounded-xl animate-in fade-in slide-in-from-top-1">
+                        <p className="text-[10px] font-black uppercase text-green-600 tracking-wider flex items-center gap-2">
+                            <i className="fas fa-check-circle"></i> {success}
+                        </p>
+                    </div>
+                )}
+
                 <form onSubmit={submit} className="space-y-4">
                     {mode === 'register' && (
                         <>
@@ -1198,38 +1226,61 @@ const AuthModal: React.FC<{onClose: () => void, t: any}> = ({onClose, t}) => {
                         <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">{t('email_address')}</label>
                         <input type="email" placeholder="email@moe-dl.edu.my" value={data.email} onChange={e => setData({...data, email: e.target.value})} className="w-full bg-gray-50 border-2 border-gray-100 p-4 rounded-2xl outline-none font-bold text-black text-sm" required />
                     </div>
-                    <div className="space-y-1">
-                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">{t('password')}</label>
-                        <div className="relative">
-                            <input 
-                                type={showPassword ? "text" : "password"} 
-                                placeholder="••••••••" 
-                                value={data.password} 
-                                onChange={e => setData({...data, password: e.target.value})} 
-                                className="w-full bg-gray-50 border-2 border-gray-100 p-4 rounded-2xl outline-none font-bold pr-12 text-black text-sm" 
-                                required 
-                            />
+                    {mode !== 'forgot' && (
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">{t('password')}</label>
+                            <div className="relative">
+                                <input 
+                                    type={showPassword ? "text" : "password"} 
+                                    placeholder="••••••••" 
+                                    value={data.password} 
+                                    onChange={e => setData({...data, password: e.target.value})} 
+                                    className="w-full bg-gray-50 border-2 border-gray-100 p-4 rounded-2xl outline-none font-bold pr-12 text-black text-sm" 
+                                    required 
+                                />
+                                <button 
+                                    type="button" 
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-300 hover:text-[#3498db] transition-colors"
+                                >
+                                    <i className={`fas fa-eye${showPassword ? '-slash' : ''}`}></i>
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {mode === 'login' && (
+                        <div className="flex justify-end">
                             <button 
                                 type="button" 
-                                onClick={() => setShowPassword(!showPassword)}
-                                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-300 hover:text-[#3498db] transition-colors"
+                                onClick={() => setMode('forgot')}
+                                className="text-[10px] font-black uppercase text-[#3498db] hover:underline"
                             >
-                                <i className={`fas fa-eye${showPassword ? '-slash' : ''}`}></i>
+                                {t('forgot_password')}
                             </button>
                         </div>
-                    </div>
+                    )}
+
                     <button disabled={loading} className="w-full bg-[#3498db] text-white py-6 rounded-full font-black text-xl shadow-xl hover:scale-105 transition-all mt-6 tracking-widest uppercase">
-                        {loading ? '...' : (mode === 'login' ? t('login') : t('register'))}
+                        {loading ? '...' : (mode === 'login' ? t('login') : mode === 'forgot' ? t('send') : t('register'))}
                     </button>
                 </form>
                 
                 <div className="mt-8 pt-6 border-t border-gray-100 flex flex-col items-center gap-4">
                     <button 
-                        onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setShowPassword(false); }} 
+                        onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setShowPassword(false); setError(null); }} 
                         className="text-xs font-black uppercase text-[#3498db] hover:underline"
                     >
                         {mode === 'login' ? t('register') : t('login')}
                     </button>
+                    {mode === 'forgot' && (
+                        <button 
+                            onClick={() => { setMode('login'); setError(null); }}
+                            className="text-xs font-black uppercase text-gray-400 hover:text-[#2c3e50]"
+                        >
+                            Back to Login
+                        </button>
+                    )}
                 </div>
             </div>
         </div>
