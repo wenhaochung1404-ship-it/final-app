@@ -60,12 +60,13 @@ const App: React.FC = () => {
         let unsubNotifs: () => void = () => {};
 
         const initFirebase = async () => {
-            try {
-                if (typeof firebase === 'undefined') {
-                    setLoading(false);
-                    return;
-                }
+            if (typeof firebase === 'undefined') {
+                console.warn("Firebase not yet loaded...");
+                setTimeout(initFirebase, 500);
+                return;
+            }
 
+            try {
                 const firebaseConfig = {
                     apiKey: "AIzaSyDOl93LVxhrfcz04Kj2D2dSQkp22jaeiog",
                     authDomain: "miri-care-connect-95a63.firebaseapp.com",
@@ -76,7 +77,7 @@ const App: React.FC = () => {
                     measurementId: "G-7F4LG9P6EC"
                 };
 
-                if (!firebase.apps.length) {
+                if (!firebase.apps || !firebase.apps.length) {
                     firebase.initializeApp(firebaseConfig);
                 }
 
@@ -127,6 +128,7 @@ const App: React.FC = () => {
     const isAdmin = user?.isAdmin || user?.email === 'admin@gmail.com';
 
     const markNotifRead = async (notification: any) => {
+        if (typeof firebase === 'undefined') return;
         try {
             await firebase.firestore().collection('notifications').doc(notification.id).update({ read: true });
             
@@ -220,7 +222,7 @@ const App: React.FC = () => {
                             </div>
                         )}
                         {user ? (
-                            <button onClick={() => firebase.auth().signOut()} className="bg-red-500 hover:bg-red-600 text-white px-2 sm:px-4 py-1.5 rounded-full text-[8px] sm:text-[10px] font-black uppercase shadow-lg flex items-center gap-1 whitespace-nowrap">
+                            <button onClick={() => firebase && firebase.auth().signOut()} className="bg-red-500 hover:bg-red-600 text-white px-2 sm:px-4 py-1.5 rounded-full text-[8px] sm:text-[10px] font-black uppercase shadow-lg flex items-center gap-1 whitespace-nowrap">
                                 <i className="fas fa-sign-out-alt"></i>
                                 <span>{t('logout')}</span>
                             </button>
@@ -357,6 +359,7 @@ const App: React.FC = () => {
                     t={t}
                     onCancel={() => setItemToRedeem(null)} 
                     onConfirm={async (fullName, userClass) => {
+                        if (typeof firebase === 'undefined') return;
                         const db = firebase.firestore();
                         try {
                             const userRef = db.collection('users').doc(user!.uid);
@@ -385,7 +388,7 @@ const SupportChatBody: React.FC<{userId: string, userName: string, t: any, isGue
     const scrollRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        if (!userId) return;
+        if (!userId || typeof firebase === 'undefined') return;
         const db = firebase.firestore();
         const unsub = db.collection('support_chats')
             .where('userId', '==', userId)
@@ -409,7 +412,7 @@ const SupportChatBody: React.FC<{userId: string, userName: string, t: any, isGue
 
     const send = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!input.trim() || !userId) return;
+        if (!input.trim() || !userId || typeof firebase === 'undefined') return;
         const msgText = input;
         setInput('');
         
@@ -473,6 +476,7 @@ const HomePage: React.FC<{t: any, user: UserProfile | null}> = ({t, user}) => {
     const [announceInput, setAnnounceInput] = useState('');
 
     useEffect(() => {
+        if (typeof firebase === 'undefined') return;
         const db = firebase.firestore();
         const unsubDonations = db.collection('donations').orderBy('createdAt', 'desc').onSnapshot((snap: any) => {
             setDonations(snap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
@@ -490,6 +494,7 @@ const HomePage: React.FC<{t: any, user: UserProfile | null}> = ({t, user}) => {
     }, []);
 
     const saveAnnouncement = async () => {
+        if (typeof firebase === 'undefined') return;
         try {
             await firebase.firestore().collection('settings').doc('announcement').set({
                 text: announceInput,
@@ -502,7 +507,7 @@ const HomePage: React.FC<{t: any, user: UserProfile | null}> = ({t, user}) => {
     };
 
     const handleConfirmReceived = async (donation: any) => {
-        if (!user || (!user.isAdmin && user.email !== 'admin@gmail.com')) return;
+        if (!user || (!user.isAdmin && user.email !== 'admin@gmail.com') || typeof firebase === 'undefined') return;
         const confirmResult = window.confirm(`Confirm receipt? Donor earns 5 points.`);
         if (!confirmResult) return;
         const db = firebase.firestore();
@@ -639,6 +644,7 @@ const OfferHelpPage: React.FC<{user: UserProfile | null, t: any, onAuth: () => v
     const handlePost = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!user) { onAuth(); return; }
+        if (typeof firebase === 'undefined') return;
         setPosting(true);
         try {
             const db = firebase.firestore();
@@ -679,12 +685,13 @@ const OfferHelpPage: React.FC<{user: UserProfile | null, t: any, onAuth: () => v
                 <h2 className="text-3xl font-black text-[#2c3e50] mb-2 leading-none uppercase italic">{t('offer_help')}</h2>
                 <form onSubmit={handlePost} className="space-y-8 mt-10">
                     <div className="space-y-2">
-                        <label className="text-[10px] font-black text-gray-300 uppercase tracking-widest ml-1">{t('full_name')}</label>
+                        <label className="text-[10px] font-black text-gray-300 uppercase tracking-widest ml-1">Items</label>
                         <input 
                             value={item.itemName} 
                             onChange={e => setItem({...item, itemName: e.target.value})} 
                             className="w-full p-5 rounded-2xl border-2 border-gray-100 focus:border-[#3498db] outline-none font-bold bg-white text-black" 
                             required 
+                            placeholder="What are you offering?"
                         />
                     </div>
                     <div className="grid grid-cols-2 gap-6">
@@ -728,6 +735,7 @@ const AdminPanelContent: React.FC<{t: any, user: UserProfile | null}> = ({t, use
     const [selectedOffer, setSelectedOffer] = useState<any>(null);
 
     useEffect(() => {
+        if (typeof firebase === 'undefined') return;
         const db = firebase.firestore();
         const unsubUsers = db.collection('users').onSnapshot((snap: any) => setData(prev => ({...prev, users: snap.docs.map((d: any) => ({...d.data(), uid: d.id}))})));
         const unsubItems = db.collection('donations').onSnapshot((snap: any) => setData(prev => ({...prev, items: snap.docs.map((d: any) => ({...d.data(), id: d.id}))})));
@@ -766,6 +774,7 @@ const AdminPanelContent: React.FC<{t: any, user: UserProfile | null}> = ({t, use
 
     const handleUpdateUser = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (typeof firebase === 'undefined') return;
         try {
             await firebase.firestore().collection('users').doc(editingUser.uid).update({
                 displayName: editingUser.displayName,
@@ -780,7 +789,7 @@ const AdminPanelContent: React.FC<{t: any, user: UserProfile | null}> = ({t, use
 
     const sendAdminReply = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!adminReply.trim() || !activeSupportUser) return;
+        if (!adminReply.trim() || !activeSupportUser || typeof firebase === 'undefined') return;
         const reply = adminReply;
         setAdminReply('');
         const db = firebase.firestore();
@@ -937,7 +946,7 @@ const AdminPanelContent: React.FC<{t: any, user: UserProfile | null}> = ({t, use
 const ChatLogWindow: React.FC<{userId: string}> = ({userId}) => {
     const [msgs, setMsgs] = useState<any[]>([]);
     useEffect(() => {
-        if (!userId) return;
+        if (!userId || typeof firebase === 'undefined') return;
         const db = firebase.firestore();
         const unsub = db.collection('support_chats').where('userId', '==', userId).onSnapshot((snap: any) => {
             const data = snap.docs.map((d: any) => d.data());
@@ -982,7 +991,7 @@ const ProfilePage: React.FC<{user: UserProfile | null, t: any, onAuth: any, onNa
 
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!user) return;
+        if (!user || typeof firebase === 'undefined') return;
         setIsSaving(true);
         try {
             await firebase.firestore().collection('users').doc(user.uid).update({
@@ -1083,7 +1092,7 @@ const ShopPage: React.FC<{user: UserProfile | null, t: any, onAuth: any, onRedee
 const HistoryPage: React.FC<{user: UserProfile | null, t: any, onAuth: any}> = ({user, t, onAuth}) => {
     const [history, setHistory] = useState<any[]>([]);
     useEffect(() => {
-        if (!user) return;
+        if (!user || typeof firebase === 'undefined') return;
         const unsub = firebase.firestore().collection('redeem_history').where('userId', '==', user.uid).onSnapshot((snap: any) => {
             const data = snap.docs.map((d: any) => d.data());
             data.sort((a: any, b: any) => {
@@ -1131,6 +1140,7 @@ const AuthModal: React.FC<{onClose: () => void, t: any}> = ({onClose, t}) => {
 
     const submit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (typeof firebase === 'undefined') return;
         setLoading(true);
         setError(null);
         setSuccess(null);
