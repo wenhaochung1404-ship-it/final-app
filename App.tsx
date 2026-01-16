@@ -41,8 +41,19 @@ const App: React.FC = () => {
     const [showSupportChat, setShowSupportChat] = useState(false);
     const [notifications, setNotifications] = useState<any[]>([]);
     const [isNotifOpen, setIsNotifOpen] = useState(false);
+    const [guestId, setGuestId] = useState<string>('');
     
     const t = useCallback((key: string) => translations[lang][key] || key, [lang]);
+
+    // Handle Guest ID for Support Chat
+    useEffect(() => {
+        let storedGuestId = sessionStorage.getItem('support_guest_id');
+        if (!storedGuestId) {
+            storedGuestId = 'guest_' + Math.random().toString(36).substr(2, 9);
+            sessionStorage.setItem('support_guest_id', storedGuestId);
+        }
+        setGuestId(storedGuestId);
+    }, []);
 
     useEffect(() => {
         let unsubscribeAuth: () => void = () => {};
@@ -241,7 +252,8 @@ const App: React.FC = () => {
                     </button>
                 )}
 
-                {user && !isAdmin && (
+                {/* Support Chat - Visible to everyone, including guests */}
+                {!isAdmin && (
                     <div className="fixed right-6 bottom-6 z-[200] flex flex-col items-end gap-4">
                         {showSupportChat && (
                             <div className="w-[85vw] sm:w-80 h-[450px] bg-white rounded-3xl shadow-2xl border border-gray-100 flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 mb-2 origin-bottom-right">
@@ -254,7 +266,7 @@ const App: React.FC = () => {
                                         <i className="fas fa-times text-lg"></i>
                                     </button>
                                 </div>
-                                <SupportChatBody userId={user.uid} userName={user.displayName} t={t} />
+                                <SupportChatBody userId={user ? user.uid : guestId} userName={user ? user.displayName : 'Guest'} t={t} isGuest={!user} />
                             </div>
                         )}
                         <button 
@@ -336,12 +348,13 @@ const App: React.FC = () => {
     );
 };
 
-const SupportChatBody: React.FC<{userId: string, userName: string, t: any}> = ({userId, userName, t}) => {
+const SupportChatBody: React.FC<{userId: string, userName: string, t: any, isGuest: boolean}> = ({userId, userName, t, isGuest}) => {
     const [msgs, setMsgs] = useState<any[]>([]);
     const [input, setInput] = useState('');
     const scrollRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
+        if (!userId) return;
         const db = firebase.firestore();
         const unsub = db.collection('support_chats')
             .where('userId', '==', userId)
@@ -358,15 +371,16 @@ const SupportChatBody: React.FC<{userId: string, userName: string, t: any}> = ({
 
     const send = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!input.trim()) return;
+        if (!input.trim() || !userId) return;
         const msgText = input;
         setInput('');
         
         await firebase.firestore().collection('support_chats').add({
             userId,
-            userName: userName || 'User',
+            userName: userName || 'Guest',
             text: msgText,
             sender: 'user',
+            isGuest,
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
         });
     };
@@ -390,7 +404,7 @@ const SupportChatBody: React.FC<{userId: string, userName: string, t: any}> = ({
                             {m.text}
                         </div>
                         <span className="text-[8px] text-gray-400 mt-1 uppercase font-black">
-                            {m.sender === 'user' ? 'You' : 'Admin'}
+                            {m.sender === 'user' ? (m.isGuest ? 'Guest' : 'You') : 'Admin'}
                         </span>
                     </div>
                 ))}
@@ -605,7 +619,7 @@ const AdminPanelContent: React.FC<{t: any, user: UserProfile | null}> = ({t, use
             snap.docs.forEach((d: any) => {
                 const docData = d.data();
                 if (!seen.has(docData.userId)) {
-                    grouped.push({ userId: docData.userId, userName: docData.userName, lastMsg: docData.text });
+                    grouped.push({ userId: docData.userId, userName: docData.userName || (docData.isGuest ? 'Guest' : 'User'), lastMsg: docData.text, isGuest: docData.isGuest });
                     seen.add(docData.userId);
                 }
             });
@@ -651,46 +665,17 @@ const AdminPanelContent: React.FC<{t: any, user: UserProfile | null}> = ({t, use
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
         });
 
-        await db.collection('notifications').add({
-            userId: activeSupportUser.userId,
-            title: 'Admin Response',
-            message: 'An administrator replied to your support message.',
-            type: 'message',
-            read: false,
-            createdAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
-    };
-
-    const handleApproveFromPanel = async (donation: any) => {
-        const confirmResult = window.confirm(`Confirm receipt for ${donation.itemName}?`);
-        if (!confirmResult) return;
-        const db = firebase.firestore();
-        try {
-            const donorRef = db.collection('users').doc(donation.userId);
-            await db.runTransaction(async (transaction: any) => {
-                const donorDoc = await transaction.get(donorRef);
-                const currentPoints = donorDoc.exists ? (donorDoc.data().points || 0) : 0;
-                transaction.update(donorRef, { points: currentPoints + 5 });
-                transaction.set(db.collection('completed_donations').doc(donation.id), {
-                    ...donation,
-                    completedAt: firebase.firestore.FieldValue.serverTimestamp(),
-                    confirmedBy: user?.uid
-                });
-                transaction.delete(db.collection('donations').doc(donation.id));
-            });
-
+        // Only send notif if it's not a guest
+        if (!activeSupportUser.isGuest) {
             await db.collection('notifications').add({
-                userId: donation.userId,
-                title: 'Offer Confirmed!',
-                message: `Admin confirmed your offer: ${donation.itemName}. Points added!`,
-                type: 'status',
+                userId: activeSupportUser.userId,
+                title: 'Admin Response',
+                message: 'An administrator replied to your support message.',
+                type: 'message',
                 read: false,
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
             });
-
-            setSelectedOffer(null);
-            alert("Approved!");
-        } catch (err) { alert("Failed."); }
+        }
     };
 
     return (
@@ -763,11 +748,6 @@ const AdminPanelContent: React.FC<{t: any, user: UserProfile | null}> = ({t, use
                                         </span>
                                     </div>
                                 </div>
-                                {!selectedOffer.completedAt && (
-                                    <button onClick={() => handleApproveFromPanel(selectedOffer)} className="w-full bg-[#2ecc71] text-white py-3 rounded-xl font-black text-xs uppercase shadow-md transition-all">
-                                        {t('confirm_received')}
-                                    </button>
-                                )}
                                 <button onClick={() => setSelectedOffer(null)} className="w-full bg-[#2c3e50] text-white py-2 rounded-lg font-black text-[10px] uppercase">{t('cancel')}</button>
                             </div>
                         ) : (
@@ -813,7 +793,10 @@ const AdminPanelContent: React.FC<{t: any, user: UserProfile | null}> = ({t, use
                         <div className="space-y-2">
                             {data.supportChats.map(s => (
                                 <div key={s.userId} onClick={() => setActiveSupportUser(s)} className="bg-white p-4 border rounded-xl cursor-pointer hover:border-[#3498db]">
-                                    <div className="font-black text-[11px] uppercase mb-1">{s.userName}</div>
+                                    <div className="flex justify-between items-start mb-1">
+                                        <div className="font-black text-[11px] uppercase">{s.userName}</div>
+                                        {s.isGuest && <span className="text-[7px] bg-gray-100 px-1.5 py-0.5 rounded font-black uppercase text-gray-400">Guest</span>}
+                                    </div>
                                     <div className="text-[10px] text-gray-400 truncate">{s.lastMsg}</div>
                                 </div>
                             ))}
@@ -828,6 +811,7 @@ const AdminPanelContent: React.FC<{t: any, user: UserProfile | null}> = ({t, use
 const ChatLogWindow: React.FC<{userId: string}> = ({userId}) => {
     const [msgs, setMsgs] = useState<any[]>([]);
     useEffect(() => {
+        if (!userId) return;
         const unsub = firebase.firestore().collection('support_chats').where('userId', '==', userId).orderBy('createdAt', 'asc').onSnapshot((snap: any) => setMsgs(snap.docs.map((d: any) => d.data())));
         return unsub;
     }, [userId]);
