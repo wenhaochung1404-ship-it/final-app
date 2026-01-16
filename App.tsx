@@ -130,9 +130,10 @@ const App: React.FC = () => {
         try {
             await firebase.firestore().collection('notifications').doc(notification.id).update({ read: true });
             
-            // Logic: if notification is about points/confirmation, show pop-up
-            if (notification.type === 'status' || notification.message.toLowerCase().includes('earned')) {
-                const pointsMatch = notification.message.match(/(\d+)\s+points/);
+            // Trigger pop-up if the notification is about points or status update
+            const lowerMsg = notification.message.toLowerCase();
+            if (notification.type === 'status' || lowerMsg.includes('earned') || lowerMsg.includes('points')) {
+                const pointsMatch = notification.message.match(/(\d+)/);
                 const points = pointsMatch ? parseInt(pointsMatch[1]) : 5;
                 setEarnedPointsModal({
                     show: true,
@@ -140,8 +141,8 @@ const App: React.FC = () => {
                     message: notification.message
                 });
                 
-                // Auto-close after 5 seconds
-                setTimeout(() => setEarnedPointsModal(prev => ({...prev, show: false})), 5000);
+                // Close after 6 seconds automatically
+                setTimeout(() => setEarnedPointsModal(prev => ({...prev, show: false})), 6000);
             }
         } catch (e) {
             console.error("Error marking read", e);
@@ -245,7 +246,6 @@ const App: React.FC = () => {
 
                 {!isAdmin && (
                     <div className="fixed right-6 bottom-6 z-[200] flex flex-col items-end gap-3 sm:gap-4">
-                        {/* Support Chat Window */}
                         {showSupportChat && (
                             <div className="w-[85vw] sm:w-80 h-[450px] bg-white rounded-3xl shadow-2xl border border-gray-100 flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 mb-2 origin-bottom-right">
                                 <div className="bg-[#3498db] p-4 text-white flex justify-between items-center">
@@ -262,7 +262,6 @@ const App: React.FC = () => {
                         )}
                         
                         <div className="flex items-center gap-3">
-                            {/* Relocated Language Selector */}
                             <div className="relative group">
                                 <button className="bg-white text-[#2c3e50] w-12 h-12 sm:w-14 sm:h-14 rounded-full shadow-xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all border-4 border-gray-50">
                                     <i className="fas fa-language text-xl sm:text-2xl"></i>
@@ -283,7 +282,6 @@ const App: React.FC = () => {
                                 </div>
                             </div>
 
-                            {/* Chat Toggle Button */}
                             <button 
                                 onClick={() => setShowSupportChat(!showSupportChat)}
                                 className="bg-[#3498db] text-white w-16 h-16 rounded-full shadow-[0_8px_32px_rgba(52,152,219,0.3)] flex items-center justify-center hover:scale-110 active:scale-95 transition-all border-4 border-white z-[201]"
@@ -335,19 +333,21 @@ const App: React.FC = () => {
             {isMenuOpen && <div className="fixed inset-0 bg-black/50 z-[300]" onClick={() => setIsMenuOpen(false)}></div>}
 
             {isAuthModalOpen && <AuthModal onClose={() => setIsAuthModalOpen(false)} t={t} />}
-            
+
+            {/* Points Earned Pop-up */}
             {earnedPointsModal.show && (
-                <div className="fixed inset-0 z-[600] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in zoom-in duration-300">
-                    <div className="bg-white rounded-[2rem] p-10 shadow-2xl text-center max-w-sm border-t-8 border-[#f39c12]">
-                        <div className="w-20 h-20 bg-[#f39c12] rounded-full flex items-center justify-center text-white text-4xl mx-auto mb-6 animate-bounce">
+                <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in zoom-in duration-300">
+                    <div className="bg-white rounded-[2.5rem] p-10 shadow-2xl text-center max-w-sm border-t-8 border-[#f39c12] relative overflow-hidden">
+                        <div className="absolute -top-10 -right-10 w-32 h-32 bg-[#f39c12]/10 rounded-full blur-2xl"></div>
+                        <div className="w-20 h-20 bg-[#f39c12] rounded-full flex items-center justify-center text-white text-4xl mx-auto mb-6 animate-bounce shadow-lg">
                             <i className="fas fa-star"></i>
                         </div>
-                        <h2 className="text-2xl font-black uppercase italic text-[#2c3e50] mb-2">Congratulations!</h2>
-                        <p className="text-gray-500 font-bold mb-6">{earnedPointsModal.message}</p>
-                        <div className="text-4xl font-black text-[#f39c12] mb-8">+{earnedPointsModal.amount} Points</div>
+                        <h2 className="text-2xl font-black uppercase italic text-[#2c3e50] mb-2">Good Job!</h2>
+                        <p className="text-gray-500 font-bold mb-6 text-sm leading-relaxed">{earnedPointsModal.message}</p>
+                        <div className="text-4xl font-black text-[#f39c12] mb-8 tabular-nums tracking-tighter">+{earnedPointsModal.amount} Points</div>
                         <button 
                             onClick={() => setEarnedPointsModal(prev => ({...prev, show: false}))}
-                            className="w-full bg-[#2c3e50] text-white py-4 rounded-xl font-black uppercase tracking-widest text-xs"
+                            className="w-full bg-[#2c3e50] text-white py-5 rounded-2xl font-black uppercase tracking-widest text-xs hover:scale-105 active:scale-95 transition-all shadow-xl"
                         >
                             Awesome!
                         </button>
@@ -474,7 +474,7 @@ const SupportChatBody: React.FC<{userId: string, userName: string, t: any, isGue
 const HomePage: React.FC<{t: any, user: UserProfile | null}> = ({t, user}) => {
     const [donations, setDonations] = useState<any[]>([]);
     const [announcement, setAnnouncement] = useState<{text: string, updatedAt: any}>({text: '', updatedAt: null});
-    const [editingAnnounce, setEditingAnnounce] = useState(false);
+    const [isEditingAnnounce, setIsEditingAnnounce] = useState(false);
     const [announceInput, setAnnounceInput] = useState('');
 
     useEffect(() => {
@@ -500,8 +500,10 @@ const HomePage: React.FC<{t: any, user: UserProfile | null}> = ({t, user}) => {
                 text: announceInput,
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp()
             });
-            setEditingAnnounce(false);
-        } catch (e) { alert("Failed to save announcement"); }
+            setIsEditingAnnounce(false);
+        } catch (e) {
+            alert("Failed to update announcement.");
+        }
     };
 
     const handleConfirmReceived = async (donation: any) => {
@@ -546,48 +548,53 @@ const HomePage: React.FC<{t: any, user: UserProfile | null}> = ({t, user}) => {
                 <p className="text-sm sm:text-xl opacity-80 max-w-2xl mx-auto leading-relaxed font-bold uppercase">{t('hero_description')}</p>
             </section>
 
-            <div className="max-w-6xl mx-auto space-y-8">
-                {/* Admin Announcement Section */}
+            <div className="max-w-6xl mx-auto space-y-10">
+                {/* Admin Message Section (The requested blank space for admin) */}
                 <div className="space-y-4">
                     <div className="flex items-center justify-between px-2">
                         <h3 className="text-xs font-black uppercase text-gray-400 tracking-[0.2em]">{t('admin_support')} / ANNOUNCEMENTS</h3>
                         {isAdmin && (
                             <button 
-                                onClick={() => setEditingAnnounce(!editingAnnounce)}
+                                onClick={() => setIsEditingAnnounce(!isEditingAnnounce)}
                                 className="text-[10px] font-black uppercase text-[#3498db] hover:underline"
                             >
-                                {editingAnnounce ? t('cancel') : 'Update Message'}
+                                {isEditingAnnounce ? t('cancel') : 'Update Announcement'}
                             </button>
                         )}
                     </div>
                     
-                    <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden p-6 sm:p-8">
-                        {editingAnnounce && isAdmin ? (
-                            <div className="space-y-4">
+                    <div className="bg-white rounded-[2rem] border border-gray-100 shadow-sm p-6 sm:p-10 relative overflow-hidden group">
+                        <div className="absolute top-0 right-0 p-4 opacity-5">
+                            <i className="fas fa-bullhorn text-6xl rotate-12"></i>
+                        </div>
+                        
+                        {isEditingAnnounce && isAdmin ? (
+                            <div className="space-y-4 animate-in slide-in-from-top-2">
                                 <textarea 
                                     value={announceInput}
                                     onChange={e => setAnnounceInput(e.target.value)}
-                                    placeholder="Type important update for all users..."
-                                    className="w-full h-32 p-4 bg-gray-50 rounded-2xl border-2 border-gray-100 focus:border-[#3498db] outline-none font-bold text-sm"
+                                    placeholder="Type important news for all users..."
+                                    className="w-full h-32 p-5 bg-gray-50 rounded-2xl border-2 border-gray-100 focus:border-[#3498db] outline-none font-bold text-sm leading-relaxed"
                                 />
                                 <button 
                                     onClick={saveAnnouncement}
-                                    className="bg-[#2c3e50] text-white px-8 py-3 rounded-xl font-black uppercase text-xs shadow-lg hover:scale-105 transition-all"
+                                    className="bg-[#2c3e50] text-white px-10 py-3.5 rounded-xl font-black uppercase text-[10px] shadow-lg hover:scale-105 transition-all"
                                 >
-                                    {t('send')}
+                                    Publish Update
                                 </button>
                             </div>
                         ) : (
-                            <div className="flex items-start gap-4 sm:gap-6">
-                                <div className="w-12 h-12 sm:w-16 sm:h-16 bg-[#3498db]/10 rounded-2xl flex items-center justify-center text-[#3498db] text-xl sm:text-2xl shrink-0">
+                            <div className="flex items-start gap-6">
+                                <div className="w-14 h-14 sm:w-16 sm:h-16 bg-[#3498db]/10 rounded-2xl flex items-center justify-center text-[#3498db] text-2xl shrink-0">
                                     <i className="fas fa-bullhorn"></i>
                                 </div>
                                 <div className="space-y-2">
-                                    <p className="text-sm sm:text-lg font-bold text-[#2c3e50] leading-relaxed italic">
-                                        {announcement.text || "Welcome to Miri Care Connect. Acts of kindness make our city stronger!"}
+                                    <p className="text-sm sm:text-lg font-bold text-[#2c3e50] italic leading-relaxed">
+                                        {announcement.text || "No official announcements at this time. Stay safe, Miri!"}
                                     </p>
-                                    <div className="text-[9px] font-black uppercase text-gray-300">
-                                        Last updated: {announcement.updatedAt ? announcement.updatedAt.toDate().toLocaleDateString() : 'Just now'}
+                                    <div className="text-[9px] font-black uppercase text-gray-300 flex items-center gap-2">
+                                        <i className="far fa-clock"></i>
+                                        {announcement.updatedAt ? announcement.updatedAt.toDate().toLocaleString() : 'Just now'}
                                     </div>
                                 </div>
                             </div>
@@ -595,7 +602,7 @@ const HomePage: React.FC<{t: any, user: UserProfile | null}> = ({t, user}) => {
                     </div>
                 </div>
 
-                {/* Help Requests Column */}
+                {/* Offer Help Column */}
                 <div className="space-y-6">
                     <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex items-center justify-between">
                         <h2 className="text-lg sm:text-xl font-black text-[#2c3e50] tracking-tight uppercase">{t('offer_help')}</h2>
