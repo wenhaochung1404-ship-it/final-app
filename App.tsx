@@ -61,7 +61,6 @@ const App: React.FC = () => {
 
         const initFirebase = async () => {
             if (typeof firebase === 'undefined') {
-                console.warn("Firebase not yet loaded...");
                 setTimeout(initFirebase, 500);
                 return;
             }
@@ -93,9 +92,9 @@ const App: React.FC = () => {
                             }
                         }, (err: any) => console.error("User snap error:", err));
 
+                        // Fetching all notifications for the user
                         unsubNotifs = db.collection('notifications')
                             .where('userId', '==', authUser.uid)
-                            .limit(50)
                             .onSnapshot((snap: any) => {
                                 const notifs = snap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
                                 notifs.sort((a: any, b: any) => {
@@ -185,16 +184,16 @@ const App: React.FC = () => {
                                 </button>
                                 
                                 {isNotifOpen && (
-                                    <div className="absolute top-full right-0 mt-2 w-72 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden text-black z-[200] animate-in slide-in-from-top-2">
+                                    <div className="absolute top-full right-0 mt-2 w-80 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden text-black z-[200] animate-in slide-in-from-top-2">
                                         <div className="p-4 bg-gray-50 border-b flex justify-between items-center">
-                                            <span className="text-[10px] font-black uppercase text-gray-400">Notifications</span>
+                                            <span className="text-[10px] font-black uppercase text-gray-400">Activity & Alerts</span>
                                             {unreadCount > 0 && (
                                                 <button onClick={() => notifications.forEach(n => !n.read && markNotifRead(n))} className="text-[8px] font-black uppercase text-[#3498db] hover:underline">Mark all read</button>
                                             )}
                                         </div>
-                                        <div className="max-h-80 overflow-y-auto">
+                                        <div className="max-h-96 overflow-y-auto">
                                             {notifications.length === 0 ? (
-                                                <div className="p-8 text-center text-gray-300 italic text-xs uppercase font-black">No alerts</div>
+                                                <div className="p-8 text-center text-gray-300 italic text-xs uppercase font-black">No alerts yet</div>
                                             ) : (
                                                 notifications.map(n => (
                                                     <div key={n.id} onClick={() => markNotifRead(n)} className={`p-4 border-b hover:bg-gray-50 cursor-pointer transition-colors ${!n.read ? 'bg-blue-50/50' : ''}`}>
@@ -203,8 +202,16 @@ const App: React.FC = () => {
                                                                 <i className={`fas fa-${n.type === 'offer' ? 'hand-holding-heart' : n.type === 'message' ? 'comment' : 'sync'}`}></i>
                                                             </div>
                                                             <div className="flex-1 min-w-0">
-                                                                <p className="text-[11px] font-bold text-gray-800 leading-tight">{n.title}</p>
+                                                                <div className="flex justify-between items-start">
+                                                                    <p className="text-[11px] font-bold text-gray-800 leading-tight">{n.title}</p>
+                                                                    <span className="text-[7px] font-black text-gray-400 uppercase ml-2">
+                                                                        {n.createdAt?.toDate().toLocaleDateString('en-GB', {day: '2-digit', month: 'short'})}
+                                                                    </span>
+                                                                </div>
                                                                 <p className="text-[10px] text-gray-500 line-clamp-2 mt-0.5">{n.message}</p>
+                                                                <p className="text-[7px] font-black text-[#3498db] uppercase mt-1">
+                                                                    {n.createdAt?.toDate().toLocaleTimeString('en-GB', {hour: '2-digit', minute: '2-digit'})}
+                                                                </p>
                                                             </div>
                                                         </div>
                                                     </div>
@@ -528,8 +535,8 @@ const HomePage: React.FC<{t: any, user: UserProfile | null}> = ({t, user}) => {
 
             await db.collection('notifications').add({
                 userId: donation.userId,
-                title: 'Offer Confirmed!',
-                message: `Your offer for ${donation.itemName} has been confirmed. You earned 5 points!`,
+                title: 'Points Earned!',
+                message: `You had earn 5 points for offering your item: ${donation.itemName}. Keep up the great work!`,
                 type: 'status',
                 read: false,
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -543,10 +550,13 @@ const HomePage: React.FC<{t: any, user: UserProfile | null}> = ({t, user}) => {
 
     return (
         <div className="space-y-12 pb-24 animate-in fade-in duration-500">
-            <section className="bg-[#2c3e50] text-white rounded-3xl p-12 sm:p-24 text-center shadow-2xl relative border-b-8 border-[#3498db]">
-                <h1 className="text-3xl sm:text-7xl font-black mb-6 italic uppercase tracking-tighter leading-tight">{t('hero_title')}</h1>
-                <p className="text-sm sm:text-xl opacity-80 max-w-2xl mx-auto leading-relaxed font-bold uppercase">{t('hero_description')}</p>
-            </section>
+            {/* Conditional Rendering of Hero Section: Hidden when logged in */}
+            {user === null && (
+                <section className="bg-[#2c3e50] text-white rounded-3xl p-12 sm:p-24 text-center shadow-2xl relative border-b-8 border-[#3498db] animate-in slide-in-from-top duration-700">
+                    <h1 className="text-3xl sm:text-7xl font-black mb-6 italic uppercase tracking-tighter leading-tight">{t('hero_title')}</h1>
+                    <p className="text-sm sm:text-xl opacity-80 max-w-2xl mx-auto leading-relaxed font-bold uppercase">{t('hero_description')}</p>
+                </section>
+            )}
 
             <div className="max-w-6xl mx-auto space-y-10">
                 <div className="space-y-4">
