@@ -45,7 +45,6 @@ const App: React.FC = () => {
     
     const t = useCallback((key: string) => translations[lang][key] || key, [lang]);
 
-    // Handle Guest ID for Support Chat
     useEffect(() => {
         let storedGuestId = sessionStorage.getItem('support_guest_id');
         if (!storedGuestId) {
@@ -62,7 +61,6 @@ const App: React.FC = () => {
         const initFirebase = async () => {
             try {
                 if (typeof firebase === 'undefined') {
-                    console.error("Firebase SDK not found");
                     setLoading(false);
                     return;
                 }
@@ -91,7 +89,7 @@ const App: React.FC = () => {
                             } else {
                                 setUser({ uid: authUser.uid, email: authUser.email, points: 10 } as any);
                             }
-                        });
+                        }, (err: any) => console.error("User snap error:", err));
 
                         unsubNotifs = db.collection('notifications')
                             .where('userId', '==', authUser.uid)
@@ -104,7 +102,7 @@ const App: React.FC = () => {
                                     return timeB - timeA;
                                 });
                                 setNotifications(notifs);
-                            }, (err: any) => console.error("Notif error:", err));
+                            }, (err: any) => console.error("Notif snap error:", err));
                     } else { 
                         setUser(null); 
                         setNotifications([]);
@@ -156,7 +154,6 @@ const App: React.FC = () => {
                     </div>
                     
                     <div className="flex items-center gap-1 sm:gap-4 flex-shrink-0">
-                        {/* Language Selector */}
                         <div className="relative group">
                             <button className="p-2 bg-white/10 rounded-lg text-[10px] font-black uppercase flex items-center gap-2">
                                 <i className="fas fa-language text-lg"></i>
@@ -252,7 +249,6 @@ const App: React.FC = () => {
                     </button>
                 )}
 
-                {/* Support Chat - Visible to everyone, including guests */}
                 {!isAdmin && (
                     <div className="fixed right-6 bottom-6 z-[200] flex flex-col items-end gap-4">
                         {showSupportChat && (
@@ -356,11 +352,21 @@ const SupportChatBody: React.FC<{userId: string, userName: string, t: any, isGue
     useEffect(() => {
         if (!userId) return;
         const db = firebase.firestore();
+        // REMOVED orderBy('createdAt', 'asc') to avoid index requirement.
+        // Sorting will be done client-side.
         const unsub = db.collection('support_chats')
             .where('userId', '==', userId)
-            .orderBy('createdAt', 'asc')
             .onSnapshot((snap: any) => {
-                setMsgs(snap.docs.map((d: any) => d.data()));
+                const data = snap.docs.map((d: any) => d.data());
+                // Client-side sort to fix index issue
+                data.sort((a: any, b: any) => {
+                    const timeA = a.createdAt?.toMillis?.() || 0;
+                    const timeB = b.createdAt?.toMillis?.() || 0;
+                    return timeA - timeB;
+                });
+                setMsgs(data);
+            }, (err: any) => {
+                console.error("Support chat snap error:", err);
             });
         return unsub;
     }, [userId]);
@@ -375,14 +381,18 @@ const SupportChatBody: React.FC<{userId: string, userName: string, t: any, isGue
         const msgText = input;
         setInput('');
         
-        await firebase.firestore().collection('support_chats').add({
-            userId,
-            userName: userName || 'Guest',
-            text: msgText,
-            sender: 'user',
-            isGuest,
-            createdAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
+        try {
+            await firebase.firestore().collection('support_chats').add({
+                userId,
+                userName: userName || 'Guest',
+                text: msgText,
+                sender: 'user',
+                isGuest,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+        } catch (e) {
+            console.error("Error sending message:", e);
+        }
     };
 
     return (
@@ -431,7 +441,7 @@ const HomePage: React.FC<{t: any, user: UserProfile | null}> = ({t, user}) => {
         const db = firebase.firestore();
         const unsubDonations = db.collection('donations').orderBy('createdAt', 'desc').onSnapshot((snap: any) => {
             setDonations(snap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
-        });
+        }, (err: any) => console.error("Donations snap error:", err));
         return () => { unsubDonations(); };
     }, []);
 
@@ -613,18 +623,26 @@ const AdminPanelContent: React.FC<{t: any, user: UserProfile | null}> = ({t, use
         const unsubItems = db.collection('donations').onSnapshot((snap: any) => setData(prev => ({...prev, items: snap.docs.map((d: any) => ({...d.data(), id: d.id}))})));
         const unsubCompleted = db.collection('completed_donations').onSnapshot((snap: any) => setData(prev => ({...prev, completedItems: snap.docs.map((d: any) => ({...d.data(), id: d.id}))})));
         
-        const unsubSupport = db.collection('support_chats').orderBy('createdAt', 'desc').onSnapshot((snap: any) => {
+        // Removed orderBy to avoid index requirement. Sort manually.
+        const unsubSupport = db.collection('support_chats').onSnapshot((snap: any) => {
+            const rawDocs = snap.docs.map((d: any) => d.data());
+            rawDocs.sort((a: any, b: any) => {
+                const timeA = a.createdAt?.toMillis?.() || 0;
+                const timeB = b.createdAt?.toMillis?.() || 0;
+                return timeB - timeA;
+            });
+
             const grouped: any[] = [];
             const seen = new Set();
-            snap.docs.forEach((d: any) => {
-                const docData = d.data();
+            rawDocs.forEach((docData: any) => {
                 if (!seen.has(docData.userId)) {
                     grouped.push({ userId: docData.userId, userName: docData.userName || (docData.isGuest ? 'Guest' : 'User'), lastMsg: docData.text, isGuest: docData.isGuest });
                     seen.add(docData.userId);
                 }
             });
             setData(prev => ({...prev, supportChats: grouped}));
-        });
+        }, (err: any) => console.error("Admin support snap error:", err));
+
         return () => { unsubUsers(); unsubItems(); unsubCompleted(); unsubSupport(); };
     }, []);
 
@@ -665,7 +683,6 @@ const AdminPanelContent: React.FC<{t: any, user: UserProfile | null}> = ({t, use
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
         });
 
-        // Only send notif if it's not a guest
         if (!activeSupportUser.isGuest) {
             await db.collection('notifications').add({
                 userId: activeSupportUser.userId,
@@ -812,7 +829,17 @@ const ChatLogWindow: React.FC<{userId: string}> = ({userId}) => {
     const [msgs, setMsgs] = useState<any[]>([]);
     useEffect(() => {
         if (!userId) return;
-        const unsub = firebase.firestore().collection('support_chats').where('userId', '==', userId).orderBy('createdAt', 'asc').onSnapshot((snap: any) => setMsgs(snap.docs.map((d: any) => d.data())));
+        const db = firebase.firestore();
+        // Removed orderBy to avoid index issue. Sort client-side.
+        const unsub = db.collection('support_chats').where('userId', '==', userId).onSnapshot((snap: any) => {
+            const data = snap.docs.map((d: any) => d.data());
+            data.sort((a: any, b: any) => {
+                const timeA = a.createdAt?.toMillis?.() || 0;
+                const timeB = b.createdAt?.toMillis?.() || 0;
+                return timeA - timeB;
+            });
+            setMsgs(data);
+        }, (err: any) => console.error("Admin chat log window snap error:", err));
         return unsub;
     }, [userId]);
 
@@ -949,7 +976,15 @@ const HistoryPage: React.FC<{user: UserProfile | null, t: any, onAuth: any}> = (
     const [history, setHistory] = useState<any[]>([]);
     useEffect(() => {
         if (!user) return;
-        const unsub = firebase.firestore().collection('redeem_history').where('userId', '==', user.uid).orderBy('redeemedAt', 'desc').onSnapshot((snap: any) => setHistory(snap.docs.map((d: any) => d.data())));
+        const unsub = firebase.firestore().collection('redeem_history').where('userId', '==', user.uid).onSnapshot((snap: any) => {
+            const data = snap.docs.map((d: any) => d.data());
+            data.sort((a: any, b: any) => {
+                const timeA = a.redeemedAt?.toMillis?.() || 0;
+                const timeB = b.redeemedAt?.toMillis?.() || 0;
+                return timeB - timeA;
+            });
+            setHistory(data);
+        }, (err: any) => console.error("History snap error:", err));
         return unsub;
     }, [user]);
     
