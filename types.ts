@@ -16,6 +16,7 @@ export interface UserProfile {
   birthdate?: string;
   age?: number;
   isAdmin?: boolean;
+  userClass?: string;
   settings: {
     autoShareContact: boolean;
     receiveNotifications: boolean;

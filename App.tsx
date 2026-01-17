@@ -42,7 +42,6 @@ const App: React.FC = () => {
     const [notifications, setNotifications] = useState<any[]>([]);
     const [isNotifOpen, setIsNotifOpen] = useState(false);
     const [guestId, setGuestId] = useState<string>('');
-    const [earnedPointsModal, setEarnedPointsModal] = useState<{show: boolean, amount: number, message: string}>({show: false, amount: 0, message: ''});
     
     const t = useCallback((key: string) => translations[lang][key] || key, [lang]);
 
@@ -54,30 +53,6 @@ const App: React.FC = () => {
         }
         setGuestId(storedGuestId);
     }, []);
-
-    // Check for New Year's Day reminder
-    useEffect(() => {
-        if (!user || typeof firebase === 'undefined' || !firebase.firestore) return;
-        
-        const now = new Date();
-        const isNewYear = now.getMonth() === 0 && now.getDate() === 1;
-        const currentYear = now.getFullYear();
-        const lastReminderYear = localStorage.getItem(`class_reminder_${user.uid}`);
-
-        if (isNewYear && lastReminderYear !== currentYear.toString()) {
-            const db = firebase.firestore();
-            db.collection('notifications').add({
-                userId: user.uid,
-                title: 'New Academic Year!',
-                message: 'Please update your class in profile page.',
-                type: 'message',
-                read: false,
-                createdAt: firebase.firestore.FieldValue.serverTimestamp()
-            }).then(() => {
-                localStorage.setItem(`class_reminder_${user.uid}`, currentYear.toString());
-            });
-        }
-    }, [user]);
 
     useEffect(() => {
         let unsubscribeAuth: () => void = () => {};
@@ -114,19 +89,15 @@ const App: React.FC = () => {
                             } else {
                                 setUser({ uid: authUser.uid, email: authUser.email, points: 10 } as any);
                             }
-                        }, (err: any) => console.error("User snap error:", err));
+                        });
 
                         unsubNotifs = db.collection('notifications')
                             .where('userId', '==', authUser.uid)
                             .onSnapshot((snap: any) => {
                                 const notifs = snap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
-                                notifs.sort((a: any, b: any) => {
-                                    const timeA = a.createdAt?.toMillis?.() || 0;
-                                    const timeB = b.createdAt?.toMillis?.() || 0;
-                                    return timeB - timeA;
-                                });
+                                notifs.sort((a: any, b: any) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
                                 setNotifications(notifs);
-                            }, (err: any) => console.error("Notif snap error:", err));
+                            });
                     } else { 
                         setUser(null); 
                         setNotifications([]);
@@ -153,9 +124,7 @@ const App: React.FC = () => {
         if (typeof firebase === 'undefined' || !firebase.firestore) return;
         try {
             await firebase.firestore().collection('notifications').doc(notification.id).update({ read: true });
-        } catch (e) {
-            console.error("Error marking read", e);
-        }
+        } catch (e) { console.error("Error marking read", e); }
     };
 
     if (loading) return (
@@ -181,29 +150,16 @@ const App: React.FC = () => {
                     <div className="flex items-center gap-1 sm:gap-4 flex-shrink-0">
                         {user && (
                             <div className="relative">
-                                <button 
-                                    onClick={() => setIsNotifOpen(true)}
-                                    className="p-2 hover:bg-white/10 rounded-full transition-all relative"
-                                >
+                                <button onClick={() => setIsNotifOpen(true)} className="p-2 hover:bg-white/10 rounded-full transition-all relative">
                                     <i className="fas fa-bell text-lg"></i>
-                                    {unreadCount > 0 && (
-                                        <span className="absolute top-1 right-1 bg-red-500 text-white text-[8px] w-4 h-4 rounded-full flex items-center justify-center font-black border-2 border-[#2c3e50]">
-                                            {unreadCount}
-                                        </span>
-                                    )}
+                                    {unreadCount > 0 && <span className="absolute top-1 right-1 bg-red-500 text-white text-[8px] w-4 h-4 rounded-full flex items-center justify-center font-black border-2 border-[#2c3e50]">{unreadCount}</span>}
                                 </button>
                             </div>
                         )}
-
-                        {user && (
-                            <div className="flex items-center bg-[#f39c12] px-2 sm:px-4 py-1 rounded-full text-[8px] sm:text-xs font-black shadow-lg whitespace-nowrap">
-                                <i className="fas fa-star mr-1 sm:mr-2"></i> {user.points} <span className="ml-0.5">{t('points')}</span>
-                            </div>
-                        )}
+                        {user && <div className="flex items-center bg-[#f39c12] px-2 sm:px-4 py-1 rounded-full text-[8px] sm:text-xs font-black shadow-lg whitespace-nowrap"><i className="fas fa-star mr-1 sm:mr-2"></i> {user.points} <span className="ml-0.5">{t('points')}</span></div>}
                         {user ? (
-                            <button onClick={() => typeof firebase !== 'undefined' && firebase.auth && firebase.auth().signOut()} className="bg-red-500 hover:bg-red-600 text-white px-2 sm:px-4 py-1.5 rounded-full text-[8px] sm:text-[10px] font-black uppercase shadow-lg flex items-center gap-1 whitespace-nowrap">
-                                <i className="fas fa-sign-out-alt"></i>
-                                <span>{t('logout')}</span>
+                            <button onClick={() => firebase.auth().signOut()} className="bg-red-500 hover:bg-red-600 text-white px-2 sm:px-4 py-1.5 rounded-full text-[8px] sm:text-[10px] font-black uppercase shadow-lg flex items-center gap-1 whitespace-nowrap">
+                                <i className="fas fa-sign-out-alt"></i> <span>{t('logout')}</span>
                             </button>
                         ) : (
                             <button onClick={() => setIsAuthModalOpen(true)} className="bg-[#3498db] hover:bg-blue-600 px-3 py-1.5 rounded-full text-[8px] sm:text-[10px] font-black uppercase shadow-lg">{t('login')}</button>
@@ -214,15 +170,13 @@ const App: React.FC = () => {
 
             <div className="flex flex-1 overflow-hidden relative">
                 {isAdmin && (
-                    <button 
-                        onClick={() => setShowAdminPanel(!showAdminPanel)}
-                        className="fixed right-4 top-1/4 z-[110] bg-[#2c3e50] text-white w-12 h-12 sm:w-14 sm:h-14 rounded-full shadow-2xl flex flex-col items-center justify-center hover:scale-110 active:scale-95 transition-all group border-4 border-white"
-                    >
+                    <button onClick={() => setShowAdminPanel(!showAdminPanel)} className="fixed right-4 top-1/4 z-[110] bg-[#2c3e50] text-white w-12 h-12 sm:w-14 sm:h-14 rounded-full shadow-2xl flex flex-col items-center justify-center hover:scale-110 active:scale-95 transition-all group border-4 border-white">
                         <i className={`fas fa-${showAdminPanel ? 'times' : 'user-shield'} text-lg sm:text-xl`}></i>
                         <span className="text-[6px] sm:text-[7px] font-black uppercase mt-1">{t('admin_panel')}</span>
                     </button>
                 )}
 
+                {/* Restore Floating Action Buttons */}
                 <div className="fixed right-6 bottom-6 z-[200] flex flex-col items-end gap-3 sm:gap-4">
                     {showSupportChat && (
                         <div className="w-[85vw] sm:w-80 h-[450px] bg-white rounded-3xl shadow-2xl border border-gray-100 flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 mb-2 origin-bottom-right">
@@ -309,101 +263,46 @@ const App: React.FC = () => {
             </aside>
             {isMenuOpen && <div className="fixed inset-0 bg-black/50 z-[300]" onClick={() => setIsMenuOpen(false)}></div>}
 
-            {/* Notification Popup Modal */}
             {isNotifOpen && (
                 <div className="fixed inset-0 bg-black/80 z-[600] flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setIsNotifOpen(false)}>
                     <div className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl flex flex-col overflow-hidden animate-in zoom-in duration-300 max-h-[80vh]" onClick={e => e.stopPropagation()}>
                         <div className="p-6 bg-gray-50 border-b flex justify-between items-center">
                             <h3 className="font-black uppercase text-sm italic text-[#2c3e50] tracking-tighter">Activity Logs</h3>
-                            <button onClick={() => setIsNotifOpen(false)} className="w-10 h-10 bg-gray-200/50 rounded-full flex items-center justify-center hover:bg-red-500 hover:text-white transition-all">
-                                <i className="fas fa-times text-xs"></i>
-                            </button>
+                            <button onClick={() => setIsNotifOpen(false)} className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center hover:bg-red-500 hover:text-white transition-all"><i className="fas fa-times text-xs"></i></button>
                         </div>
                         <div className="flex-1 overflow-y-auto p-4 space-y-4">
                             {notifications.length === 0 ? (
                                 <div className="py-20 text-center flex flex-col items-center gap-4">
-                                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center text-gray-300">
-                                        <i className="fas fa-bell-slash text-2xl"></i>
-                                    </div>
-                                    <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Nothing here yet. Go offer some help!</p>
+                                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center text-gray-300"><i className="fas fa-bell-slash text-2xl"></i></div>
+                                    <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Nothing here yet.</p>
                                 </div>
                             ) : (
                                 notifications.map(n => (
-                                    <div 
-                                        key={n.id} 
-                                        onClick={() => markNotifRead(n)}
-                                        className={`p-5 rounded-3xl border transition-all ${!n.read ? 'bg-blue-50/50 border-blue-100 ring-1 ring-blue-100' : 'bg-white border-gray-100'}`}
-                                    >
+                                    <div key={n.id} onClick={() => markNotifRead(n)} className={`p-5 rounded-3xl border transition-all ${!n.read ? 'bg-blue-50/50 border-blue-100 ring-1 ring-blue-100' : 'bg-white border-gray-100'}`}>
                                         <div className="flex gap-4">
                                             <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-white text-[14px] shrink-0 shadow-sm ${n.type === 'offer' ? 'bg-green-500' : n.type === 'message' ? 'bg-blue-500' : 'bg-[#f39c12]'}`}>
                                                 <i className={`fas fa-${n.type === 'offer' ? 'hand-holding-heart' : n.type === 'message' ? 'comment' : 'star'}`}></i>
                                             </div>
                                             <div className="flex-1">
-                                                <div className="flex justify-between items-start mb-1">
-                                                    <p className="text-[11px] font-black text-gray-800 uppercase tracking-tighter">{n.title}</p>
-                                                </div>
-                                                <p className="text-[10px] text-gray-500 leading-relaxed font-medium">{n.message}</p>
-                                                <div className="mt-3 pt-3 border-t border-gray-100 flex items-center gap-3">
-                                                    <div className="flex items-center gap-1.5">
-                                                        <i className="far fa-calendar text-[8px] text-gray-400"></i>
-                                                        <span className="text-[8px] font-black text-gray-400 uppercase">
-                                                            {n.createdAt?.toDate().toLocaleDateString('en-GB', {day: '2-digit', month: 'short', year: 'numeric'})}
-                                                        </span>
-                                                    </div>
-                                                    <div className="flex items-center gap-1.5">
-                                                        <i className="far fa-clock text-[8px] text-gray-400"></i>
-                                                        <span className="text-[8px] font-black text-[#3498db] uppercase">
-                                                            {n.createdAt?.toDate().toLocaleTimeString('en-GB', {hour: '2-digit', minute: '2-digit'})}
-                                                        </span>
-                                                    </div>
-                                                </div>
+                                                <p className="text-[11px] font-black text-gray-800 uppercase tracking-tighter">{n.title}</p>
+                                                <p className="text-[10px] text-gray-500 font-medium">{n.message}</p>
+                                                <div className="mt-2 text-[8px] font-black text-gray-400 uppercase">{n.createdAt?.toDate().toLocaleString()}</div>
                                             </div>
                                         </div>
                                     </div>
                                 ))
                             )}
                         </div>
-                        {notifications.length > 0 && (
-                            <div className="p-4 border-t bg-gray-50">
-                                <button onClick={() => notifications.forEach(n => !n.read && markNotifRead(n))} className="w-full py-3 text-[10px] font-black uppercase text-[#3498db] hover:bg-white rounded-xl transition-all">
-                                    Clear all unread
-                                </button>
-                            </div>
-                        )}
                     </div>
                 </div>
             )}
 
             {isAuthModalOpen && <AuthModal onClose={() => setIsAuthModalOpen(false)} t={t} />}
 
-            {earnedPointsModal.show && (
-                <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in zoom-in duration-300">
-                    <div className="bg-white rounded-[2.5rem] p-10 shadow-2xl text-center max-w-sm border-t-8 border-[#f39c12] relative overflow-hidden">
-                        <div className="absolute -top-10 -right-10 w-32 h-32 bg-[#f39c12]/10 rounded-full blur-2xl"></div>
-                        <div className="w-20 h-20 bg-[#f39c12] rounded-full flex items-center justify-center text-white text-4xl mx-auto mb-6 animate-bounce shadow-lg">
-                            <i className="fas fa-star"></i>
-                        </div>
-                        <h2 className="text-2xl font-black uppercase italic text-[#2c3e50] mb-2">Good Job!</h2>
-                        <p className="text-gray-500 font-bold mb-6 text-sm leading-relaxed">{earnedPointsModal.message}</p>
-                        <div className="text-4xl font-black text-[#f39c12] mb-8 tabular-nums tracking-tighter">+{earnedPointsModal.amount} Points</div>
-                        <button 
-                            onClick={() => setEarnedPointsModal(prev => ({...prev, show: false}))}
-                            className="w-full bg-[#2c3e50] text-white py-5 rounded-2xl font-black uppercase tracking-widest text-xs hover:scale-105 active:scale-95 transition-all shadow-xl"
-                        >
-                            Awesome!
-                        </button>
-                    </div>
-                </div>
-            )}
-
             {itemToRedeem && (
                 <RedeemConfirmModal 
-                    item={itemToRedeem} 
-                    user={user!} 
-                    t={t}
-                    onCancel={() => setItemToRedeem(null)} 
+                    item={itemToRedeem} user={user!} t={t} onCancel={() => setItemToRedeem(null)} 
                     onConfirm={async (fullName, userClass) => {
-                        if (typeof firebase === 'undefined' || !firebase.firestore) return;
                         const db = firebase.firestore();
                         try {
                             const userRef = db.collection('users').doc(user!.uid);
@@ -438,14 +337,8 @@ const SupportChatBody: React.FC<{userId: string, userName: string, t: any, isGue
             .where('userId', '==', userId)
             .onSnapshot((snap: any) => {
                 const data = snap.docs.map((d: any) => d.data());
-                data.sort((a: any, b: any) => {
-                    const timeA = a.createdAt?.toMillis?.() || 0;
-                    const timeB = b.createdAt?.toMillis?.() || 0;
-                    return timeA - timeB;
-                });
+                data.sort((a: any, b: any) => (a.createdAt?.toMillis?.() || 0) - (b.createdAt?.toMillis?.() || 0));
                 setMsgs(data);
-            }, (err: any) => {
-                console.error("Support chat snap error:", err);
             });
         return unsub;
     }, [userId]);
@@ -459,55 +352,26 @@ const SupportChatBody: React.FC<{userId: string, userName: string, t: any, isGue
         if (!input.trim() || !userId || typeof firebase === 'undefined' || !firebase.firestore) return;
         const msgText = input;
         setInput('');
-        
-        try {
-            await firebase.firestore().collection('support_chats').add({
-                userId,
-                userName: userName || 'Guest',
-                text: msgText,
-                sender: 'user',
-                isGuest,
-                createdAt: firebase.firestore.FieldValue.serverTimestamp()
-            });
-        } catch (e) {
-            console.error("Error sending message:", e);
-        }
+        await firebase.firestore().collection('support_chats').add({
+            userId, userName: userName || 'Guest', text: msgText, sender: 'user', isGuest,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
     };
 
     return (
         <div className="flex-1 flex flex-col bg-gray-50 overflow-hidden">
             <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3">
-                {msgs.length === 0 && (
-                    <div className="text-center py-10 px-4">
-                        <i className="fas fa-headset text-3xl text-gray-300 mb-2"></i>
-                        <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest">{t('support_desc')}</p>
-                    </div>
-                )}
                 {msgs.map((m, i) => (
                     <div key={i} className={`flex flex-col ${m.sender === 'user' ? 'items-end' : 'items-start'}`}>
-                        <div className={`max-w-[85%] p-3 rounded-2xl text-xs font-bold ${
-                            m.sender === 'user' 
-                            ? 'bg-[#3498db] text-white rounded-tr-none' 
-                            : 'bg-[#2c3e50] text-white rounded-tl-none'
-                        }`}>
+                        <div className={`max-w-[85%] p-3 rounded-2xl text-xs font-bold ${m.sender === 'user' ? 'bg-[#3498db] text-white' : 'bg-[#2c3e50] text-white'}`}>
                             {m.text}
                         </div>
-                        <span className="text-[8px] text-gray-400 mt-1 uppercase font-black">
-                            {m.sender === 'user' ? (m.isGuest ? 'Guest' : 'You') : 'Admin'}
-                        </span>
                     </div>
                 ))}
             </div>
             <form onSubmit={send} className="p-4 bg-white border-t flex gap-2">
-                <input 
-                    value={input} 
-                    onChange={e => setInput(e.target.value)} 
-                    placeholder={t('type_message')} 
-                    className="flex-1 bg-gray-100 p-3 rounded-2xl text-xs font-bold outline-none border-2 border-transparent focus:border-[#3498db] transition-all" 
-                />
-                <button className="bg-[#3498db] text-white w-10 h-10 rounded-xl flex items-center justify-center transition-transform active:scale-90 shadow-lg">
-                    <i className="fas fa-paper-plane text-xs"></i>
-                </button>
+                <input value={input} onChange={e => setInput(e.target.value)} placeholder={t('type_message')} className="flex-1 bg-gray-100 p-3 rounded-2xl text-xs font-bold outline-none border-2 border-transparent focus:border-[#3498db] transition-all" />
+                <button className="bg-[#3498db] text-white w-10 h-10 rounded-xl flex items-center justify-center shadow-lg"><i className="fas fa-paper-plane text-xs"></i></button>
             </form>
         </div>
     );
@@ -524,8 +388,7 @@ const HomePage: React.FC<{t: any, user: UserProfile | null}> = ({t, user}) => {
         const db = firebase.firestore();
         const unsubDonations = db.collection('donations').orderBy('createdAt', 'desc').onSnapshot((snap: any) => {
             setDonations(snap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
-        }, (err: any) => console.error("Donations snap error:", err));
-
+        });
         const unsubAnnounce = db.collection('settings').doc('announcement').onSnapshot((doc: any) => {
             if (doc.exists) {
                 const data = doc.data();
@@ -533,26 +396,21 @@ const HomePage: React.FC<{t: any, user: UserProfile | null}> = ({t, user}) => {
                 setAnnounceInput(data.text);
             }
         });
-
         return () => { unsubDonations(); unsubAnnounce(); };
     }, []);
 
     const saveAnnouncement = async () => {
-        if (typeof firebase === 'undefined' || !firebase.firestore) return;
-        try {
-            await firebase.firestore().collection('settings').doc('announcement').set({
-                text: announceInput,
-                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-            });
-            setIsEditingAnnounce(false);
-        } catch (e) {
-            alert("Failed to update announcement.");
-        }
+        await firebase.firestore().collection('settings').doc('announcement').set({
+            text: announceInput, updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        setIsEditingAnnounce(false);
     };
 
     const handleConfirmReceived = async (donation: any) => {
-        if (!user || (!user.isAdmin && user.email !== 'admin@gmail.com') || typeof firebase === 'undefined' || !firebase.firestore) return;
-        const confirmResult = window.confirm(`Confirm receipt? Donor earns 5 points.`);
+        if (!user || (!user.isAdmin && user.email !== 'admin@gmail.com')) return;
+        const itemQty = donation.qty || 1;
+        const pointsToEarn = itemQty * 5;
+        const confirmResult = window.confirm(`Confirm receipt? Donor offered ${itemQty} item(s) and will earn ${pointsToEarn} points.`);
         if (!confirmResult) return;
         const db = firebase.firestore();
         try {
@@ -560,25 +418,18 @@ const HomePage: React.FC<{t: any, user: UserProfile | null}> = ({t, user}) => {
             await db.runTransaction(async (transaction: any) => {
                 const donorDoc = await transaction.get(donorRef);
                 const currentPoints = donorDoc.exists ? (donorDoc.data().points || 0) : 0;
-                
-                transaction.update(donorRef, { points: currentPoints + 5 });
+                transaction.update(donorRef, { points: currentPoints + pointsToEarn });
                 transaction.set(db.collection('completed_donations').doc(donation.id), {
-                    ...donation,
-                    completedAt: firebase.firestore.FieldValue.serverTimestamp(),
-                    confirmedBy: user.uid
+                    ...donation, completedAt: firebase.firestore.FieldValue.serverTimestamp(), confirmedBy: user.uid, earnedPoints: pointsToEarn
                 });
                 transaction.delete(db.collection('donations').doc(donation.id));
             });
-
             await db.collection('notifications').add({
                 userId: donation.userId,
-                title: 'You had earn 5 points!',
-                message: `You had earn 5 points for offering your items: ${donation.itemName}. Thank you for your kindness!`,
-                type: 'status',
-                read: false,
-                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                title: `You earned ${pointsToEarn} points!`,
+                message: `Thank you for offering ${itemQty} ${donation.itemName}. Your kindness matters!`,
+                type: 'status', read: false, createdAt: firebase.firestore.FieldValue.serverTimestamp()
             });
-
             alert("Confirmed!");
         } catch (err) { alert("Failed."); }
     };
@@ -586,96 +437,53 @@ const HomePage: React.FC<{t: any, user: UserProfile | null}> = ({t, user}) => {
     const isAdmin = user?.isAdmin || user?.email === 'admin@gmail.com';
 
     return (
-        <div className="space-y-12 pb-24 animate-in fade-in duration-500">
+        <div className="space-y-12 pb-24">
             {user === null && (
-                <section className="bg-[#2c3e50] text-white rounded-[2.5rem] p-12 sm:p-24 text-center shadow-2xl relative border-b-8 border-[#3498db] animate-in slide-in-from-top duration-700">
-                    <h1 className="text-3xl sm:text-7xl font-black mb-6 italic uppercase tracking-tighter leading-tight">{t('hero_title')}</h1>
-                    <p className="text-sm sm:text-xl opacity-80 max-w-2xl mx-auto leading-relaxed font-bold uppercase">{t('hero_description')}</p>
+                <section className="bg-[#2c3e50] text-white rounded-[2.5rem] p-12 text-center shadow-2xl border-b-8 border-[#3498db]">
+                    <h1 className="text-3xl sm:text-6xl font-black mb-6 italic uppercase tracking-tighter">{t('hero_title')}</h1>
+                    <p className="text-sm sm:text-lg opacity-80 font-bold uppercase">{t('hero_description')}</p>
                 </section>
             )}
-
             <div className="max-w-6xl mx-auto space-y-10">
                 <div className="space-y-4">
-                    <div className="flex items-center justify-between px-2">
-                        <h3 className="text-xs font-black uppercase text-gray-400 tracking-[0.2em]">{t('admin_support')} / ANNOUNCEMENTS</h3>
-                        {isAdmin && (
-                            <button 
-                                onClick={() => setIsEditingAnnounce(!isEditingAnnounce)}
-                                className="text-[10px] font-black uppercase text-[#3498db] hover:underline"
-                            >
-                                {isEditingAnnounce ? t('cancel') : 'Update Announcement'}
-                            </button>
-                        )}
+                    <div className="flex items-center justify-between">
+                        <h3 className="text-xs font-black uppercase text-gray-400 tracking-widest">Announcements</h3>
+                        {isAdmin && <button onClick={() => setIsEditingAnnounce(!isEditingAnnounce)} className="text-[10px] font-black uppercase text-[#3498db]">{isEditingAnnounce ? t('cancel') : 'Update'}</button>}
                     </div>
-                    
-                    <div className="bg-white rounded-[2rem] border border-gray-100 shadow-sm p-6 sm:p-10 relative overflow-hidden group">
-                        <div className="absolute top-0 right-0 p-4 opacity-5">
-                            <i className="fas fa-bullhorn text-6xl rotate-12"></i>
-                        </div>
-                        
-                        {isEditingAnnounce && isAdmin ? (
-                            <div className="space-y-4 animate-in slide-in-from-top-2">
-                                <textarea 
-                                    value={announceInput}
-                                    onChange={e => setAnnounceInput(e.target.value)}
-                                    placeholder="Type important news for all users..."
-                                    className="w-full h-32 p-5 bg-gray-50 rounded-2xl border-2 border-gray-100 focus:border-[#3498db] outline-none font-bold text-sm leading-relaxed"
-                                />
-                                <button 
-                                    onClick={saveAnnouncement}
-                                    className="bg-[#2c3e50] text-white px-10 py-3.5 rounded-xl font-black uppercase text-[10px] shadow-lg hover:scale-105 transition-all"
-                                >
-                                    Publish Update
-                                </button>
+                    <div className="bg-white rounded-[2rem] border p-6 shadow-sm">
+                        {isEditingAnnounce ? (
+                            <div className="space-y-4">
+                                <textarea value={announceInput} onChange={e => setAnnounceInput(e.target.value)} className="w-full h-24 p-4 bg-gray-50 rounded-xl outline-none font-bold text-sm" />
+                                <button onClick={saveAnnouncement} className="bg-[#2c3e50] text-white px-8 py-2 rounded-lg font-black uppercase text-[10px]">Publish</button>
                             </div>
                         ) : (
-                            <div className="flex items-start gap-6">
-                                <div className="w-14 h-14 sm:w-16 sm:h-16 bg-[#3498db]/10 rounded-2xl flex items-center justify-center text-[#3498db] text-2xl shrink-0">
-                                    <i className="fas fa-bullhorn"></i>
-                                </div>
-                                <div className="space-y-2">
-                                    <p className="text-sm sm:text-lg font-bold text-[#2c3e50] italic leading-relaxed">
-                                        {announcement.text || "No official announcements at this time. Stay safe, Miri!"}
-                                    </p>
-                                    <div className="text-[9px] font-black uppercase text-gray-300 flex items-center gap-2">
-                                        <i className="far fa-clock"></i>
-                                        {announcement.updatedAt ? announcement.updatedAt.toDate().toLocaleString() : 'Just now'}
-                                    </div>
-                                </div>
+                            <div className="flex items-start gap-4">
+                                <i className="fas fa-bullhorn text-[#3498db] mt-1"></i>
+                                <p className="text-sm font-bold text-[#2c3e50] italic">{announcement.text || "No announcements today."}</p>
                             </div>
                         )}
                     </div>
                 </div>
-
                 <div className="space-y-6">
-                    <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex items-center justify-between">
-                        <h2 className="text-lg sm:text-xl font-black text-[#2c3e50] tracking-tight uppercase">{t('offer_help')}</h2>
-                        <div className="bg-blue-50 text-[#3498db] px-4 py-1.5 rounded-full text-[10px] font-black flex items-center gap-2">
-                            <i className="fas fa-bolt"></i> LIVE
-                        </div>
-                    </div>
+                    <h2 className="text-lg font-black text-[#2c3e50] uppercase tracking-tight">{t('offer_help')}</h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {donations.map(item => (
-                            <div key={item.id} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col group relative">
+                            <div key={item.id} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col group">
                                 <div className="flex justify-between items-start mb-4">
-                                    <h3 className="text-xl sm:text-2xl font-black text-[#2c3e50] leading-tight group-hover:text-[#3498db] transition-colors">{item.itemName}</h3>
+                                    <h3 className="text-xl font-black text-[#2c3e50]">{item.itemName}</h3>
                                     <div className="bg-blue-50 text-[#3498db] px-3 py-1 rounded-full text-[10px] font-black">Qty: {item.qty}</div>
                                 </div>
-                                <div className="mb-6 flex gap-2">
-                                    <span className="bg-gray-50 text-gray-400 px-3 py-1 rounded-md text-[10px] font-black uppercase">{item.category}</span>
-                                </div>
-                                <div className="space-y-3 flex-1 mb-6 text-gray-400 font-bold text-sm">
+                                <div className="mb-4"><span className="bg-gray-50 text-gray-400 px-3 py-1 rounded-md text-[10px] font-black uppercase">{item.category}</span></div>
+                                <div className="space-y-2 flex-1 mb-6 text-gray-400 font-bold text-sm">
                                     <div><i className="far fa-user mr-2"></i>{item.donorName}</div>
-                                    <div><i className="fas fa-map-marker-alt mr-2"></i>SMK Lutong</div>
                                 </div>
                                 {isAdmin && (
-                                    <button onClick={() => handleConfirmReceived(item)} className="w-full bg-[#2ecc71] hover:bg-[#27ae60] text-white py-3 rounded-xl text-xs font-black uppercase shadow-md transition-all mt-auto">
-                                        <i className="fas fa-check-circle mr-2"></i> {t('confirm_received')}
+                                    <button onClick={() => handleConfirmReceived(item)} className="w-full bg-[#2ecc71] hover:bg-[#27ae60] text-white py-3 rounded-xl text-xs font-black uppercase shadow-md transition-all">
+                                        <i className="fas fa-check-circle mr-2"></i> Confirm & Reward
                                     </button>
                                 )}
                             </div>
                         ))}
-                        {donations.length === 0 && <div className="col-span-full py-20 text-center font-black text-gray-300 uppercase italic">{t('no_requests')}</div>}
                     </div>
                 </div>
             </div>
@@ -690,60 +498,43 @@ const OfferHelpPage: React.FC<{user: UserProfile | null, t: any, onAuth: () => v
     const handlePost = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!user) { onAuth(); return; }
-        if (typeof firebase === 'undefined' || !firebase.firestore) return;
         setPosting(true);
         try {
             const db = firebase.firestore();
             await db.collection('donations').add({
-                ...item,
-                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                userId: user.uid
+                ...item, createdAt: firebase.firestore.FieldValue.serverTimestamp(), userId: user.uid
             });
-            await db.collection('users').doc(user.uid).update({ points: (user.points || 0) + 5 });
-            
-            const admins = await db.collection('users').where('isAdmin', '==', true).get();
-            admins.forEach(async (adminDoc: any) => {
+
+            const adminQuery = await db.collection('users').where('isAdmin', '==', true).get();
+            adminQuery.forEach(async (adminDoc: any) => {
                 await db.collection('notifications').add({
                     userId: adminDoc.id,
-                    title: 'New Offer Received',
-                    message: `${user.displayName} offered ${item.itemName}.`,
-                    type: 'offer',
-                    read: false,
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                    title: `New Offer: ${item.itemName}`,
+                    message: `${user.displayName} from ${user.userClass || 'unknown class'} has offered an item.`,
+                    type: 'offer', read: false, createdAt: firebase.firestore.FieldValue.serverTimestamp()
                 });
             });
 
-            alert("SUCCESSFULLY POSTED!");
+            alert("Offer Posted Successfully!");
             onNavigate('home');
         } catch (err) { alert("Failed."); } finally { setPosting(false); }
     };
 
-    if (!user) return (
-        <div className="max-w-4xl mx-auto py-24 text-center">
-            <h2 className="text-4xl font-black text-[#2c3e50] mb-2 uppercase tracking-tighter">{t('login_register')}</h2>
-            <button onClick={onAuth} className="bg-[#3498db] text-white px-12 py-5 rounded-full font-black uppercase tracking-widest shadow-xl hover:scale-105 transition-all mt-8">{t('login')}</button>
-        </div>
-    );
+    if (!user) return <div className="text-center py-24"><button onClick={onAuth} className="bg-[#3498db] text-white px-12 py-4 rounded-full font-black uppercase shadow-xl">{t('login')}</button></div>;
 
     return (
-        <div className="max-w-2xl mx-auto py-12 animate-in zoom-in duration-300">
-            <div className="bg-white rounded-[3rem] shadow-2xl p-10 sm:p-16 border border-gray-50">
-                <h2 className="text-3xl font-black text-[#2c3e50] mb-2 leading-none uppercase italic">{t('offer_help')}</h2>
-                <form onSubmit={handlePost} className="space-y-8 mt-10">
-                    <div className="space-y-2">
-                        <label className="text-[10px] font-black text-gray-300 uppercase tracking-widest ml-1">Items</label>
-                        <input 
-                            value={item.itemName} 
-                            onChange={e => setItem({...item, itemName: e.target.value})} 
-                            className="w-full p-5 rounded-2xl border-2 border-gray-100 focus:border-[#3498db] outline-none font-bold bg-white text-black" 
-                            required 
-                            placeholder="What are you offering?"
-                        />
+        <div className="max-w-2xl mx-auto py-12">
+            <div className="bg-white rounded-[3rem] shadow-2xl p-10 border border-gray-50">
+                <h2 className="text-3xl font-black text-[#2c3e50] mb-8 uppercase italic">{t('offer_help')}</h2>
+                <form onSubmit={handlePost} className="space-y-6">
+                    <div className="space-y-1">
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Item Name</label>
+                        <input value={item.itemName} onChange={e => setItem({...item, itemName: e.target.value})} className="w-full p-4 rounded-2xl border-2 outline-none font-bold" required placeholder="What are you offering?" />
                     </div>
-                    <div className="grid grid-cols-2 gap-6">
-                        <div className="space-y-2">
-                            <label className="text-[10px] font-black text-gray-300 uppercase tracking-widest ml-1">Category</label>
-                            <select value={item.category} onChange={e => setItem({...item, category: e.target.value})} className="w-full p-5 rounded-2xl border-2 border-gray-100 outline-none font-bold text-black bg-white">
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Category</label>
+                            <select value={item.category} onChange={e => setItem({...item, category: e.target.value})} className="w-full p-4 rounded-2xl border-2 outline-none font-bold">
                                 <option>{t('category_food')}</option>
                                 <option>{t('category_clothing')}</option>
                                 <option>{t('category_books')}</option>
@@ -751,19 +542,13 @@ const OfferHelpPage: React.FC<{user: UserProfile | null, t: any, onAuth: () => v
                                 <option>{t('category_toiletries')}</option>
                             </select>
                         </div>
-                        <div className="space-y-2">
-                            <label className="text-[10px] font-black text-gray-300 uppercase tracking-widest ml-1">Quantity</label>
-                            <input 
-                                type="number" 
-                                value={item.qty} 
-                                onChange={e => setItem({...item, qty: Number(e.target.value)})} 
-                                className="w-full p-5 rounded-2xl border-2 border-gray-100 outline-none font-bold bg-white text-black" 
-                                required 
-                            />
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Quantity</label>
+                            <input type="number" value={item.qty} min="1" onChange={e => setItem({...item, qty: Number(e.target.value)})} className="w-full p-4 rounded-2xl border-2 outline-none font-bold" required />
                         </div>
                     </div>
-                    <button type="submit" disabled={posting} className="w-full bg-[#4285f4] hover:bg-blue-600 text-white py-6 rounded-2xl font-black text-xl shadow-xl active:scale-95 transition-all disabled:opacity-50 uppercase">
-                        {posting ? '...' : t('submit_request')}
+                    <button type="submit" disabled={posting} className="w-full bg-[#3498db] text-white py-5 rounded-2xl font-black text-xl shadow-xl uppercase transition-transform active:scale-95">
+                        {posting ? '...' : 'Post Offer'}
                     </button>
                 </form>
             </div>
@@ -772,13 +557,12 @@ const OfferHelpPage: React.FC<{user: UserProfile | null, t: any, onAuth: () => v
 };
 
 const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
-    const [activeTab, setActiveTab] = useState<'users' | 'items' | 'chats' | 'vouchers'>('users');
-    const [data, setData] = useState<{users: any[], items: any[], completedItems: any[], supportChats: any[], redemptions: any[]}>({users: [], items: [], completedItems: [], supportChats: [], redemptions: []});
-    const [activeSupportUser, setActiveSupportUser] = useState<any>(null);
-    const [adminReply, setAdminReply] = useState('');
+    const [activeTab, setActiveTab] = useState<'users' | 'items' | 'vouchers' | 'chats'>('users');
+    const [data, setData] = useState<{users: any[], items: any[], redemptions: any[], completedItems: any[], supportChats: any[]}>({users: [], items: [], redemptions: [], completedItems: [], supportChats: []});
     const [searchQuery, setSearchQuery] = useState('');
     const [editingUser, setEditingUser] = useState<any>(null);
-    const [selectedOffer, setSelectedOffer] = useState<any>(null);
+    const [activeSupportUser, setActiveSupportUser] = useState<any>(null);
+    const [adminReply, setAdminReply] = useState('');
 
     useEffect(() => {
         if (typeof firebase === 'undefined' || !firebase.firestore) return;
@@ -790,24 +574,19 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
         
         const unsubSupport = db.collection('support_chats').onSnapshot((snap: any) => {
             const rawDocs = snap.docs.map((d: any) => d.data());
-            rawDocs.sort((a: any, b: any) => {
-                const timeA = a.createdAt?.toMillis?.() || 0;
-                const timeB = b.createdAt?.toMillis?.() || 0;
-                return timeB - timeA;
-            });
-
             const grouped: any[] = [];
             const seen = new Set();
-            rawDocs.forEach((docData: any) => {
-                if (!seen.has(docData.userId)) {
-                    grouped.push({ userId: docData.userId, userName: docData.userName || (docData.isGuest ? 'Guest' : 'User'), lastMsg: docData.text, isGuest: docData.isGuest });
-                    seen.add(docData.userId);
+            rawDocs.sort((a: any, b: any) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+            rawDocs.forEach((doc: any) => {
+                if (!seen.has(doc.userId)) {
+                    grouped.push({ userId: doc.userId, userName: doc.userName, lastMsg: doc.text, isGuest: doc.isGuest });
+                    seen.add(doc.userId);
                 }
             });
             setData(prev => ({...prev, supportChats: grouped}));
-        }, (err: any) => console.error("Admin support snap error:", err));
+        });
 
-        return () => { unsubUsers(); unsubItems(); unsubCompleted(); unsubSupport(); unsubRedemptions(); };
+        return () => { unsubUsers(); unsubItems(); unsubCompleted(); unsubRedemptions(); unsubSupport(); };
     }, []);
 
     const filteredUsers = useMemo(() => {
@@ -822,13 +601,13 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
 
     const handleUpdateUser = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (typeof firebase === 'undefined' || !firebase.firestore) return;
         try {
             await firebase.firestore().collection('users').doc(editingUser.uid).update({
                 displayName: editingUser.displayName,
                 points: Number(editingUser.points),
                 phone: editingUser.phone || '',
                 address: editingUser.address || '',
+                birthdate: editingUser.birthdate || '',
                 userClass: editingUser.userClass || ''
             });
             alert("User updated successfully");
@@ -838,76 +617,52 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
 
     const sendAdminReply = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!adminReply.trim() || !activeSupportUser || typeof firebase === 'undefined' || !firebase.firestore) return;
-        const reply = adminReply;
+        if (!adminReply.trim() || !activeSupportUser) return;
+        const text = adminReply;
         setAdminReply('');
-        const db = firebase.firestore();
-        await db.collection('support_chats').add({
+        await firebase.firestore().collection('support_chats').add({
             userId: activeSupportUser.userId,
-            userName: activeSupportUser.userName || 'User',
-            text: reply,
-            sender: 'admin',
+            userName: activeSupportUser.userName,
+            text, sender: 'admin',
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
         });
-
-        if (!activeSupportUser.isGuest) {
-            await db.collection('notifications').add({
-                userId: activeSupportUser.userId,
-                title: 'Admin Response',
-                message: 'An administrator replied to your support message.',
-                type: 'message',
-                read: false,
-                createdAt: firebase.firestore.FieldValue.serverTimestamp()
-            });
-        }
     };
 
     return (
         <div className="h-full flex flex-col p-4 sm:p-6 overflow-hidden bg-white">
-            <h2 className="text-xl sm:text-2xl font-black italic uppercase text-[#2c3e50] mb-4 border-b-4 border-[#3498db] pb-2 inline-block">{t('admin_panel')}</h2>
-            
-            <div className="flex flex-wrap gap-1 mb-4">
-                <button onClick={() => { setActiveTab('users'); setActiveSupportUser(null); setSelectedOffer(null); }} className={`flex-1 min-w-[60px] py-2 rounded-xl text-[7px] font-black uppercase transition-all ${activeTab === 'users' ? 'bg-[#2c3e50] text-white' : 'bg-gray-100 text-gray-400'}`}>{t('user_management')}</button>
-                <button onClick={() => { setActiveTab('items'); setActiveSupportUser(null); setSelectedOffer(null); }} className={`flex-1 min-w-[60px] py-2 rounded-xl text-[7px] font-black uppercase transition-all ${activeTab === 'items' ? 'bg-[#2c3e50] text-white' : 'bg-gray-100 text-gray-400'}`}>{t('offer_help')}</button>
-                <button onClick={() => { setActiveTab('chats'); setActiveSupportUser(null); setSelectedOffer(null); }} className={`flex-1 min-w-[60px] py-2 rounded-xl text-[7px] font-black uppercase transition-all ${activeTab === 'chats' ? 'bg-[#2c3e50] text-white' : 'bg-gray-100 text-gray-400'}`}>{t('support_inbox')}</button>
-                <button onClick={() => { setActiveTab('vouchers'); setActiveSupportUser(null); setSelectedOffer(null); }} className={`flex-1 min-w-[60px] py-2 rounded-xl text-[7px] font-black uppercase transition-all ${activeTab === 'vouchers' ? 'bg-[#2c3e50] text-white' : 'bg-gray-100 text-gray-400'}`}>Vouchers</button>
+            <h2 className="text-xl font-black italic uppercase text-[#2c3e50] mb-6 border-b-4 border-[#3498db] pb-2 inline-block">Admin</h2>
+            <div className="flex flex-wrap gap-1 mb-6">
+                <button onClick={() => { setActiveTab('users'); setEditingUser(null); setActiveSupportUser(null); }} className={`flex-1 min-w-[60px] py-2 rounded-xl text-[7px] font-black uppercase ${activeTab === 'users' ? 'bg-[#2c3e50] text-white' : 'bg-gray-100'}`}>Users</button>
+                <button onClick={() => { setActiveTab('items'); setEditingUser(null); setActiveSupportUser(null); }} className={`flex-1 min-w-[60px] py-2 rounded-xl text-[7px] font-black uppercase ${activeTab === 'items' ? 'bg-[#2c3e50] text-white' : 'bg-gray-100'}`}>Offers</button>
+                <button onClick={() => { setActiveTab('vouchers'); setEditingUser(null); setActiveSupportUser(null); }} className={`flex-1 min-w-[60px] py-2 rounded-xl text-[7px] font-black uppercase ${activeTab === 'vouchers' ? 'bg-[#2c3e50] text-white' : 'bg-gray-100'}`}>Vouchers</button>
+                <button onClick={() => { setActiveTab('chats'); setEditingUser(null); setActiveSupportUser(null); }} className={`flex-1 min-w-[60px] py-2 rounded-xl text-[7px] font-black uppercase ${activeTab === 'chats' ? 'bg-[#2c3e50] text-white' : 'bg-gray-100'}`}>Support</button>
             </div>
-
+            
             <div className="flex-1 overflow-y-auto space-y-4 pr-1">
                 {activeTab === 'users' && (
                     <div className="space-y-4">
                         {editingUser ? (
                             <form onSubmit={handleUpdateUser} className="bg-gray-50 p-4 rounded-2xl border space-y-3">
-                                <AdminInput label={t('full_name')} value={editingUser.displayName} onChange={v => setEditingUser({...editingUser, displayName: v})} />
-                                <AdminInput label={t('class_label')} value={editingUser.userClass} onChange={v => setEditingUser({...editingUser, userClass: v})} />
-                                <AdminInput label={t('points')} type="number" value={editingUser.points} onChange={v => setEditingUser({...editingUser, points: v})} />
-                                <AdminInput label={t('phone_number')} value={editingUser.phone} onChange={v => setEditingUser({...editingUser, phone: v})} />
-                                <AdminInput label={t('home_address')} value={editingUser.address} onChange={v => setEditingUser({...editingUser, address: v})} />
+                                <AdminInput label="Name" value={editingUser.displayName} onChange={v => setEditingUser({...editingUser, displayName: v})} />
+                                <AdminInput label="Points" type="number" value={editingUser.points} onChange={v => setEditingUser({...editingUser, points: v})} />
+                                <AdminInput label="Phone" value={editingUser.phone} onChange={v => setEditingUser({...editingUser, phone: v})} />
+                                <AdminInput label="Address" value={editingUser.address} onChange={v => setEditingUser({...editingUser, address: v})} />
+                                <AdminInput label="Class" value={editingUser.userClass} onChange={v => setEditingUser({...editingUser, userClass: v})} />
                                 <div className="flex gap-2">
-                                    <button type="submit" className="flex-1 bg-[#2ecc71] text-white py-2 rounded-lg font-black text-[10px] uppercase">{t('save_changes')}</button>
-                                    <button type="button" onClick={() => setEditingUser(null)} className="flex-1 bg-gray-200 text-gray-600 py-2 rounded-lg font-black text-[10px] uppercase">{t('cancel')}</button>
+                                    <button type="submit" className="flex-1 bg-[#2ecc71] text-white py-2 rounded-lg font-black text-[10px] uppercase">Save</button>
+                                    <button type="button" onClick={() => setEditingUser(null)} className="flex-1 bg-gray-200 text-gray-600 py-2 rounded-lg font-black text-[10px] uppercase">Cancel</button>
                                 </div>
                             </form>
                         ) : (
                             <>
-                                <div className="relative">
-                                    <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-300 text-xs"></i>
-                                    <input 
-                                        placeholder="Search by Name/Email/Class..." 
-                                        className="w-full bg-gray-50 border p-3 pl-10 rounded-xl text-xs font-bold outline-none focus:border-[#3498db]"
-                                        value={searchQuery}
-                                        onChange={e => setSearchQuery(e.target.value)}
-                                    />
-                                </div>
+                                <input placeholder="Search by name, email or class..." className="w-full bg-gray-50 border p-3 rounded-xl text-xs font-bold outline-none" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
                                 {filteredUsers.map(u => (
                                     <div key={u.uid} className="bg-white p-3 border rounded-xl flex justify-between items-center group">
-                                        <div className="overflow-hidden">
-                                            <div className="font-black text-[10px] uppercase truncate">{u.displayName} {u.userClass && <span className="text-[#3498db]">({u.userClass})</span>}</div>
-                                            <div className="text-[9px] text-gray-400 truncate">{u.email}</div>
+                                        <div>
+                                            <div className="font-black text-[10px] uppercase">{u.displayName}</div>
+                                            <div className="text-[9px] text-gray-400">{u.points} Points • {u.email}</div>
                                         </div>
-                                        <button onClick={() => setEditingUser(u)} className="bg-gray-50 p-2 rounded-lg hover:bg-[#3498db] hover:text-white transition-all">
-                                            <i className="fas fa-user-edit text-xs"></i>
-                                        </button>
+                                        <button onClick={() => setEditingUser(u)} className="text-[#3498db] opacity-0 group-hover:opacity-100"><i className="fas fa-edit"></i></button>
                                     </div>
                                 ))}
                             </>
@@ -917,120 +672,77 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
 
                 {activeTab === 'items' && (
                     <div className="space-y-6">
-                        {selectedOffer ? (
-                            <div className="bg-gray-50 p-4 rounded-2xl border space-y-4">
-                                <div className="flex justify-between items-center border-b pb-2">
-                                    <h3 className="font-black uppercase text-xs">Offer Details</h3>
-                                    <button onClick={() => setSelectedOffer(null)} className="text-gray-400 hover:text-red-500"><i className="fas fa-times"></i></button>
+                        <div>
+                            <h3 className="text-[10px] font-black uppercase text-gray-400 mb-2 tracking-widest">Pending Approval</h3>
+                            {data.items.map(i => (
+                                <div key={i.id} className="bg-white p-3 border border-red-50 rounded-xl mb-2 flex justify-between items-center">
+                                    <div><div className="font-black text-xs uppercase">{i.itemName}</div><div className="text-[9px] text-gray-400">Donor: {i.donorName}</div></div>
+                                    <div className="text-orange-500 font-black text-[10px] uppercase">Reviewing</div>
                                 </div>
-                                <div className="grid grid-cols-2 gap-4 text-[10px] font-bold">
-                                    <div className="col-span-2"><label className="text-gray-400 block uppercase text-[8px]">Item Name</label> {selectedOffer.itemName}</div>
-                                    <div><label className="text-gray-400 block uppercase text-[8px]">Qty</label> {selectedOffer.qty}</div>
-                                    <div><label className="text-gray-400 block uppercase text-[8px]">Category</label> {selectedOffer.category}</div>
-                                    <div><label className="text-gray-400 block uppercase text-[8px]">Donor</label> {selectedOffer.donorName}</div>
-                                    <div><label className="text-gray-400 block uppercase text-[8px]">Status</label> 
-                                        <span className={selectedOffer.completedAt ? 'text-green-500' : 'text-red-500'}>
-                                            {selectedOffer.completedAt ? 'Approved' : 'Pending Approval'}
-                                        </span>
-                                    </div>
+                            ))}
+                        </div>
+                        <div>
+                            <h3 className="text-[10px] font-black uppercase text-gray-400 mb-2 tracking-widest">Approved Offers</h3>
+                            {data.completedItems.map(i => (
+                                <div key={i.id} className="bg-white p-3 border border-green-50 rounded-xl mb-2 flex justify-between items-center opacity-80">
+                                    <div><div className="font-black text-xs uppercase">{i.itemName}</div><div className="text-[9px] text-gray-400">Donor: {i.donorName}</div></div>
+                                    <div className="text-green-500 font-black text-[10px] uppercase">Verified</div>
                                 </div>
-                                <button onClick={() => setSelectedOffer(null)} className="w-full bg-[#2c3e50] text-white py-2 rounded-lg font-black text-[10px] uppercase">{t('cancel')}</button>
-                            </div>
-                        ) : (
-                            <>
-                                <div>
-                                    <h3 className="text-[10px] font-black uppercase text-[#e74c3c] mb-2 tracking-widest bg-red-50 p-2 rounded-lg inline-block">{t('status_pending')} ({data.items.length})</h3>
-                                    <div className="space-y-2">
-                                        {data.items.map(i => (
-                                            <div key={i.id} onClick={() => setSelectedOffer(i)} className="bg-white p-3 border border-red-100 rounded-xl cursor-pointer hover:shadow-md transition-all">
-                                                <div className="font-black text-xs uppercase">{i.itemName}</div>
-                                                <div className="text-[9px] text-gray-400">Donor: {i.donorName}</div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                                <div>
-                                    <h3 className="text-[10px] font-black uppercase text-[#2ecc71] mb-2 tracking-widest bg-green-50 p-2 rounded-lg inline-block">{t('status_completed')} ({data.completedItems.length})</h3>
-                                    <div className="space-y-2">
-                                        {data.completedItems.map(i => (
-                                            <div key={i.id} onClick={() => setSelectedOffer(i)} className="bg-white p-3 border border-green-100 rounded-xl cursor-pointer opacity-80 hover:opacity-100 hover:shadow-md transition-all">
-                                                <div className="font-black text-xs uppercase">{i.itemName}</div>
-                                                <div className="text-[9px] text-gray-400">Donor: {i.donorName}</div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            </>
-                        )}
+                            ))}
+                        </div>
                     </div>
                 )}
+
+                {activeTab === 'vouchers' && data.redemptions.map(r => (
+                    <div key={r.id} className="bg-white p-4 border-2 border-orange-50 rounded-2xl">
+                        <div className="font-black text-[11px] text-[#f39c12] uppercase">{r.itemName}</div>
+                        <div className="text-[10px] font-bold text-gray-700 uppercase">User: {r.fullName}</div>
+                        <div className="text-[9px] font-black text-[#3498db] uppercase">Class: {r.userClass}</div>
+                    </div>
+                ))}
 
                 {activeTab === 'chats' && (
                     activeSupportUser ? (
                         <div className="flex flex-col h-full space-y-4">
-                            <button onClick={() => setActiveSupportUser(null)} className="text-[10px] font-black uppercase text-gray-400 flex items-center gap-2"><i className="fas fa-arrow-left"></i> All</button>
-                            <ChatLogWindow userId={activeSupportUser.userId} />
+                            <button onClick={() => setActiveSupportUser(null)} className="text-[10px] font-black uppercase text-gray-400"><i className="fas fa-arrow-left"></i> Back to inbox</button>
+                            <div className="flex-1 h-[300px] overflow-y-auto bg-gray-50 rounded-xl p-3 space-y-2">
+                                <AdminChatLogWindow userId={activeSupportUser.userId} />
+                            </div>
                             <form onSubmit={sendAdminReply} className="flex gap-2">
-                                <input value={adminReply} onChange={e => setAdminReply(e.target.value)} placeholder={t('type_official_response')} className="flex-1 bg-gray-100 p-2 rounded-xl text-xs font-bold border outline-none" />
-                                <button className="bg-[#2c3e50] text-white px-4 rounded-xl text-[10px] font-black">{t('send')}</button>
+                                <input value={adminReply} onChange={e => setAdminReply(e.target.value)} placeholder="Type official response..." className="flex-1 bg-gray-100 p-2 rounded-xl text-xs font-bold border outline-none" />
+                                <button className="bg-[#2c3e50] text-white px-4 rounded-xl text-[10px] font-black">Send</button>
                             </form>
                         </div>
                     ) : (
                         <div className="space-y-2">
                             {data.supportChats.map(s => (
                                 <div key={s.userId} onClick={() => setActiveSupportUser(s)} className="bg-white p-4 border rounded-xl cursor-pointer hover:border-[#3498db]">
-                                    <div className="flex justify-between items-start mb-1">
-                                        <div className="font-black text-[11px] uppercase">{s.userName}</div>
-                                        {s.isGuest && <span className="text-[7px] bg-gray-100 px-1.5 py-0.5 rounded font-black uppercase text-gray-400">Guest</span>}
-                                    </div>
+                                    <div className="font-black text-[11px] uppercase">{s.userName}</div>
                                     <div className="text-[10px] text-gray-400 truncate">{s.lastMsg}</div>
                                 </div>
                             ))}
                         </div>
                     )
                 )}
-
-                {activeTab === 'vouchers' && (
-                    <div className="space-y-3">
-                        {data.redemptions.map(r => (
-                            <div key={r.id} className="bg-white p-4 border-2 border-orange-50 rounded-2xl shadow-sm">
-                                <div className="flex justify-between items-start mb-2">
-                                    <div className="font-black text-[11px] text-[#f39c12] uppercase">{r.itemName}</div>
-                                    <div className="text-[8px] font-black text-gray-300 uppercase">{r.redeemedAt?.toDate().toLocaleDateString()}</div>
-                                </div>
-                                <div className="space-y-1">
-                                    <div className="text-[10px] font-bold text-gray-700 uppercase">User: {r.fullName}</div>
-                                    <div className="text-[9px] font-black text-[#3498db] uppercase tracking-wider">Class: {r.userClass}</div>
-                                </div>
-                            </div>
-                        ))}
-                        {data.redemptions.length === 0 && <div className="text-center py-10 font-black text-gray-300 text-xs uppercase italic">No redemptions yet.</div>}
-                    </div>
-                )}
             </div>
         </div>
     );
 };
 
-const ChatLogWindow: React.FC<{userId: string}> = ({userId}) => {
+const AdminChatLogWindow: React.FC<{userId: string}> = ({userId}) => {
     const [msgs, setMsgs] = useState<any[]>([]);
     useEffect(() => {
         if (!userId || typeof firebase === 'undefined' || !firebase.firestore) return;
-        const db = firebase.firestore();
-        const unsub = db.collection('support_chats').where('userId', '==', userId).onSnapshot((snap: any) => {
+        const unsub = firebase.firestore().collection('support_chats').where('userId', '==', userId).onSnapshot((snap: any) => {
             const data = snap.docs.map((d: any) => d.data());
-            data.sort((a: any, b: any) => {
-                const timeA = a.createdAt?.toMillis?.() || 0;
-                const timeB = b.createdAt?.toMillis?.() || 0;
-                return timeA - timeB;
-            });
+            data.sort((a: any, b: any) => (a.createdAt?.toMillis?.() || 0) - (b.createdAt?.toMillis?.() || 0));
             setMsgs(data);
-        }, (err: any) => console.error("Admin chat log window snap error:", err));
+        });
         return unsub;
     }, [userId]);
 
     return (
-        <div className="flex-1 h-[300px] overflow-y-auto bg-gray-50 rounded-xl p-3 space-y-2">
+        <>
             {msgs.map((m, i) => (
                 <div key={i} className={`flex flex-col ${m.sender === 'user' ? 'items-start' : 'items-end'}`}>
                     <div className={`max-w-[90%] p-2 rounded-xl text-[10px] font-bold ${m.sender === 'user' ? 'bg-white text-[#2c3e50] border' : 'bg-[#2c3e50] text-white'}`}>
@@ -1038,207 +750,133 @@ const ChatLogWindow: React.FC<{userId: string}> = ({userId}) => {
                     </div>
                 </div>
             ))}
-        </div>
-    );
-};
-
-const ProfilePage: React.FC<{user: any | null, t: any, onAuth: any, onNavigate: any}> = ({user, t, onAuth}) => {
-    const [isEditing, setIsEditing] = useState(false);
-    const [editData, setEditData] = useState({ displayName: '', phone: '', address: '', birthdate: '', userClass: '' });
-    const [isSaving, setIsSaving] = useState(false);
-
-    useEffect(() => {
-        if (user) {
-            setEditData({
-                displayName: user.displayName || '',
-                phone: user.phone || '',
-                address: user.address || '',
-                birthdate: user.birthdate || '',
-                userClass: user.userClass || ''
-            });
-        }
-    }, [user]);
-
-    const handleSave = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!user || typeof firebase === 'undefined' || !firebase.firestore) return;
-        setIsSaving(true);
-        try {
-            await firebase.firestore().collection('users').doc(user.uid).update({
-                ...editData,
-                age: editData.birthdate ? (new Date().getFullYear() - new Date(editData.birthdate).getFullYear()) : (user.age || 0)
-            });
-            setIsEditing(false);
-            alert(t('update_success'));
-        } catch (err: any) {
-            alert("Failed: " + err.message);
-        } finally {
-            setIsSaving(false);
-        }
-    };
-
-    if (!user) return <div className="text-center py-20"><button onClick={onAuth} className="bg-[#3498db] text-white px-12 py-4 rounded-full font-black uppercase">{t('login')}</button></div>;
-
-    return (
-        <div className="max-w-2xl mx-auto space-y-8 animate-in fade-in pb-20">
-            <div className="bg-[#2c3e50] p-8 sm:p-12 rounded-[2rem] shadow-xl text-white text-center border-b-8 border-[#f39c12]">
-                <div className="w-20 h-20 bg-[#3498db] rounded-full flex items-center justify-center text-3xl font-black mx-auto mb-6 uppercase">
-                    {user.displayName?.[0] || '?'}
-                </div>
-                <h1 className="text-2xl font-black uppercase italic mb-2 tracking-tighter">{user.displayName || 'Guest'}</h1>
-                <p className="text-[#f39c12] font-black text-xl">{user.points} {t('points')}</p>
-                {user.userClass && <p className="text-xs font-bold uppercase tracking-widest text-white/60 mt-2">{user.userClass}</p>}
-            </div>
-
-            <div className="bg-white p-8 rounded-[2rem] border border-gray-100 shadow-sm space-y-6">
-                <div className="flex justify-between items-center border-b pb-2">
-                    <h3 className="text-sm font-black uppercase text-gray-400 tracking-widest flex items-center gap-2">
-                        <i className="fas fa-info-circle"></i> {t('personal_info')}
-                    </h3>
-                    <button 
-                        onClick={() => isEditing ? handleSave({ preventDefault: () => {} } as any) : setIsEditing(true)} 
-                        className={`text-[10px] font-black uppercase px-4 py-1.5 rounded-full shadow-sm transition-all ${isEditing ? 'bg-[#2ecc71] text-white' : 'bg-[#3498db] text-white'}`}
-                        disabled={isSaving}
-                    >
-                        {isSaving ? '...' : (isEditing ? t('save_changes') : t('edit_profile'))}
-                    </button>
-                </div>
-                
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                    <div>
-                        <label className="text-[8px] font-black uppercase text-gray-400 block mb-1 tracking-widest">{t('full_name')}</label>
-                        {isEditing ? (
-                            <input value={editData.displayName} onChange={e => setEditData({...editData, displayName: e.target.value})} className="w-full bg-gray-50 border p-2 rounded-lg font-bold text-sm outline-none focus:border-[#3498db]" />
-                        ) : (
-                            <p className="font-bold text-sm text-[#2c3e50]">{user.displayName}</p>
-                        )}
-                    </div>
-                    <div>
-                        <label className="text-[8px] font-black uppercase text-gray-400 block mb-1 tracking-widest">{t('class_label')}</label>
-                        {isEditing ? (
-                            <input value={editData.userClass} onChange={e => setEditData({...editData, userClass: e.target.value})} className="w-full bg-gray-50 border p-2 rounded-lg font-bold text-sm outline-none focus:border-[#3498db]" placeholder="e.g. 5 Amanah" />
-                        ) : (
-                            <p className="font-bold text-sm text-[#2c3e50]">{user.userClass || 'Not set'}</p>
-                        )}
-                    </div>
-                    <div>
-                        <label className="text-[8px] font-black uppercase text-gray-400 block mb-1 tracking-widest">{t('phone_number')}</label>
-                        {isEditing ? (
-                            <input type="tel" value={editData.phone} onChange={e => setEditData({...editData, phone: e.target.value})} className="w-full bg-gray-50 border p-2 rounded-lg font-bold text-sm outline-none focus:border-[#3498db]" />
-                        ) : (
-                            <p className="font-bold text-sm text-[#2c3e50]">{user.phone || '...'}</p>
-                        )}
-                    </div>
-                    <div>
-                        <label className="text-[8px] font-black uppercase text-gray-400 block mb-1 tracking-widest">{t('age')}</label>
-                        <p className="font-bold text-sm text-[#2c3e50]">{user.age || '...'}</p>
-                    </div>
-                    <div className="sm:col-span-2">
-                        <label className="text-[8px] font-black uppercase text-gray-400 block mb-1 tracking-widest">{t('home_address')}</label>
-                        {isEditing ? (
-                            <input value={editData.address} onChange={e => setEditData({...editData, address: e.target.value})} className="w-full bg-gray-50 border p-2 rounded-lg font-bold text-sm outline-none focus:border-[#3498db]" />
-                        ) : (
-                            <p className="font-bold text-sm text-[#2c3e50]">{user.address || '...'}</p>
-                        )}
-                    </div>
-                </div>
-            </div>
-        </div>
+        </>
     );
 };
 
 const ShopPage: React.FC<{user: any | null, t: any, onAuth: any, onRedeemConfirm: (i: any) => void}> = ({user, t, onAuth, onRedeemConfirm}) => {
-    const items = [
-        { id: '1', name: t('voucher_5'), cost: 20, color: '#27ae60' },
-        { id: '2', name: t('voucher_10'), cost: 40, color: '#3498db' },
-        { id: '3', name: t('voucher_15'), cost: 50, color: '#f39c12' }
-    ];
+    const [shopItems, setShopItems] = useState<any[]>([]);
+    const [isAdding, setIsAdding] = useState(false);
+    const [newProduct, setNewProduct] = useState({ name: '', cost: 20, color: '#3498db' });
+    const isAdmin = user?.isAdmin || user?.email === 'admin@gmail.com';
+
+    useEffect(() => {
+        if (typeof firebase === 'undefined' || !firebase.firestore) return;
+        const db = firebase.firestore();
+        const unsub = db.collection('shop_items').orderBy('createdAt', 'desc').onSnapshot((snap: any) => {
+            setShopItems(snap.docs.map((d: any) => ({ ...d.data(), id: d.id })));
+        });
+        return unsub;
+    }, []);
+
+    const handleAddProduct = async (e: React.FormEvent) => {
+        e.preventDefault();
+        try {
+            await firebase.firestore().collection('shop_items').add({
+                ...newProduct, createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            setIsAdding(false);
+            setNewProduct({ name: '', cost: 20, color: '#3498db' });
+        } catch (e) { alert("Failed to add product."); }
+    };
+
     return (
-        <div className="space-y-12 py-12 pb-24">
-            <h1 className="text-3xl font-black italic uppercase text-[#2c3e50] text-center tracking-tighter">{t('points_shop')}</h1>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                {items.map(item => (
-                    <div key={item.id} className="bg-white rounded-[2.5rem] border border-gray-100 overflow-hidden shadow-xl text-center flex flex-col hover:scale-105 transition-transform">
-                        <div className="p-8 flex-1">
-                            <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-6 text-2xl text-[#f39c12]"><i className="fas fa-gift"></i></div>
-                            <h3 className="font-black text-lg mb-2 uppercase italic text-[#2c3e50]">{item.name}</h3>
-                            <div className="text-2xl font-black text-[#f39c12]">{item.cost} {t('points')}</div>
-                        </div>
-                        <button onClick={() => user ? onRedeemConfirm(item) : onAuth()} className="w-full py-6 font-black uppercase text-white tracking-widest text-[11px]" style={{backgroundColor: item.color}}>{t('redeem_now')}</button>
-                    </div>
-                ))}
+        <div className="space-y-12 py-12">
+            <div className="flex justify-between items-center">
+                <h1 className="text-3xl font-black italic uppercase text-[#2c3e50] tracking-tighter">{t('points_shop')}</h1>
+                {isAdmin && (
+                    <button onClick={() => setIsAdding(true)} className="bg-[#2ecc71] text-white px-6 py-2 rounded-full font-black text-[10px] uppercase shadow-lg hover:scale-105 transition-all">
+                        <i className="fas fa-plus mr-2"></i> Add Reward
+                    </button>
+                )}
             </div>
+
+            {isAdding && (
+                <div className="fixed inset-0 bg-black/80 z-[600] flex items-center justify-center p-4 backdrop-blur-sm">
+                    <div className="bg-white w-full max-w-md rounded-[2rem] p-8 shadow-2xl animate-in zoom-in">
+                        <h2 className="text-xl font-black uppercase italic mb-6">New Reward</h2>
+                        <form onSubmit={handleAddProduct} className="space-y-4">
+                            <AdminInput label="Product Name" value={newProduct.name} onChange={v => setNewProduct({...newProduct, name: v})} placeholder="e.g. Free Coffee" />
+                            <AdminInput label="Point Cost" type="number" value={newProduct.cost} onChange={v => setNewProduct({...newProduct, cost: v})} />
+                            <AdminInput label="Color Code (Hex)" value={newProduct.color} onChange={v => setNewProduct({...newProduct, color: v})} placeholder="#3498db" />
+                            <div className="flex gap-2 pt-4">
+                                <button type="submit" className="flex-1 bg-[#3498db] text-white py-3 rounded-xl font-black uppercase text-xs">Save</button>
+                                <button type="button" onClick={() => setIsAdding(false)} className="flex-1 bg-gray-100 text-gray-500 py-3 rounded-xl font-black uppercase text-xs">Cancel</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {shopItems.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    {shopItems.map(item => (
+                        <div key={item.id} className="bg-white rounded-[2.5rem] border overflow-hidden shadow-xl text-center flex flex-col hover:scale-105 transition-transform">
+                            <div className="p-8 flex-1">
+                                <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-6 text-2xl text-[#f39c12]"><i className="fas fa-gift"></i></div>
+                                <h3 className="font-black text-lg mb-2 uppercase italic text-[#2c3e50]">{item.name}</h3>
+                                <div className="text-2xl font-black text-[#f39c12]">{item.cost} {t('points')}</div>
+                            </div>
+                            <button onClick={() => user ? onRedeemConfirm(item) : onAuth()} className="w-full py-6 font-black uppercase text-white tracking-widest text-[11px]" style={{backgroundColor: item.color}}>{t('redeem_now')}</button>
+                        </div>
+                    ))}
+                </div>
+            ) : (
+                <div className="py-24 text-center border-4 border-dashed border-gray-100 rounded-[3rem]">
+                    <i className="fas fa-hourglass-half text-6xl text-gray-100 mb-6"></i>
+                    <h2 className="text-4xl font-black text-gray-200 uppercase italic tracking-tighter">Points Shop Coming Soon</h2>
+                    <p className="text-gray-300 font-bold uppercase text-xs mt-2">We are currently curating local rewards for you.</p>
+                </div>
+            )}
         </div>
     );
 };
 
 const HistoryPage: React.FC<{user: any | null, t: any, onAuth: any}> = ({user, t, onAuth}) => {
     const [history, setHistory] = useState<any[]>([]);
-    
     useEffect(() => {
         if (!user || typeof firebase === 'undefined' || !firebase.firestore) return;
         const db = firebase.firestore();
-        
-        // Listen to Redemptions
         const unsubRedeem = db.collection('redeem_history').where('userId', '==', user.uid).onSnapshot((snap: any) => {
             const redeems = snap.docs.map((d: any) => ({ ...d.data(), type: 'redeem' }));
-            
-            // Listen to Offers (both pending and completed)
             const unsubOffers = db.collection('donations').where('userId', '==', user.uid).onSnapshot((snapOffer: any) => {
                 const pendingOffers = snapOffer.docs.map((d: any) => ({ ...d.data(), type: 'offer_pending' }));
-                
                 const unsubCompleted = db.collection('completed_donations').where('userId', '==', user.uid).onSnapshot((snapComp: any) => {
                     const completedOffers = snapComp.docs.map((d: any) => ({ ...d.data(), type: 'offer_completed' }));
-                    
                     const combined = [...redeems, ...pendingOffers, ...completedOffers];
-                    combined.sort((a, b) => {
-                        const timeA = (a.redeemedAt || a.createdAt || a.completedAt)?.toMillis?.() || 0;
-                        const timeB = (b.redeemedAt || b.createdAt || b.completedAt)?.toMillis?.() || 0;
-                        return timeB - timeA;
-                    });
+                    combined.sort((a, b) => ((b.redeemedAt || b.createdAt || b.completedAt)?.toMillis?.() || 0) - ((a.redeemedAt || a.createdAt || a.completedAt)?.toMillis?.() || 0));
                     setHistory(combined);
                 });
                 return unsubCompleted;
             });
             return unsubOffers;
         });
-        
         return unsubRedeem;
     }, [user]);
     
     if (!user) return <div className="text-center py-20 font-black uppercase text-gray-300">{t('login_register')}</div>;
-    
     return (
-        <div className="max-w-4xl mx-auto space-y-10 py-12 pb-24">
+        <div className="max-w-4xl mx-auto space-y-10 py-12">
             <h1 className="text-3xl font-black italic uppercase text-[#2c3e50] tracking-tighter">{t('history')}</h1>
             <div className="space-y-4">
-                <h2 className="text-[10px] font-black uppercase text-gray-400 tracking-widest px-2">Timeline of Kindness</h2>
                 {history.map((h, i) => (
-                    <div key={i} className={`bg-white p-6 rounded-2xl border flex items-center justify-between shadow-sm animate-in slide-in-from-bottom border-gray-100`}>
+                    <div key={i} className={`bg-white p-6 rounded-2xl border flex items-center justify-between shadow-sm border-gray-100`}>
                         <div className="flex items-center gap-4">
-                            <div className={`w-12 h-12 rounded-full flex items-center justify-center text-lg ${
-                                h.type === 'redeem' ? 'bg-orange-50 text-orange-500' : 
-                                h.type === 'offer_completed' ? 'bg-green-50 text-green-500' : 'bg-blue-50 text-blue-500'
-                            }`}>
+                            <div className={`w-12 h-12 rounded-full flex items-center justify-center text-lg ${h.type === 'redeem' ? 'bg-orange-50 text-orange-500' : 'bg-green-50 text-green-500'}`}>
                                 <i className={`fas fa-${h.type === 'redeem' ? 'ticket-alt' : 'hand-holding-heart'}`}></i>
                             </div>
                             <div>
-                                <div className="font-black uppercase italic text-[#2c3e50] text-sm">
-                                    {h.type === 'redeem' ? h.itemName : `Offered: ${h.itemName}`}
-                                </div>
+                                <div className="font-black uppercase italic text-[#2c3e50] text-sm">{h.type === 'redeem' ? h.itemName : `Offered: ${h.itemName} (x${h.qty})`}</div>
                                 <div className="text-[8px] font-black text-gray-300 uppercase">
-                                    {h.type === 'redeem' ? 'Reward Claimed' : (h.type === 'offer_completed' ? 'Kindness Shared' : 'Pending Verification')}
-                                    {' • '}
                                     {(h.redeemedAt || h.createdAt || h.completedAt)?.toDate().toLocaleDateString()}
                                 </div>
                             </div>
                         </div>
-                        <div className={`font-black text-xl tabular-nums ${h.type === 'redeem' ? 'text-red-500' : 'text-green-500'}`}>
-                            {h.type === 'redeem' ? `-${h.itemPoints}` : `+5`}
+                        <div className={`font-black text-xl ${h.type === 'redeem' ? 'text-red-500' : 'text-green-500'}`}>
+                            {h.type === 'redeem' ? `-${h.itemPoints}` : `+${h.earnedPoints || 'Pending'}`}
                         </div>
                     </div>
                 ))}
-                {history.length === 0 && <div className="text-center py-20 text-gray-300 font-black uppercase italic bg-white rounded-2xl border">No history found yet.</div>}
             </div>
         </div>
     );
@@ -1252,200 +890,68 @@ const AuthModal: React.FC<{onClose: () => void, t: any}> = ({onClose, t}) => {
     const [success, setSuccess] = useState<string | null>(null);
     const [showPassword, setShowPassword] = useState(false);
 
-    // Calculate Dynamic Age Range
-    const dateRange = useMemo(() => {
-        const now = new Date();
-        const yearShift = Math.max(0, now.getFullYear() - 2024);
-        return {
-            min: `${2008 + yearShift}-01-01`,
-            max: `${2026 + yearShift}-01-01`
-        };
-    }, []);
-
     const submit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (typeof firebase === 'undefined' || !firebase.auth) return;
-        setLoading(true);
-        setError(null);
-        setSuccess(null);
-
-        // Client-side range validation
-        if (mode === 'register') {
-            if (data.birthdate < dateRange.min || data.birthdate > dateRange.max) {
-                setError(`Birthdate must be between ${dateRange.min.split('-').reverse().join('/')} and ${dateRange.max.split('-').reverse().join('/')}`);
-                setLoading(false);
-                return;
-            }
-        }
-
+        setLoading(true); setError(null); setSuccess(null);
         try {
             if (mode === 'login') {
                 await firebase.auth().signInWithEmailAndPassword(data.email, data.password);
                 onClose();
-            } else if (mode === 'forgot') {
-                await firebase.auth().sendPasswordResetEmail(data.email);
-                setSuccess(t('reset_link_sent'));
-                setTimeout(() => setMode('login'), 3000);
-            } else {
-                if (!data.email.toLowerCase().endsWith("@moe-dl.edu.my") && data.email !== 'admin@gmail.com') throw new Error("MOE Email Required (@moe-dl.edu.my)");
-                
-                const birthYear = new Date(data.birthdate).getFullYear();
-                const age = new Date().getFullYear() - birthYear;
-
+            } else if (mode === 'register') {
+                if (!data.email.toLowerCase().endsWith("@moe-dl.edu.my") && data.email !== 'admin@gmail.com') throw new Error("MOE Email Required");
                 const {user} = await firebase.auth().createUserWithEmailAndPassword(data.email, data.password);
                 await firebase.firestore().collection('users').doc(user.uid).set({ 
-                    email: data.email, 
-                    displayName: data.name, 
-                    points: 10,
-                    birthdate: data.birthdate,
-                    age: age,
-                    phone: data.phone,
-                    address: data.address,
-                    userClass: data.userClass,
+                    email: data.email, displayName: data.name, points: 10, birthdate: data.birthdate, 
+                    phone: data.phone, address: data.address, userClass: data.userClass, 
                     isAdmin: data.email === 'admin@gmail.com'
                 });
                 onClose();
+            } else if (mode === 'forgot') {
+                await firebase.auth().sendPasswordResetEmail(data.email);
+                setSuccess("Reset link sent! Please check your email inbox.");
+                setTimeout(() => setMode('login'), 3000);
             }
-        } catch (err: any) { 
-            console.error("Auth error:", err);
-            let msg = err.message;
-            if (err.code === 'auth/wrong-password' || 
-                err.code === 'auth/invalid-login-credentials' || 
-                (err.message && err.message.includes('INVALID_LOGIN_CREDENTIALS')) ||
-                (err.message && err.message.includes('invalid'))) {
-                msg = "Incorrect login credentials. Please try again.";
-            } else if (err.code === 'auth/user-not-found') {
-                msg = "No account found with this email.";
-            }
-            setError(msg); 
-        } finally { 
-            setLoading(false); 
-        }
+        } catch (err: any) { setError(err.message); } finally { setLoading(false); }
     };
 
     return (
         <div className="fixed inset-0 bg-black/80 z-[400] flex items-center justify-center p-4 backdrop-blur-md" onClick={onClose}>
-            <div className="bg-white w-full max-w-md rounded-[2.5rem] p-8 sm:p-12 shadow-2xl relative animate-in zoom-in duration-300 overflow-y-auto max-h-[95vh]" onClick={e => e.stopPropagation()}>
-                <button onClick={onClose} className="absolute top-6 right-6 bg-gray-100 hover:bg-red-500 hover:text-white w-10 h-10 rounded-full flex items-center justify-center transition-all group">
-                    <i className="fas fa-times text-gray-400 group-hover:text-white"></i>
-                </button>
-
-                <h2 className="text-2xl sm:text-3xl font-black text-center uppercase italic text-[#2c3e50] mb-8 tracking-tighter">
-                    {mode === 'login' ? t('login') : mode === 'forgot' ? t('reset_password') : t('register')}
+            <div className="bg-white w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl relative animate-in zoom-in overflow-y-auto max-h-[95vh]" onClick={e => e.stopPropagation()}>
+                <button onClick={onClose} className="absolute top-6 right-6 bg-gray-100 w-10 h-10 rounded-full flex items-center justify-center transition-all"><i className="fas fa-times text-gray-400"></i></button>
+                <h2 className="text-2xl font-black text-center uppercase italic text-[#2c3e50] mb-8">
+                    {mode === 'login' ? t('login') : mode === 'register' ? t('register') : t('reset_password')}
                 </h2>
-
-                {error && (
-                    <div className="mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded-xl animate-in fade-in slide-in-from-top-1">
-                        <p className="text-[10px] font-black uppercase text-red-600 tracking-wider flex items-center gap-2">
-                            <i className="fas fa-exclamation-circle"></i> {error}
-                        </p>
-                    </div>
-                )}
-
-                {success && (
-                    <div className="mb-6 bg-green-50 border-l-4 border-green-500 p-4 rounded-xl animate-in fade-in slide-in-from-top-1">
-                        <p className="text-[10px] font-black uppercase text-green-600 tracking-wider flex items-center gap-2">
-                            <i className="fas fa-check-circle"></i> {success}
-                        </p>
-                    </div>
-                )}
-
+                {error && <div className="mb-6 bg-red-50 p-4 rounded-xl text-red-600 text-[10px] font-black uppercase tracking-wider">{error}</div>}
+                {success && <div className="mb-6 bg-green-50 p-4 rounded-xl text-green-600 text-[10px] font-black uppercase tracking-wider">{success}</div>}
                 <form onSubmit={submit} className="space-y-4">
                     {mode === 'register' && (
                         <>
-                            <div className="space-y-1">
-                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">{t('full_name')}</label>
-                                <input placeholder="Your Name" value={data.name} onChange={e => setData({...data, name: e.target.value})} className="w-full bg-gray-50 border-2 border-gray-100 p-4 rounded-2xl outline-none font-bold text-black text-sm" required />
-                            </div>
-                            <div className="space-y-1">
-                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">{t('class_label')}</label>
-                                <input placeholder="e.g. 4 Amanah" value={data.userClass} onChange={e => setData({...data, userClass: e.target.value})} className="w-full bg-gray-50 border-2 border-gray-100 p-4 rounded-2xl outline-none font-bold text-black text-sm" required />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-1">
-                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">
-                                        {t('birthdate')}
-                                    </label>
-                                    <input 
-                                        type="date" 
-                                        min={dateRange.min}
-                                        max={dateRange.max}
-                                        value={data.birthdate} 
-                                        onChange={e => setData({...data, birthdate: e.target.value})} 
-                                        className="w-full bg-gray-50 border-2 border-gray-100 p-4 rounded-2xl outline-none font-bold text-black text-sm" 
-                                        required 
-                                    />
-                                </div>
-                                <div className="space-y-1">
-                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">{t('phone_number')}</label>
-                                    <input type="tel" placeholder="012-345..." value={data.phone} onChange={e => setData({...data, phone: e.target.value})} className="w-full bg-gray-50 border-2 border-gray-100 p-4 rounded-2xl outline-none font-bold text-black text-sm" required />
-                                </div>
-                            </div>
-                            <div className="space-y-1">
-                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">{t('home_address')}</label>
-                                <input placeholder="..." value={data.address} onChange={e => setData({...data, address: e.target.value})} className="w-full bg-gray-50 border-2 border-gray-100 p-4 rounded-2xl outline-none font-bold text-black text-sm" required />
-                            </div>
+                            <input placeholder="Full Name" value={data.name} onChange={e => setData({...data, name: e.target.value})} className="w-full bg-gray-50 border-2 p-4 rounded-2xl outline-none font-bold text-sm" required />
+                            <input placeholder="Class (e.g. 5 Amanah)" value={data.userClass} onChange={e => setData({...data, userClass: e.target.value})} className="w-full bg-gray-50 border-2 p-4 rounded-2xl outline-none font-bold text-sm" required />
+                            <input type="date" value={data.birthdate} onChange={e => setData({...data, birthdate: e.target.value})} className="w-full bg-gray-50 border-2 p-4 rounded-2xl outline-none font-bold text-sm" required />
+                            <input type="tel" placeholder="Phone Number" value={data.phone} onChange={e => setData({...data, phone: e.target.value})} className="w-full bg-gray-50 border-2 p-4 rounded-2xl outline-none font-bold text-sm" required />
+                            <input placeholder="Address" value={data.address} onChange={e => setData({...data, address: e.target.value})} className="w-full bg-gray-50 border-2 p-4 rounded-2xl outline-none font-bold text-sm" required />
                         </>
                     )}
-                    <div className="space-y-1">
-                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">{t('email_address')}</label>
-                        <input type="email" placeholder="email@moe-dl.edu.my" value={data.email} onChange={e => setData({...data, email: e.target.value})} className="w-full bg-gray-50 border-2 border-gray-100 p-4 rounded-2xl outline-none font-bold text-black text-sm" required />
-                    </div>
+                    <input type="email" placeholder="Email (MOE)" value={data.email} onChange={e => setData({...data, email: e.target.value})} className="w-full bg-gray-50 border-2 p-4 rounded-2xl outline-none font-bold text-sm" required />
                     {mode !== 'forgot' && (
-                        <div className="space-y-1">
-                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">{t('password')}</label>
-                            <div className="relative">
-                                <input 
-                                    type={showPassword ? "text" : "password"} 
-                                    placeholder="••••••••" 
-                                    value={data.password} 
-                                    onChange={e => setData({...data, password: e.target.value})} 
-                                    className="w-full bg-gray-50 border-2 border-gray-100 p-4 rounded-2xl outline-none font-bold pr-12 text-black text-sm" 
-                                    required 
-                                />
-                                <button 
-                                    type="button" 
-                                    onClick={() => setShowPassword(!showPassword)}
-                                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-300 hover:text-[#3498db] transition-colors"
-                                >
-                                    <i className={`fas fa-eye${showPassword ? '-slash' : ''}`}></i>
-                                </button>
-                            </div>
+                        <div className="relative">
+                            <input type={showPassword ? "text" : "password"} placeholder="Password" value={data.password} onChange={e => setData({...data, password: e.target.value})} className="w-full bg-gray-50 border-2 p-4 rounded-2xl outline-none font-bold text-sm" required />
+                            <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-300"><i className={`fas fa-${showPassword ? 'eye-slash' : 'eye'}`}></i></button>
                         </div>
                     )}
-
+                    
                     {mode === 'login' && (
-                        <div className="flex justify-end">
-                            <button 
-                                type="button" 
-                                onClick={() => setMode('forgot')}
-                                className="text-[10px] font-black uppercase text-[#3498db] hover:underline"
-                            >
-                                {t('forgot_password')}
-                            </button>
+                        <div className="text-right">
+                            <button type="button" onClick={() => setMode('forgot')} className="text-[10px] font-black uppercase text-[#3498db] hover:underline">Forgot Password?</button>
                         </div>
                     )}
-
-                    <button disabled={loading} className="w-full bg-[#3498db] text-white py-6 rounded-full font-black text-xl shadow-xl hover:scale-105 transition-all mt-6 tracking-widest uppercase">
-                        {loading ? '...' : (mode === 'login' ? t('login') : mode === 'forgot' ? t('send') : t('register'))}
-                    </button>
+                    
+                    <button disabled={loading} className="w-full bg-[#3498db] text-white py-6 rounded-full font-black text-xl shadow-xl hover:scale-105 transition-all mt-6 uppercase tracking-widest">{loading ? '...' : (mode === 'login' ? t('login') : mode === 'register' ? t('register') : t('send'))}</button>
                 </form>
-                
-                <div className="mt-8 pt-6 border-t border-gray-100 flex flex-col items-center gap-4">
-                    <button 
-                        onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setShowPassword(false); setError(null); }} 
-                        className="text-xs font-black uppercase text-[#3498db] hover:underline"
-                    >
-                        {mode === 'login' ? t('register') : t('login')}
-                    </button>
-                    {mode === 'forgot' && (
-                        <button 
-                            onClick={() => { setMode('login'); setError(null); }}
-                            className="text-xs font-black uppercase text-gray-400 hover:text-[#2c3e50]"
-                        >
-                            Back to Login
-                        </button>
-                    )}
+                <div className="mt-6 flex flex-col items-center gap-3">
+                    <button onClick={() => setMode(mode === 'login' ? 'register' : 'login')} className="text-xs font-black uppercase text-[#3498db] hover:underline">{mode === 'login' ? t('register') : t('login')}</button>
+                    {mode === 'forgot' && <button onClick={() => setMode('login')} className="text-[10px] font-black uppercase text-gray-400">Back to Login</button>}
                 </div>
             </div>
         </div>
@@ -1453,32 +959,39 @@ const AuthModal: React.FC<{onClose: () => void, t: any}> = ({onClose, t}) => {
 };
 
 const RedeemConfirmModal: React.FC<{item: any, user: any, t: any, onCancel: () => void, onConfirm: (f: string, c: string) => void}> = ({item, user, t, onCancel, onConfirm}) => {
-    const [f, setF] = useState('');
-    const [c, setC] = useState('');
-
-    // Auto-fill from database when modal opens or user changes
-    useEffect(() => {
-        if (user) {
-            setF(user.displayName || '');
-            setC(user.userClass || '');
-        }
-    }, [user]);
-
+    const [f, setF] = useState(user?.displayName || '');
+    const [c, setC] = useState(user?.userClass || '');
     return (
         <div className="fixed inset-0 bg-black/90 z-[500] flex items-center justify-center p-4 backdrop-blur-xl" onClick={onCancel}>
             <div className="bg-white w-full max-w-md rounded-[2rem] p-10 shadow-2xl animate-in zoom-in" onClick={e => e.stopPropagation()}>
-                <h2 className="text-xl sm:text-2xl font-black mb-8 italic uppercase text-[#2c3e50] text-center tracking-tighter">{t('confirm_redeem_title')}</h2>
+                <h2 className="text-xl font-black mb-8 italic uppercase text-[#2c3e50] text-center">{t('confirm_redeem_title')}</h2>
                 <form onSubmit={e => { e.preventDefault(); onConfirm(f, c); }} className="space-y-6">
-                    <div className="space-y-1">
-                        <label className="text-[10px] font-black text-gray-300 uppercase tracking-widest ml-2">{t('full_name')}</label>
-                        <input value={f} onChange={e => setF(e.target.value)} placeholder={t('full_name')} className="w-full bg-gray-50 border-2 border-gray-100 p-5 rounded-2xl font-bold text-black text-sm" required />
-                    </div>
-                    <div className="space-y-1">
-                        <label className="text-[10px] font-black text-gray-300 uppercase tracking-widest ml-2">{t('class_label')}</label>
-                        <input value={c} onChange={e => setC(e.target.value)} placeholder={t('class_label')} className="w-full bg-gray-50 border-2 border-gray-100 p-5 rounded-2xl font-bold text-black text-sm" required />
-                    </div>
-                    <button type="submit" className="w-full bg-[#3498db] text-white py-6 rounded-full font-black uppercase shadow-xl tracking-widest mt-4">{t('confirm')}</button>
+                    <input value={f} onChange={e => setF(e.target.value)} placeholder="Full Name" className="w-full bg-gray-50 border-2 p-5 rounded-2xl font-bold text-sm" required />
+                    <input value={c} onChange={e => setC(e.target.value)} placeholder="Class" className="w-full bg-gray-50 border-2 p-5 rounded-2xl font-bold text-sm" required />
+                    <button type="submit" className="w-full bg-[#3498db] text-white py-6 rounded-full font-black uppercase shadow-xl tracking-widest mt-4">Confirm Redemption</button>
                 </form>
+            </div>
+        </div>
+    );
+};
+
+const ProfilePage: React.FC<{user: any | null, t: any, onAuth: any, onNavigate: any}> = ({user, t, onAuth}) => {
+    if (!user) return <div className="text-center py-20"><button onClick={onAuth} className="bg-[#3498db] text-white px-12 py-4 rounded-full font-black uppercase shadow-xl">{t('login')}</button></div>;
+    return (
+        <div className="max-w-2xl mx-auto space-y-8 pb-20">
+            <div className="bg-[#2c3e50] p-12 rounded-[2rem] shadow-xl text-white text-center border-b-8 border-[#f39c12]">
+                <div className="w-20 h-20 bg-[#3498db] rounded-full flex items-center justify-center text-3xl font-black mx-auto mb-6 uppercase">{user.displayName?.[0] || '?'}</div>
+                <h1 className="text-2xl font-black uppercase italic mb-2">{user.displayName || 'Guest'}</h1>
+                <p className="text-[#f39c12] font-black text-xl">{user.points} Points</p>
+                {user.userClass && <p className="text-xs font-bold uppercase tracking-widest text-white/60 mt-2">{user.userClass}</p>}
+            </div>
+            <div className="bg-white p-8 rounded-[2rem] border shadow-sm space-y-4">
+                <h3 className="text-sm font-black uppercase text-gray-400 tracking-widest border-b pb-2">Profile Details</h3>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div><label className="text-[8px] font-black text-gray-400 uppercase">Phone</label><p className="font-bold">{user.phone || 'N/A'}</p></div>
+                    <div><label className="text-[8px] font-black text-gray-400 uppercase">Birthdate</label><p className="font-bold">{user.birthdate || 'N/A'}</p></div>
+                    <div className="col-span-2"><label className="text-[8px] font-black text-gray-400 uppercase">Address</label><p className="font-bold">{user.address || 'N/A'}</p></div>
+                </div>
             </div>
         </div>
     );
