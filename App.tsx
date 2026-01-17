@@ -42,6 +42,9 @@ const App: React.FC = () => {
     const [isNotifOpen, setIsNotifOpen] = useState(false);
     const [guestId, setGuestId] = useState<string>('');
     const [isLangOpen, setIsLangOpen] = useState(false);
+    const [isQuickOfferOpen, setIsQuickOfferOpen] = useState(false);
+    const [isVerifyingPhone, setIsVerifyingPhone] = useState(false);
+    const [tempAuthUser, setTempAuthUser] = useState<any>(null);
     
     const t = useCallback((key: string) => translations[lang][key] || key, [lang]);
 
@@ -85,7 +88,15 @@ const App: React.FC = () => {
                     if (authUser) {
                         db.collection('users').doc(authUser.uid).onSnapshot((doc: any) => {
                             if (doc.exists) {
-                                setUser({ ...doc.data(), uid: authUser.uid });
+                                const data = doc.data();
+                                if (!data.phoneVerified && data.email !== 'admin@gmail.com') {
+                                    setTempAuthUser(authUser);
+                                    setIsVerifyingPhone(true);
+                                    setUser(null);
+                                } else {
+                                    setUser({ ...data, uid: authUser.uid });
+                                    setIsVerifyingPhone(false);
+                                }
                             } else {
                                 setUser({ uid: authUser.uid, email: authUser.email, points: 5 } as any);
                             }
@@ -101,6 +112,7 @@ const App: React.FC = () => {
                     } else { 
                         setUser(null); 
                         setNotifications([]);
+                        setIsVerifyingPhone(false);
                         if (unsubNotifs) unsubNotifs();
                     }
                     setLoading(false);
@@ -137,7 +149,7 @@ const App: React.FC = () => {
     const unreadCount = notifications.filter(n => !n.read).length;
 
     return (
-        <div className="min-h-screen flex flex-col bg-[#f8f9fa] font-sans" onClick={() => setIsLangOpen(false)}>
+        <div className="min-h-screen flex flex-col bg-[#f8f9fa] font-sans" onClick={() => { setIsLangOpen(false); setIsQuickOfferOpen(false); }}>
             <header className="bg-[#2c3e50] text-white shadow-xl sticky top-0 z-[100] h-16 sm:h-20 flex items-center">
                 <div className="container mx-auto px-2 sm:px-4 flex items-center justify-between gap-1 overflow-hidden">
                     <button onClick={(e) => { e.stopPropagation(); setIsMenuOpen(true); }} className="p-2 hover:bg-white/10 rounded-xl transition-all flex-shrink-0">
@@ -193,6 +205,14 @@ const App: React.FC = () => {
                     )}
                     
                     <div className="flex items-center gap-3">
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); if(user) setIsQuickOfferOpen(true); else setIsAuthModalOpen(true); }}
+                            className="bg-[#2ecc71] text-white w-12 h-12 sm:w-14 sm:h-14 rounded-full shadow-xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all border-4 border-gray-50"
+                            title={t('quick_offer')}
+                        >
+                            <i className="fas fa-plus text-xl sm:text-2xl"></i>
+                        </button>
+
                         <div className="relative">
                             <button 
                                 onClick={(e) => { e.stopPropagation(); setIsLangOpen(!isLangOpen); }}
@@ -301,7 +321,21 @@ const App: React.FC = () => {
                 </div>
             )}
 
-            {isAuthModalOpen && <AuthModal onClose={() => setIsAuthModalOpen(false)} t={t} />}
+            {isAuthModalOpen && <AuthModal onClose={() => setIsAuthModalOpen(false)} t={t} lang={lang} />}
+            
+            {isQuickOfferOpen && user && (
+                <div className="fixed inset-0 bg-black/80 z-[600] flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setIsQuickOfferOpen(false)}>
+                    <div className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl p-8 animate-in zoom-in" onClick={e => e.stopPropagation()}>
+                         <OfferHelpPage user={user} t={t} onAuth={() => {}} onNavigate={() => setIsQuickOfferOpen(false)} isPopup />
+                    </div>
+                </div>
+            )}
+
+            {isVerifyingPhone && tempAuthUser && (
+                <div className="fixed inset-0 bg-black/90 z-[700] flex items-center justify-center p-4 backdrop-blur-md">
+                     <PhoneVerificationModal user={tempAuthUser} t={t} onVerified={() => { setIsVerifyingPhone(false); setTempAuthUser(null); }} />
+                </div>
+            )}
 
             {itemToRedeem && (
                 <RedeemConfirmModal 
@@ -325,6 +359,56 @@ const App: React.FC = () => {
                         } catch (e: any) { alert("Failed: " + e.message); }
                     }} 
                 />
+            )}
+        </div>
+    );
+};
+
+const PhoneVerificationModal: React.FC<{user: any, t: any, onVerified: () => void}> = ({user, t, onVerified}) => {
+    const [code, setCode] = useState('');
+    const [sentCode, setSentCode] = useState('123456'); // Mock SMS for demo
+    const [error, setError] = useState('');
+    const [phone, setPhone] = useState('');
+    const [isChangingPhone, setIsChangingPhone] = useState(false);
+
+    useEffect(() => {
+        firebase.firestore().collection('users').doc(user.uid).get().then((doc: any) => {
+            if(doc.exists) setPhone(doc.data().phone);
+        });
+    }, [user.uid]);
+
+    const handleVerify = async () => {
+        if (code === sentCode) {
+            await firebase.firestore().collection('users').doc(user.uid).update({ phoneVerified: true, phone });
+            onVerified();
+        } else {
+            setError(t('wrong_code'));
+        }
+    };
+
+    const handleUpdatePhone = async () => {
+        setIsChangingPhone(false);
+        setError('');
+        // Logic to resend mock code
+    };
+
+    return (
+        <div className="bg-white w-full max-w-md rounded-[2.5rem] p-10 text-center animate-in zoom-in shadow-2xl">
+            <h2 className="text-2xl font-black uppercase italic mb-4">{t('verify_phone')}</h2>
+            <p className="text-gray-500 text-xs mb-8">{t('sms_sent')} <b>{phone}</b></p>
+            {error && <p className="text-red-500 text-[10px] font-black uppercase mb-4">{error}</p>}
+            
+            {isChangingPhone ? (
+                <div className="space-y-4">
+                    <input value={phone} onChange={e => setPhone(e.target.value)} className="w-full bg-gray-50 border-2 p-4 rounded-2xl outline-none font-bold text-center" placeholder={t('phone_number')} />
+                    <button onClick={handleUpdatePhone} className="w-full bg-[#3498db] text-white py-4 rounded-xl font-black uppercase text-xs">{t('save')}</button>
+                </div>
+            ) : (
+                <div className="space-y-6">
+                    <input value={code} onChange={e => setCode(e.target.value)} maxLength={6} className="w-full bg-gray-50 border-2 p-4 rounded-2xl outline-none font-bold text-center text-2xl tracking-[0.5em]" placeholder="000000" />
+                    <button onClick={handleVerify} className="w-full bg-[#2ecc71] text-white py-6 rounded-2xl font-black uppercase text-lg shadow-xl shadow-green-100">{t('verify')}</button>
+                    <button onClick={() => setIsChangingPhone(true)} className="text-[#3498db] text-[10px] font-black uppercase hover:underline">{t('change_phone')}</button>
+                </div>
             )}
         </div>
     );
@@ -453,8 +537,8 @@ const HomePage: React.FC<{t: any, user: any | null}> = ({t, user}) => {
             <div className="max-w-6xl mx-auto space-y-10">
                 <div className="space-y-4">
                     <div className="flex items-center justify-between">
-                        <h3 className="text-xs font-black uppercase text-gray-400 tracking-widest">Announcements</h3>
-                        {isAdmin && <button onClick={() => setIsEditingAnnounce(!isEditingAnnounce)} className="text-[10px] font-black uppercase text-[#3498db]">{isEditingAnnounce ? t('cancel') : 'Update'}</button>}
+                        <h3 className="text-xs font-black uppercase text-gray-400 tracking-widest">{t('announcements')}</h3>
+                        {isAdmin && <button onClick={() => setIsEditingAnnounce(!isEditingAnnounce)} className="text-[10px] font-black uppercase text-[#3498db]">{isEditingAnnounce ? t('cancel') : t('update')}</button>}
                     </div>
                     <div className="bg-white rounded-[2rem] border p-6 shadow-sm overflow-hidden">
                         {isEditingAnnounce ? (
@@ -464,7 +548,7 @@ const HomePage: React.FC<{t: any, user: any | null}> = ({t, user}) => {
                                     onChange={e => setAnnounceInput(e.target.value)} 
                                     className="w-full min-h-[120px] p-4 bg-gray-50 rounded-xl outline-none font-bold text-sm resize-y" 
                                 />
-                                <button onClick={saveAnnouncement} className="bg-[#2c3e50] text-white px-8 py-2 rounded-lg font-black uppercase text-[10px]">Publish</button>
+                                <button onClick={saveAnnouncement} className="bg-[#2c3e50] text-white px-8 py-2 rounded-lg font-black uppercase text-[10px]">{t('publish')}</button>
                             </div>
                         ) : (
                             <div className="flex items-start gap-4">
@@ -493,7 +577,7 @@ const HomePage: React.FC<{t: any, user: any | null}> = ({t, user}) => {
                                 <div key={item.id} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col group">
                                     <div className="flex justify-between items-start mb-4">
                                         <h3 className="text-xl font-black text-[#2c3e50]">{item.itemName}</h3>
-                                        <div className="bg-blue-50 text-[#3498db] px-3 py-1 rounded-full text-[10px] font-black">Qty: {item.qty}</div>
+                                        <div className="bg-blue-50 text-[#3498db] px-3 py-1 rounded-full text-[10px] font-black">{t('quantity')}: {item.qty}</div>
                                     </div>
                                     <div className="mb-4 flex flex-wrap gap-2">
                                         <span className="bg-gray-50 text-gray-400 px-3 py-1 rounded-md text-[10px] font-black uppercase">{item.category}</span>
@@ -508,7 +592,7 @@ const HomePage: React.FC<{t: any, user: any | null}> = ({t, user}) => {
                                     </div>
                                     {isAdmin && (
                                         <button onClick={() => handleConfirmReceived(item)} className="w-full bg-[#2ecc71] hover:bg-[#27ae60] text-white py-3 rounded-xl text-xs font-black uppercase shadow-md transition-all">
-                                            <i className="fas fa-check-circle mr-2"></i> Confirm & Reward
+                                            <i className="fas fa-check-circle mr-2"></i> {t('confirm')}
                                         </button>
                                     )}
                                 </div>
@@ -521,7 +605,7 @@ const HomePage: React.FC<{t: any, user: any | null}> = ({t, user}) => {
     );
 };
 
-const OfferHelpPage: React.FC<{user: any | null, t: any, onAuth: () => void, onNavigate: (p: string) => void}> = ({user, t, onAuth, onNavigate}) => {
+const OfferHelpPage: React.FC<{user: any | null, t: any, onAuth: () => void, onNavigate: (p: string) => void, isPopup?: boolean}> = ({user, t, onAuth, onNavigate, isPopup}) => {
     const [item, setItem] = useState({ itemName: '', category: translations[Language.EN]['category_food'], qty: 1, donorName: user?.displayName || '' });
     const [posting, setPosting] = useState(false);
 
@@ -553,39 +637,39 @@ const OfferHelpPage: React.FC<{user: any | null, t: any, onAuth: () => void, onN
 
     if (!user) return <div className="text-center py-24"><button onClick={onAuth} className="bg-[#3498db] text-white px-12 py-4 rounded-full font-black uppercase shadow-xl">{t('login')}</button></div>;
 
-    return (
-        <div className="max-w-2xl mx-auto py-12">
-            <div className="bg-white rounded-[3rem] shadow-2xl p-10 border border-gray-50">
-                <h2 className="text-3xl font-black text-[#2c3e50] mb-8 uppercase italic">{t('offer_help')}</h2>
-                <form onSubmit={handlePost} className="space-y-6">
+    const content = (
+        <div className={`${isPopup ? '' : 'bg-white rounded-[3rem] shadow-2xl p-10 border border-gray-50'}`}>
+            <h2 className="text-3xl font-black text-[#2c3e50] mb-8 uppercase italic">{t('offer_help')}</h2>
+            <form onSubmit={handlePost} className="space-y-6">
+                <div className="space-y-1">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">{t('item_name')}</label>
+                    <input value={item.itemName} onChange={e => setItem({...item, itemName: e.target.value})} className="w-full p-4 rounded-2xl border-2 outline-none font-bold" required placeholder={t('item_name')} />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1">
-                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Item Name</label>
-                        <input value={item.itemName} onChange={e => setItem({...item, itemName: e.target.value})} className="w-full p-4 rounded-2xl border-2 outline-none font-bold" required placeholder="What are you offering?" />
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">{t('status')}</label>
+                        <select value={item.category} onChange={e => setItem({...item, category: e.target.value})} className="w-full p-4 rounded-2xl border-2 outline-none font-bold">
+                            <option>{t('category_food')}</option>
+                            <option>{t('category_clothing')}</option>
+                            <option>{t('category_books')}</option>
+                            <option>{t('category_furniture')}</option>
+                            <option>{t('category_toiletries')}</option>
+                            <option>{t('category_others')}</option>
+                        </select>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1">
-                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Category</label>
-                            <select value={item.category} onChange={e => setItem({...item, category: e.target.value})} className="w-full p-4 rounded-2xl border-2 outline-none font-bold">
-                                <option>{t('category_food')}</option>
-                                <option>{t('category_clothing')}</option>
-                                <option>{t('category_books')}</option>
-                                <option>{t('category_furniture')}</option>
-                                <option>{t('category_toiletries')}</option>
-                                <option>{t('category_others')}</option>
-                            </select>
-                        </div>
-                        <div className="space-y-1">
-                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Quantity</label>
-                            <input type="number" value={item.qty} min="1" onChange={e => setItem({...item, qty: Number(e.target.value)})} className="w-full p-4 rounded-2xl border-2 outline-none font-bold" required />
-                        </div>
+                    <div className="space-y-1">
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">{t('quantity')}</label>
+                        <input type="number" value={item.qty} min="1" onChange={e => setItem({...item, qty: Number(e.target.value)})} className="w-full p-4 rounded-2xl border-2 outline-none font-bold" required />
                     </div>
-                    <button type="submit" disabled={posting} className="w-full bg-[#3498db] text-white py-5 rounded-2xl font-black text-xl shadow-xl uppercase transition-transform active:scale-95">
-                        {posting ? '...' : 'Post Offer'}
-                    </button>
-                </form>
-            </div>
+                </div>
+                <button type="submit" disabled={posting} className="w-full bg-[#3498db] text-white py-5 rounded-2xl font-black text-xl shadow-xl uppercase transition-transform active:scale-95">
+                    {posting ? '...' : t('post_offer')}
+                </button>
+            </form>
         </div>
     );
+
+    return isPopup ? content : <div className="max-w-2xl mx-auto py-12">{content}</div>;
 };
 
 const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
@@ -693,10 +777,10 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
         <div className="h-full flex flex-col p-4 sm:p-6 overflow-hidden bg-white">
             <h2 className="text-xl font-black italic uppercase text-[#2c3e50] mb-6 border-b-4 border-[#3498db] pb-2 inline-block">Admin</h2>
             <div className="flex flex-wrap gap-1 mb-6">
-                <button onClick={() => { setActiveTab('users'); setEditingUser(null); setActiveSupportUser(null); setSelectedOffer(null); }} className={`flex-1 min-w-[60px] py-2 rounded-xl text-[7px] font-black uppercase ${activeTab === 'users' ? 'bg-[#2c3e50] text-white' : 'bg-gray-100'}`}>Users</button>
-                <button onClick={() => { setActiveTab('items'); setEditingUser(null); setActiveSupportUser(null); setSelectedOffer(null); }} className={`flex-1 min-w-[60px] py-2 rounded-xl text-[7px] font-black uppercase ${activeTab === 'items' ? 'bg-[#2c3e50] text-white' : 'bg-gray-100'}`}>Offers</button>
-                <button onClick={() => { setActiveTab('vouchers'); setEditingUser(null); setActiveSupportUser(null); setSelectedOffer(null); }} className={`flex-1 min-w-[60px] py-2 rounded-xl text-[7px] font-black uppercase ${activeTab === 'vouchers' ? 'bg-[#2c3e50] text-white' : 'bg-gray-100'}`}>Vouchers</button>
-                <button onClick={() => { setActiveTab('chats'); setEditingUser(null); setActiveSupportUser(null); setSelectedOffer(null); }} className={`flex-1 min-w-[60px] py-2 rounded-xl text-[7px] font-black uppercase ${activeTab === 'chats' ? 'bg-[#2c3e50] text-white' : 'bg-gray-100'}`}>Support</button>
+                <button onClick={() => { setActiveTab('users'); setEditingUser(null); setActiveSupportUser(null); setSelectedOffer(null); }} className={`flex-1 min-w-[60px] py-2 rounded-xl text-[7px] font-black uppercase ${activeTab === 'users' ? 'bg-[#2c3e50] text-white' : 'bg-gray-100'}`}>{t('users')}</button>
+                <button onClick={() => { setActiveTab('items'); setEditingUser(null); setActiveSupportUser(null); setSelectedOffer(null); }} className={`flex-1 min-w-[60px] py-2 rounded-xl text-[7px] font-black uppercase ${activeTab === 'items' ? 'bg-[#2c3e50] text-white' : 'bg-gray-100'}`}>{t('offers')}</button>
+                <button onClick={() => { setActiveTab('vouchers'); setEditingUser(null); setActiveSupportUser(null); setSelectedOffer(null); }} className={`flex-1 min-w-[60px] py-2 rounded-xl text-[7px] font-black uppercase ${activeTab === 'vouchers' ? 'bg-[#2c3e50] text-white' : 'bg-gray-100'}`}>{t('vouchers')}</button>
+                <button onClick={() => { setActiveTab('chats'); setEditingUser(null); setActiveSupportUser(null); setSelectedOffer(null); }} className={`flex-1 min-w-[60px] py-2 rounded-xl text-[7px] font-black uppercase ${activeTab === 'chats' ? 'bg-[#2c3e50] text-white' : 'bg-gray-100'}`}>{t('support')}</button>
             </div>
             
             <div className="flex-1 overflow-y-auto space-y-4 pr-1">
@@ -704,20 +788,20 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
                     <div className="space-y-4">
                         {editingUser ? (
                             <form onSubmit={handleUpdateUser} className="bg-gray-50 p-4 rounded-2xl border space-y-3">
-                                <AdminInput label="Name" value={editingUser.displayName} onChange={v => setEditingUser({...editingUser, displayName: v})} />
-                                <AdminInput label="Points" type="number" value={editingUser.points} onChange={v => setEditingUser({...editingUser, points: v})} />
-                                <AdminInput label="Phone" value={editingUser.phone} onChange={v => setEditingUser({...editingUser, phone: v})} />
-                                <AdminInput label="Address" value={editingUser.address} onChange={v => setEditingUser({...editingUser, address: v})} />
-                                <AdminInput label="Birthdate" value={editingUser.birthdate} onChange={v => setEditingUser({...editingUser, birthdate: v})} />
-                                <AdminInput label="Class" value={editingUser.userClass} onChange={v => setEditingUser({...editingUser, userClass: v})} />
+                                <AdminInput label={t('full_name')} value={editingUser.displayName} onChange={v => setEditingUser({...editingUser, displayName: v})} />
+                                <AdminInput label={t('points')} type="number" value={editingUser.points} onChange={v => setEditingUser({...editingUser, points: v})} />
+                                <AdminInput label={t('phone_number')} value={editingUser.phone} onChange={v => setEditingUser({...editingUser, phone: v})} />
+                                <AdminInput label={t('home_address')} value={editingUser.address} onChange={v => setEditingUser({...editingUser, address: v})} />
+                                <AdminInput label={t('birthdate')} value={editingUser.birthdate} onChange={v => setEditingUser({...editingUser, birthdate: v})} />
+                                <AdminInput label={t('class_label')} value={editingUser.userClass} onChange={v => setEditingUser({...editingUser, userClass: v})} />
                                 <div className="flex gap-2">
-                                    <button type="submit" className="flex-1 bg-[#2ecc71] text-white py-2 rounded-lg font-black text-[10px] uppercase">Save</button>
-                                    <button type="button" onClick={() => setEditingUser(null)} className="flex-1 bg-gray-200 text-gray-600 py-2 rounded-lg font-black text-[10px] uppercase">Cancel</button>
+                                    <button type="submit" className="flex-1 bg-[#2ecc71] text-white py-2 rounded-lg font-black text-[10px] uppercase">{t('save')}</button>
+                                    <button type="button" onClick={() => setEditingUser(null)} className="flex-1 bg-gray-200 text-gray-600 py-2 rounded-lg font-black text-[10px] uppercase">{t('cancel')}</button>
                                 </div>
                             </form>
                         ) : (
                             <>
-                                <input placeholder="Search by name, email or class..." className="w-full bg-gray-50 border p-3 rounded-xl text-xs font-bold outline-none" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+                                <input placeholder={t('search_placeholder')} className="w-full bg-gray-50 border p-3 rounded-xl text-xs font-bold outline-none" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
                                 {filteredUsers.map(u => (
                                     <div key={u.uid} className="bg-white p-3 border rounded-xl flex justify-between items-center group">
                                         <div>
@@ -736,35 +820,35 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
                     selectedOffer ? (
                         <div className="bg-gray-50 p-5 rounded-3xl border border-gray-100 space-y-5 animate-in slide-in-from-right-2">
                             <button onClick={() => setSelectedOffer(null)} className="text-[10px] font-black uppercase text-gray-400 hover:text-[#2c3e50] transition-colors flex items-center gap-2">
-                                <i className="fas fa-arrow-left"></i> Back to List
+                                <i className="fas fa-arrow-left"></i> {t('back_to_list')}
                             </button>
                             <div className="space-y-4">
                                 <div>
                                     <h3 className="text-xl font-black uppercase italic text-[#2c3e50] leading-tight">{selectedOffer.itemName}</h3>
                                     <div className="flex items-center gap-2 mt-2">
-                                        <span className="bg-[#3498db] text-white px-3 py-1 rounded-full text-[10px] font-black uppercase">Quantity: {selectedOffer.qty}</span>
+                                        <span className="bg-[#3498db] text-white px-3 py-1 rounded-full text-[10px] font-black uppercase">{t('quantity')}: {selectedOffer.qty}</span>
                                         <span className="bg-gray-100 text-gray-500 px-3 py-1 rounded-full text-[10px] font-black uppercase">{selectedOffer.category}</span>
                                     </div>
                                 </div>
                                 <div className="space-y-4 pt-4 border-t border-gray-200">
                                     <div>
-                                        <p className="text-[8px] font-black uppercase text-gray-400 tracking-widest mb-1">Donor Details</p>
+                                        <p className="text-[8px] font-black uppercase text-gray-400 tracking-widest mb-1">{t('donor_details')}</p>
                                         <div className="bg-white p-3 rounded-2xl border border-gray-100">
                                             <p className="text-sm font-bold text-[#2c3e50]">{selectedOffer.donorName}</p>
                                             <p className="text-[10px] font-bold text-[#3498db] uppercase">{selectedOffer.userClass || 'No Class Info'}</p>
                                         </div>
                                     </div>
                                     <div>
-                                        <p className="text-[8px] font-black uppercase text-gray-400 tracking-widest mb-1">Status</p>
+                                        <p className="text-[8px] font-black uppercase text-gray-400 tracking-widest mb-1">{t('status')}</p>
                                         <p className="text-[10px] font-black uppercase italic text-[#f39c12]">
-                                            {data.completedItems.find(c => c.id === selectedOffer.id) ? 'Verified & Completed' : 'Pending Verification'}
+                                            {data.completedItems.find(c => c.id === selectedOffer.id) ? t('verified_completed') : t('pending_approval')}
                                         </p>
                                     </div>
                                 </div>
                             </div>
                             {!data.completedItems.find(c => c.id === selectedOffer.id) && (
                                 <button onClick={() => approveOffer(selectedOffer)} className="w-full bg-[#2ecc71] hover:bg-[#27ae60] text-white py-4 rounded-2xl font-black uppercase text-xs shadow-xl shadow-green-100 transition-all active:scale-95">
-                                    <i className="fas fa-check-circle mr-2"></i> Approve & Award Points
+                                    <i className="fas fa-check-circle mr-2"></i> {t('approve_award')}
                                 </button>
                             )}
                         </div>
@@ -772,7 +856,7 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
                         <div className="space-y-6">
                             <div>
                                 <h3 className="text-[10px] font-black uppercase text-gray-400 mb-2 tracking-widest flex items-center gap-2 px-1">
-                                    <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span> Pending Approval
+                                    <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span> {t('pending_approval')}
                                 </h3>
                                 {data.items.length === 0 ? <p className="text-[10px] text-gray-300 italic px-1">No pending offers.</p> : data.items.map(i => (
                                     <div key={i.id} onClick={() => setSelectedOffer(i)} className="bg-white p-4 border border-gray-100 rounded-2xl mb-2 flex justify-between items-center cursor-pointer hover:border-[#3498db] hover:shadow-md transition-all group">
@@ -786,7 +870,7 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
                             </div>
                             <div>
                                 <h3 className="text-[10px] font-black uppercase text-gray-400 mb-2 tracking-widest flex items-center gap-2 px-1">
-                                    <span className="w-2 h-2 rounded-full bg-green-500"></span> Approved Offers
+                                    <span className="w-2 h-2 rounded-full bg-green-500"></span> {t('verified')}
                                 </h3>
                                 {data.completedItems.length === 0 ? <p className="text-[10px] text-gray-300 italic px-1">No approved offers.</p> : data.completedItems.map(i => (
                                     <div key={i.id} onClick={() => setSelectedOffer(i)} className="bg-white p-4 border border-green-50 rounded-2xl mb-2 flex justify-between items-center opacity-70 cursor-pointer hover:opacity-100 hover:border-green-200 transition-all group">
@@ -794,7 +878,7 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
                                             <div className="font-black text-xs uppercase text-[#2c3e50]">{i.itemName}</div>
                                             <div className="text-[9px] text-gray-400 font-bold uppercase tracking-tighter">Donor: {i.donorName}</div>
                                         </div>
-                                        <div className="text-green-500 font-black text-[9px] uppercase italic">Verified</div>
+                                        <div className="text-green-500 font-black text-[9px] uppercase italic">{t('verified')}</div>
                                     </div>
                                 ))}
                             </div>
@@ -819,7 +903,7 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
                             </div>
                             <form onSubmit={sendAdminReply} className="flex gap-2">
                                 <input value={adminReply} onChange={e => setAdminReply(e.target.value)} placeholder="Type official response..." className="flex-1 bg-gray-100 p-2 rounded-xl text-xs font-bold border outline-none focus:border-[#2c3e50] transition-all" />
-                                <button className="bg-[#2c3e50] text-white px-4 rounded-xl text-[10px] font-black hover:bg-black transition-colors">Send</button>
+                                <button className="bg-[#2c3e50] text-white px-4 rounded-xl text-[10px] font-black hover:bg-black transition-colors">{t('send')}</button>
                             </form>
                         </div>
                     ) : (
@@ -898,28 +982,36 @@ const ShopPage: React.FC<{user: any | null, t: any, onAuth: any, onRedeemConfirm
         } catch (e) { alert("Failed to save product."); }
     };
 
+    const handleDeleteProduct = async (id: string) => {
+        if (!window.confirm("Are you sure you want to delete this reward?")) return;
+        try {
+            await firebase.firestore().collection('shop_items').doc(id).delete();
+            alert("Reward deleted!");
+        } catch (e) { alert("Failed to delete."); }
+    };
+
     return (
         <div className="space-y-12 py-12">
             <div className="flex justify-between items-center">
                 <h1 className="text-3xl font-black italic uppercase text-[#2c3e50] tracking-tighter">{t('points_shop')}</h1>
                 {isAdmin && (
                     <button onClick={() => { setNewProduct({ name: '', cost: 20, color: '#3498db', id: '' }); setIsAdding(true); }} className="bg-[#2ecc71] text-white px-6 py-2 rounded-full font-black text-[10px] uppercase shadow-lg hover:scale-105 transition-all">
-                        <i className="fas fa-plus mr-2"></i> Add Reward
+                        <i className="fas fa-plus mr-2"></i> {t('add_reward')}
                     </button>
                 )}
             </div>
 
             {isAdding && (
-                <div className="fixed inset-0 bg-black/80 z-[600] flex items-center justify-center p-4 backdrop-blur-sm">
-                    <div className="bg-white w-full max-w-md rounded-[2rem] p-8 shadow-2xl animate-in zoom-in">
-                        <h2 className="text-xl font-black uppercase italic mb-6">{newProduct.id ? 'Edit Reward' : 'New Reward'}</h2>
+                <div className="fixed inset-0 bg-black/80 z-[600] flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setIsAdding(false)}>
+                    <div className="bg-white w-full max-w-md rounded-[2rem] p-8 shadow-2xl animate-in zoom-in" onClick={e => e.stopPropagation()}>
+                        <h2 className="text-xl font-black uppercase italic mb-6">{newProduct.id ? t('edit_content') : t('add_reward')}</h2>
                         <form onSubmit={handleAddOrUpdateProduct} className="space-y-4">
-                            <AdminInput label="Product Name" value={newProduct.name} onChange={v => setNewProduct({...newProduct, name: v})} placeholder="e.g. Free Coffee" />
-                            <AdminInput label="Point Cost" type="number" value={newProduct.cost} onChange={v => setNewProduct({...newProduct, cost: v})} />
-                            <AdminInput label="Color Code (Hex)" value={newProduct.color} onChange={v => setNewProduct({...newProduct, color: v})} placeholder="#3498db" />
+                            <AdminInput label={t('product_name')} value={newProduct.name} onChange={v => setNewProduct({...newProduct, name: v})} placeholder="e.g. Free Coffee" />
+                            <AdminInput label={t('point_cost')} type="number" value={newProduct.cost} onChange={v => setNewProduct({...newProduct, cost: v})} />
+                            <AdminInput label={t('color_code')} value={newProduct.color} onChange={v => setNewProduct({...newProduct, color: v})} placeholder="#3498db" />
                             <div className="flex gap-2 pt-4">
-                                <button type="submit" className="flex-1 bg-[#3498db] text-white py-3 rounded-xl font-black uppercase text-xs">Save</button>
-                                <button type="button" onClick={() => setIsAdding(false)} className="flex-1 bg-gray-100 text-gray-500 py-3 rounded-xl font-black uppercase text-xs">Cancel</button>
+                                <button type="submit" className="flex-1 bg-[#3498db] text-white py-3 rounded-xl font-black uppercase text-xs">{t('save')}</button>
+                                <button type="button" onClick={() => setIsAdding(false)} className="flex-1 bg-gray-100 text-gray-500 py-3 rounded-xl font-black uppercase text-xs">{t('cancel')}</button>
                             </div>
                         </form>
                     </div>
@@ -936,9 +1028,14 @@ const ShopPage: React.FC<{user: any | null, t: any, onAuth: any, onRedeemConfirm
                                 <div className="text-2xl font-black text-[#f39c12]">{item.cost} {t('points')}</div>
                             </div>
                             {isAdmin ? (
-                                <button onClick={() => { setNewProduct(item); setIsAdding(true); }} className="w-full py-6 font-black uppercase text-white tracking-widest text-[11px] bg-gray-700 hover:bg-gray-800">
-                                    <i className="fas fa-edit mr-2"></i> Edit Content
-                                </button>
+                                <div className="flex w-full bg-gray-700">
+                                    <button onClick={() => { setNewProduct(item); setIsAdding(true); }} className="flex-1 py-6 font-black uppercase text-white tracking-widest text-[11px] hover:bg-gray-800 transition-colors border-r border-white/10">
+                                        <i className="fas fa-edit mr-2"></i> {t('edit_content')}
+                                    </button>
+                                    <button onClick={() => handleDeleteProduct(item.id)} className="px-6 py-6 font-black uppercase text-red-400 tracking-widest text-[11px] hover:bg-red-900/20 transition-colors">
+                                        <i className="fas fa-trash"></i> {t('delete')}
+                                    </button>
+                                </div>
                             ) : (
                                 <button onClick={() => user ? onRedeemConfirm(item) : onAuth()} className="w-full py-6 font-black uppercase text-white tracking-widest text-[11px]" style={{backgroundColor: item.color}}>{t('redeem_now')}</button>
                             )}
@@ -1017,32 +1114,32 @@ const HistoryPage: React.FC<{user: any | null, t: any, onAuth: any}> = ({user, t
     return (
         <div className="max-w-4xl mx-auto space-y-10 py-12">
             <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6">
-                <h1 className="text-4xl font-black italic uppercase text-[#2c3e50] tracking-tighter">My Activity</h1>
+                <h1 className="text-4xl font-black italic uppercase text-[#2c3e50] tracking-tighter">{t('my_activity')}</h1>
                 <div className="flex bg-white p-1 rounded-2xl shadow-sm border border-gray-100">
                     <button 
                         onClick={() => setActiveHistoryTab('offers')}
                         className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase transition-all flex items-center gap-2 ${activeHistoryTab === 'offers' ? 'bg-[#3498db] text-white shadow-lg' : 'text-gray-400 hover:text-[#2c3e50]'}`}
                     >
-                        <i className="fas fa-hand-holding-heart"></i> Contributions
+                        <i className="fas fa-hand-holding-heart"></i> {t('contributions')}
                     </button>
                     <button 
                         onClick={() => setActiveHistoryTab('redeems')}
                         className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase transition-all flex items-center gap-2 ${activeHistoryTab === 'redeems' ? 'bg-[#3498db] text-white shadow-lg' : 'text-gray-400 hover:text-[#2c3e50]'}`}
                     >
-                        <i className="fas fa-gift"></i> Rewards
+                        <i className="fas fa-gift"></i> {t('rewards')}
                     </button>
                 </div>
             </div>
 
             {isEditingOffer && (
-                <div className="fixed inset-0 bg-black/80 z-[600] flex items-center justify-center p-4 backdrop-blur-sm">
-                    <div className="bg-white w-full max-w-md rounded-[2rem] p-8 shadow-2xl">
-                        <h2 className="text-xl font-black uppercase mb-6">Edit Offer</h2>
+                <div className="fixed inset-0 bg-black/80 z-[600] flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setIsEditingOffer(null)}>
+                    <div className="bg-white w-full max-w-md rounded-[2rem] p-8 shadow-2xl" onClick={e => e.stopPropagation()}>
+                        <h2 className="text-xl font-black uppercase mb-6">{t('edit_content')}</h2>
                         <form onSubmit={updateOffer} className="space-y-4">
-                            <AdminInput label="Item Name" value={isEditingOffer.itemName} onChange={v => setIsEditingOffer({...isEditingOffer, itemName: v})} />
-                            <AdminInput label="Quantity" type="number" value={isEditingOffer.qty} onChange={v => setIsEditingOffer({...isEditingOffer, qty: v})} />
+                            <AdminInput label={t('item_name')} value={isEditingOffer.itemName} onChange={v => setIsEditingOffer({...isEditingOffer, itemName: v})} />
+                            <AdminInput label={t('quantity')} type="number" value={isEditingOffer.qty} onChange={v => setIsEditingOffer({...isEditingOffer, qty: v})} />
                             <div className="space-y-1">
-                                <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Category</label>
+                                <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest">{t('status')}</label>
                                 <select value={isEditingOffer.category} onChange={e => setIsEditingOffer({...isEditingOffer, category: e.target.value})} className="w-full p-3 bg-white border-2 border-gray-100 rounded-xl font-bold text-sm outline-none">
                                     <option>{t('category_food')}</option>
                                     <option>{t('category_clothing')}</option>
@@ -1053,8 +1150,8 @@ const HistoryPage: React.FC<{user: any | null, t: any, onAuth: any}> = ({user, t
                                 </select>
                             </div>
                             <div className="flex gap-2 pt-4">
-                                <button type="submit" className="flex-1 bg-[#3498db] text-white py-3 rounded-xl font-black uppercase text-xs">Update</button>
-                                <button type="button" onClick={() => setIsEditingOffer(null)} className="flex-1 bg-gray-100 text-gray-500 py-3 rounded-xl font-black uppercase text-xs">Cancel</button>
+                                <button type="submit" className="flex-1 bg-[#3498db] text-white py-3 rounded-xl font-black uppercase text-xs">{t('update')}</button>
+                                <button type="button" onClick={() => setIsEditingOffer(null)} className="flex-1 bg-gray-100 text-gray-500 py-3 rounded-xl font-black uppercase text-xs">{t('cancel')}</button>
                             </div>
                         </form>
                     </div>
@@ -1077,7 +1174,7 @@ const HistoryPage: React.FC<{user: any | null, t: any, onAuth: any}> = ({user, t
                                                 {h.createdAt?.toDate?.() ? h.createdAt.toDate().toLocaleDateString() : (h.completedAt?.toDate?.() ? h.completedAt.toDate().toLocaleDateString() : 'Recent')}
                                             </span>
                                             <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full ${h.type === 'offer_pending' ? 'bg-amber-100 text-amber-600' : 'bg-green-100 text-green-600'}`}>
-                                                {h.type === 'offer_pending' ? 'Pending Approval' : 'Verified'}
+                                                {h.type === 'offer_pending' ? t('pending_approval') : t('verified')}
                                             </span>
                                         </div>
                                     </div>
@@ -1091,7 +1188,7 @@ const HistoryPage: React.FC<{user: any | null, t: any, onAuth: any}> = ({user, t
                                         </div>
                                     )}
                                     <div className="text-right flex flex-col items-end min-w-[100px]">
-                                        <div className="text-[10px] font-black uppercase text-gray-400 tracking-tighter">Points Earned</div>
+                                        <div className="text-[10px] font-black uppercase text-gray-400 tracking-tighter">{t('points_earned')}</div>
                                         <div className={`font-black text-2xl ${h.type === 'offer_pending' ? 'text-gray-300' : 'text-green-500'}`}>
                                             {h.type === 'offer_pending' ? '--' : `+${h.earnedPoints || '??'}`}
                                         </div>
@@ -1121,7 +1218,7 @@ const HistoryPage: React.FC<{user: any | null, t: any, onAuth: any}> = ({user, t
                                     </div>
                                 </div>
                                 <div className="text-right">
-                                    <div className="text-[10px] font-black uppercase text-gray-400 tracking-tighter">Points Spent</div>
+                                    <div className="text-[10px] font-black uppercase text-gray-400 tracking-tighter">{t('points_spent')}</div>
                                     <div className={`font-black text-2xl text-red-500`}>-{h.itemPoints}</div>
                                 </div>
                             </div>
@@ -1138,35 +1235,32 @@ const HistoryPage: React.FC<{user: any | null, t: any, onAuth: any}> = ({user, t
     );
 };
 
-const AuthModal: React.FC<{onClose: () => void, t: any}> = ({onClose, t}) => {
-    const [mode, setMode] = useState<'login' | 'register' | 'forgot'>('login');
+const AuthModal: React.FC<{onClose: () => void, t: any, lang: Language}> = ({onClose, t, lang}) => {
+    const [mode, setMode] = useState<'login' | 'register'>('login');
     const [data, setData] = useState({ email: '', password: '', name: '', birthdate: '', phone: '', address: '', userClass: '' });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [success, setSuccess] = useState<string | null>(null);
     const [showPassword, setShowPassword] = useState(false);
 
     const submit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (typeof firebase === 'undefined' || !firebase.auth) return;
-        setLoading(true); setError(null); setSuccess(null);
+        setLoading(true); setError(null);
         try {
             if (mode === 'login') {
                 await firebase.auth().signInWithEmailAndPassword(data.email, data.password);
                 onClose();
             } else if (mode === 'register') {
-                if (!data.email.toLowerCase().endsWith("@moe-dl.edu.my") && data.email !== 'admin@gmail.com') throw new Error("MOE Email Required");
+                if (!data.email.toLowerCase().endsWith("@moe-dl.edu.my") && data.email !== 'admin@gmail.com') {
+                    throw new Error(lang === Language.BC ? "需要教育邮箱" : "MOE Email Required");
+                }
                 const {user} = await firebase.auth().createUserWithEmailAndPassword(data.email, data.password);
                 await firebase.firestore().collection('users').doc(user.uid).set({ 
                     email: data.email, displayName: data.name, points: 5, birthdate: data.birthdate, 
                     phone: data.phone, address: data.address, userClass: data.userClass, 
-                    isAdmin: data.email === 'admin@gmail.com'
+                    isAdmin: data.email === 'admin@gmail.com', phoneVerified: false
                 });
                 onClose();
-            } else if (mode === 'forgot') {
-                await firebase.auth().sendPasswordResetEmail(data.email);
-                setSuccess("Reset link sent! Please check your email inbox.");
-                setTimeout(() => setMode('login'), 3000);
             }
         } catch (err: any) { setError(err.message); } finally { setLoading(false); }
     };
@@ -1176,39 +1270,30 @@ const AuthModal: React.FC<{onClose: () => void, t: any}> = ({onClose, t}) => {
             <div className="bg-white w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl relative animate-in zoom-in overflow-y-auto max-h-[95vh]" onClick={e => e.stopPropagation()}>
                 <button onClick={onClose} className="absolute top-6 right-6 bg-gray-100 w-10 h-10 rounded-full flex items-center justify-center transition-all"><i className="fas fa-times text-gray-400"></i></button>
                 <h2 className="text-2xl font-black text-center uppercase italic text-[#2c3e50] mb-8">
-                    {mode === 'login' ? t('login') : mode === 'register' ? t('register') : t('reset_password')}
+                    {mode === 'login' ? t('login') : t('register')}
                 </h2>
                 {error && <div className="mb-6 bg-red-50 p-4 rounded-xl text-red-600 text-[10px] font-black uppercase tracking-wider">{error}</div>}
-                {success && <div className="mb-6 bg-green-50 p-4 rounded-xl text-green-600 text-[10px] font-black uppercase tracking-wider">{success}</div>}
                 <form onSubmit={submit} className="space-y-4">
                     {mode === 'register' && (
                         <>
-                            <input placeholder="Full Name" value={data.name} onChange={e => setData({...data, name: e.target.value})} className="w-full bg-gray-50 border-2 p-4 rounded-2xl outline-none font-bold text-sm" required />
-                            <input placeholder="Class (e.g. 5 Amanah)" value={data.userClass} onChange={e => setData({...data, userClass: e.target.value})} className="w-full bg-gray-50 border-2 p-4 rounded-2xl outline-none font-bold text-sm" required />
+                            <input placeholder={t('full_name')} value={data.name} onChange={e => setData({...data, name: e.target.value})} className="w-full bg-gray-50 border-2 p-4 rounded-2xl outline-none font-bold text-sm" required />
+                            <input placeholder={t('class_label')} value={data.userClass} onChange={e => setData({...data, userClass: e.target.value})} className="w-full bg-gray-50 border-2 p-4 rounded-2xl outline-none font-bold text-sm" required />
                             <input type="date" value={data.birthdate} onChange={e => setData({...data, birthdate: e.target.value})} className="w-full bg-gray-50 border-2 p-4 rounded-2xl outline-none font-bold text-sm" required />
-                            <input type="tel" placeholder="Phone Number" value={data.phone} onChange={e => setData({...data, phone: e.target.value})} className="w-full bg-gray-50 border-2 p-4 rounded-2xl outline-none font-bold text-sm" required />
-                            <input placeholder="Address" value={data.address} onChange={e => setData({...data, address: e.target.value})} className="w-full bg-gray-50 border-2 p-4 rounded-2xl outline-none font-bold text-sm" required />
+                            <input type="tel" placeholder={t('phone_number')} value={data.phone} onChange={e => setData({...data, phone: e.target.value})} className="w-full bg-gray-50 border-2 p-4 rounded-2xl outline-none font-bold text-sm" required />
+                            <input placeholder={t('home_address')} value={data.address} onChange={e => setData({...data, address: e.target.value})} className="w-full bg-gray-50 border-2 p-4 rounded-2xl outline-none font-bold text-sm" required />
                         </>
                     )}
                     <input type="email" placeholder="m-xxxxxxxx@moe-dl.edu.my" value={data.email} onChange={e => setData({...data, email: e.target.value})} className="w-full bg-gray-50 border-2 p-4 rounded-2xl outline-none font-bold text-sm placeholder:text-gray-300" required />
-                    {mode !== 'forgot' && (
-                        <div className="relative">
-                            <input type={showPassword ? "text" : "password"} placeholder="Password" value={data.password} onChange={e => setData({...data, password: e.target.value})} className="w-full bg-gray-50 border-2 p-4 rounded-2xl outline-none font-bold text-sm" required />
-                            <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-300"><i className={`fas fa-${showPassword ? 'eye-slash' : 'eye'}`}></i></button>
-                        </div>
-                    )}
                     
-                    {mode === 'login' && (
-                        <div className="text-right">
-                            <button type="button" onClick={() => setMode('forgot')} className="text-[10px] font-black uppercase text-[#3498db] hover:underline">Forgot Password?</button>
-                        </div>
-                    )}
+                    <div className="relative">
+                        <input type={showPassword ? "text" : "password"} placeholder={t('password')} value={data.password} onChange={e => setData({...data, password: e.target.value})} className="w-full bg-gray-50 border-2 p-4 rounded-2xl outline-none font-bold text-sm" required />
+                        <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-300"><i className={`fas fa-${showPassword ? 'eye-slash' : 'eye'}`}></i></button>
+                    </div>
                     
-                    <button disabled={loading} className="w-full bg-[#3498db] text-white py-6 rounded-full font-black text-xl shadow-xl hover:scale-105 transition-all mt-6 uppercase tracking-widest">{loading ? '...' : (mode === 'login' ? t('login') : mode === 'register' ? t('register') : t('send'))}</button>
+                    <button disabled={loading} className="w-full bg-[#3498db] text-white py-6 rounded-full font-black text-xl shadow-xl hover:scale-105 transition-all mt-6 uppercase tracking-widest">{loading ? '...' : (mode === 'login' ? t('login') : t('register'))}</button>
                 </form>
                 <div className="mt-6 flex flex-col items-center gap-3">
                     <button onClick={() => setMode(mode === 'login' ? 'register' : 'login')} className="text-xs font-black uppercase text-[#3498db] hover:underline">{mode === 'login' ? t('register') : t('login')}</button>
-                    {mode === 'forgot' && <button onClick={() => setMode('login')} className="text-[10px] font-black uppercase text-gray-400">Back to Login</button>}
                 </div>
             </div>
         </div>
@@ -1221,11 +1306,11 @@ const RedeemConfirmModal: React.FC<{item: any, user: any, t: any, onCancel: () =
     return (
         <div className="fixed inset-0 bg-black/90 z-[500] flex items-center justify-center p-4 backdrop-blur-xl" onClick={onCancel}>
             <div className="bg-white w-full max-w-md rounded-[2rem] p-10 shadow-2xl animate-in zoom-in" onClick={e => e.stopPropagation()}>
-                <h2 className="text-xl font-black mb-8 italic uppercase text-[#2c3e50] text-center">{t('confirm_redeem_title')}</h2>
+                <h2 className="text-xl font-black mb-8 italic uppercase text-[#2c3e50] text-center">{t('confirm')}</h2>
                 <form onSubmit={e => { e.preventDefault(); onConfirm(f, c); }} className="space-y-6">
-                    <input value={f} onChange={e => setF(e.target.value)} placeholder="Full Name" className="w-full bg-gray-50 border-2 p-5 rounded-2xl font-bold text-sm" required />
-                    <input value={c} onChange={e => setC(e.target.value)} placeholder="Class" className="w-full bg-gray-50 border-2 p-5 rounded-2xl font-bold text-sm" required />
-                    <button type="submit" className="w-full bg-[#3498db] text-white py-6 rounded-full font-black uppercase shadow-xl tracking-widest mt-4">Confirm Redemption</button>
+                    <input value={f} onChange={e => setF(e.target.value)} placeholder={t('full_name')} className="w-full bg-gray-50 border-2 p-5 rounded-2xl font-bold text-sm" required />
+                    <input value={c} onChange={e => setC(e.target.value)} placeholder={t('class_label')} className="w-full bg-gray-50 border-2 p-5 rounded-2xl font-bold text-sm" required />
+                    <button type="submit" className="w-full bg-[#3498db] text-white py-6 rounded-full font-black uppercase shadow-xl tracking-widest mt-4">{t('confirm')}</button>
                 </form>
             </div>
         </div>
@@ -1276,13 +1361,13 @@ const ProfilePage: React.FC<{user: any | null, t: any, onAuth: any, onNavigate: 
                         <input 
                             value={editData.displayName} 
                             onChange={e => setEditData({...editData, displayName: e.target.value})}
-                            placeholder="Display Name"
+                            placeholder={t('full_name')}
                             className="w-full bg-white/10 border-2 border-white/20 rounded-xl p-3 text-white font-black uppercase text-center placeholder:text-white/40 outline-none focus:border-[#3498db] transition-all"
                         />
                         <input 
                             value={editData.userClass} 
                             onChange={e => setEditData({...editData, userClass: e.target.value})}
-                            placeholder="Class"
+                            placeholder={t('class_label')}
                             className="w-full bg-white/10 border-2 border-white/20 rounded-xl p-3 text-white font-black uppercase text-center placeholder:text-white/40 outline-none focus:border-[#3498db] transition-all"
                         />
                     </div>
@@ -1290,7 +1375,7 @@ const ProfilePage: React.FC<{user: any | null, t: any, onAuth: any, onNavigate: 
                     <>
                         <h1 className="text-2xl font-black uppercase italic mb-2 tracking-tighter">{user.displayName || 'Guest'}</h1>
                         <p className="text-[#f39c12] font-black text-xl flex items-center justify-center gap-2">
-                            <i className="fas fa-star"></i> {user.points} Points
+                            <i className="fas fa-star"></i> {user.points} {t('points')}
                         </p>
                         {user.userClass && <p className="text-xs font-bold uppercase tracking-widest text-white/60 mt-2">{user.userClass}</p>}
                     </>
@@ -1314,11 +1399,11 @@ const ProfilePage: React.FC<{user: any | null, t: any, onAuth: any, onNavigate: 
             </div>
 
             <div className="bg-white p-8 rounded-[2rem] border shadow-sm space-y-6 relative group border-gray-100">
-                <h3 className="text-[10px] font-black uppercase text-gray-400 tracking-widest border-b border-gray-50 pb-3">Personal Information</h3>
+                <h3 className="text-[10px] font-black uppercase text-gray-400 tracking-widest border-b border-gray-50 pb-3">{t('personal_info')}</h3>
                 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div className="space-y-1">
-                        <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest ml-1">Phone Number</label>
+                        <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest ml-1">{t('phone_number')}</label>
                         {isEditing ? (
                             <input 
                                 value={editData.phone} 
@@ -1331,7 +1416,7 @@ const ProfilePage: React.FC<{user: any | null, t: any, onAuth: any, onNavigate: 
                     </div>
                     
                     <div className="space-y-1">
-                        <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest ml-1">Birthdate</label>
+                        <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest ml-1">{t('birthdate')}</label>
                         {isEditing ? (
                             <input 
                                 type="date"
@@ -1345,7 +1430,7 @@ const ProfilePage: React.FC<{user: any | null, t: any, onAuth: any, onNavigate: 
                     </div>
 
                     <div className="col-span-1 sm:col-span-2 space-y-1">
-                        <label className="text-[8px] font-black uppercase text-gray-400 tracking-widest ml-1">Home Address</label>
+                        <label className="text-[8px] font-black uppercase text-gray-400 tracking-widest ml-1">{t('home_address')}</label>
                         {isEditing ? (
                             <textarea 
                                 value={editData.address} 
@@ -1366,7 +1451,7 @@ const ProfilePage: React.FC<{user: any | null, t: any, onAuth: any, onNavigate: 
                             className="w-full bg-[#3498db] text-white py-4 rounded-2xl font-black uppercase text-xs shadow-xl shadow-blue-100 transition-all hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2"
                         >
                             {saving ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-save"></i>}
-                            Save Profile Updates
+                            {t('save_profile')}
                         </button>
                     </div>
                 )}
