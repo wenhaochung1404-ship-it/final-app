@@ -315,7 +315,7 @@ const App: React.FC = () => {
                     <div className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl flex flex-col overflow-hidden animate-in zoom-in duration-300 max-h-[80vh]" onClick={e => e.stopPropagation()}>
                         <div className="p-6 bg-gray-50 border-b flex justify-between items-center">
                             <h3 className="font-black uppercase text-sm italic text-[#2c3e50] tracking-tighter">Activity Logs</h3>
-                            <button onClick={() => setIsNotifOpen(false)} className="w-10 h-10 bg-gray-200/50 rounded-full flex items-center justify-center hover:bg-red-500 hover:text-white transition-all">
+                            <button onClick={() => setIsNotifOpen(false)} className="w-10 h-10 bg-200/50 rounded-full flex items-center justify-center hover:bg-red-500 hover:text-white transition-all">
                                 <i className="fas fa-times text-xs"></i>
                             </button>
                         </div>
@@ -1401,17 +1401,32 @@ const AuthModal: React.FC<{onClose: () => void, t: any}> = ({onClose, t}) => {
     );
 };
 
-const RedeemConfirmModal: React.FC<{item: any, user: UserProfile, t: any, onCancel: () => void, onConfirm: (f: string, c: string) => void}> = ({item, t, onCancel, onConfirm}) => {
+const RedeemConfirmModal: React.FC<{item: any, user: any, t: any, onCancel: () => void, onConfirm: (f: string, c: string) => void}> = ({item, user, t, onCancel, onConfirm}) => {
     const [f, setF] = useState('');
     const [c, setC] = useState('');
+
+    // Auto-fill from database when modal opens or user changes
+    useEffect(() => {
+        if (user) {
+            setF(user.displayName || '');
+            setC(user.userClass || '');
+        }
+    }, [user]);
+
     return (
         <div className="fixed inset-0 bg-black/90 z-[500] flex items-center justify-center p-4 backdrop-blur-xl" onClick={onCancel}>
             <div className="bg-white w-full max-w-md rounded-[2rem] p-10 shadow-2xl animate-in zoom-in" onClick={e => e.stopPropagation()}>
                 <h2 className="text-xl sm:text-2xl font-black mb-8 italic uppercase text-[#2c3e50] text-center tracking-tighter">{t('confirm_redeem_title')}</h2>
                 <form onSubmit={e => { e.preventDefault(); onConfirm(f, c); }} className="space-y-6">
-                    <input value={f} onChange={e => setF(e.target.value)} placeholder={t('full_name')} className="w-full bg-gray-50 border-2 border-gray-100 p-5 rounded-2xl font-bold text-black text-sm" required />
-                    <input value={c} onChange={e => setC(e.target.value)} placeholder={t('class_label')} className="w-full bg-gray-50 border-2 border-gray-100 p-5 rounded-2xl font-bold text-black text-sm" required />
-                    <button type="submit" className="w-full bg-[#3498db] text-white py-6 rounded-full font-black uppercase shadow-xl tracking-widest">{t('confirm')}</button>
+                    <div className="space-y-1">
+                        <label className="text-[10px] font-black text-gray-300 uppercase tracking-widest ml-2">{t('full_name')}</label>
+                        <input value={f} onChange={e => setF(e.target.value)} placeholder={t('full_name')} className="w-full bg-gray-50 border-2 border-gray-100 p-5 rounded-2xl font-bold text-black text-sm" required />
+                    </div>
+                    <div className="space-y-1">
+                        <label className="text-[10px] font-black text-gray-300 uppercase tracking-widest ml-2">{t('class_label')}</label>
+                        <input value={c} onChange={e => setC(e.target.value)} placeholder={t('class_label')} className="w-full bg-gray-50 border-2 border-gray-100 p-5 rounded-2xl font-bold text-black text-sm" required />
+                    </div>
+                    <button type="submit" className="w-full bg-[#3498db] text-white py-6 rounded-full font-black uppercase shadow-xl tracking-widest mt-4">{t('confirm')}</button>
                 </form>
             </div>
         </div>
