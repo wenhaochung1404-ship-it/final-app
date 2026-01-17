@@ -41,6 +41,7 @@ const App: React.FC = () => {
     const [notifications, setNotifications] = useState<any[]>([]);
     const [isNotifOpen, setIsNotifOpen] = useState(false);
     const [guestId, setGuestId] = useState<string>('');
+    const [isLangOpen, setIsLangOpen] = useState(false);
     
     const t = useCallback((key: string) => translations[lang][key] || key, [lang]);
 
@@ -136,10 +137,10 @@ const App: React.FC = () => {
     const unreadCount = notifications.filter(n => !n.read).length;
 
     return (
-        <div className="min-h-screen flex flex-col bg-[#f8f9fa] font-sans">
+        <div className="min-h-screen flex flex-col bg-[#f8f9fa] font-sans" onClick={() => setIsLangOpen(false)}>
             <header className="bg-[#2c3e50] text-white shadow-xl sticky top-0 z-[100] h-16 sm:h-20 flex items-center">
                 <div className="container mx-auto px-2 sm:px-4 flex items-center justify-between gap-1 overflow-hidden">
-                    <button onClick={() => setIsMenuOpen(true)} className="p-2 hover:bg-white/10 rounded-xl transition-all flex-shrink-0">
+                    <button onClick={(e) => { e.stopPropagation(); setIsMenuOpen(true); }} className="p-2 hover:bg-white/10 rounded-xl transition-all flex-shrink-0">
                         <i className="fas fa-bars text-lg sm:text-xl"></i>
                     </button>
                     <div className="flex-grow text-center font-black tracking-tighter cursor-pointer text-[10px] xs:text-[13px] sm:text-lg uppercase whitespace-nowrap overflow-hidden px-1" onClick={() => setPage('home')}>
@@ -149,7 +150,7 @@ const App: React.FC = () => {
                     <div className="flex items-center gap-1 sm:gap-4 flex-shrink-0">
                         {user && (
                             <div className="relative">
-                                <button onClick={() => setIsNotifOpen(true)} className="p-2 hover:bg-white/10 rounded-full transition-all relative">
+                                <button onClick={(e) => { e.stopPropagation(); setIsNotifOpen(true); }} className="p-2 hover:bg-white/10 rounded-full transition-all relative">
                                     <i className="fas fa-bell text-lg"></i>
                                     {unreadCount > 0 && <span className="absolute top-1 right-1 bg-red-500 text-white text-[8px] w-4 h-4 rounded-full flex items-center justify-center font-black border-2 border-[#2c3e50]">{unreadCount}</span>}
                                 </button>
@@ -161,7 +162,7 @@ const App: React.FC = () => {
                                 <i className="fas fa-sign-out-alt"></i> <span>{t('logout')}</span>
                             </button>
                         ) : (
-                            <button onClick={() => setIsAuthModalOpen(true)} className="bg-[#3498db] hover:bg-blue-600 px-3 py-1.5 rounded-full text-[8px] sm:text-[10px] font-black uppercase shadow-lg">{t('login')}</button>
+                            <button onClick={(e) => { e.stopPropagation(); setIsAuthModalOpen(true); }} className="bg-[#3498db] hover:bg-blue-600 px-3 py-1.5 rounded-full text-[8px] sm:text-[10px] font-black uppercase shadow-lg">{t('login')}</button>
                         )}
                     </div>
                 </div>
@@ -177,7 +178,7 @@ const App: React.FC = () => {
 
                 <div className="fixed right-6 bottom-6 z-[200] flex flex-col items-end gap-3 sm:gap-4">
                     {showSupportChat && (
-                        <div className="w-[85vw] sm:w-80 h-[450px] bg-white rounded-3xl shadow-2xl border border-gray-100 flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 mb-2 origin-bottom-right">
+                        <div className="w-[85vw] sm:w-80 h-[450px] bg-white rounded-3xl shadow-2xl border border-gray-100 flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 mb-2 origin-bottom-right" onClick={(e) => e.stopPropagation()}>
                             <div className="bg-[#3498db] p-4 text-white flex justify-between items-center">
                                 <div className="font-black uppercase text-xs flex items-center gap-2">
                                     <i className="fas fa-headset"></i>
@@ -192,28 +193,33 @@ const App: React.FC = () => {
                     )}
                     
                     <div className="flex items-center gap-3">
-                        <div className="relative group">
-                            <button className="bg-white text-[#2c3e50] w-12 h-12 sm:w-14 sm:h-14 rounded-full shadow-xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all border-4 border-gray-50">
+                        <div className="relative">
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); setIsLangOpen(!isLangOpen); }}
+                                className="bg-white text-[#2c3e50] w-12 h-12 sm:w-14 sm:h-14 rounded-full shadow-xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all border-4 border-gray-50"
+                            >
                                 <i className="fas fa-language text-xl sm:text-2xl"></i>
                             </button>
-                            <div className="absolute bottom-full right-0 mb-3 bg-white shadow-2xl rounded-2xl border border-gray-100 hidden group-hover:block overflow-hidden z-[210] min-w-[140px] animate-in slide-in-from-bottom-2">
-                                {(Object.values(Language) as Language[]).map(l => (
-                                    <button 
-                                        key={l}
-                                        onClick={() => setLang(l)}
-                                        className={`w-full px-5 py-3 text-left text-[10px] font-black uppercase transition-colors hover:bg-gray-50 ${lang === l ? 'text-[#3498db] bg-blue-50' : 'text-gray-500'}`}
-                                    >
-                                        {l === Language.EN && 'English'}
-                                        {l === Language.BM && 'Bahasa Melayu'}
-                                        {l === Language.BC && '中文'}
-                                        {l === Language.BI && 'Bahasa Iban'}
-                                    </button>
-                                ))}
-                            </div>
+                            {isLangOpen && (
+                                <div className="absolute bottom-full right-0 mb-3 bg-white shadow-2xl rounded-2xl border border-gray-100 overflow-hidden z-[210] min-w-[140px] animate-in slide-in-from-bottom-2">
+                                    {(Object.values(Language) as Language[]).map(l => (
+                                        <button 
+                                            key={l}
+                                            onClick={() => { setLang(l); setIsLangOpen(false); }}
+                                            className={`w-full px-5 py-3 text-left text-[10px] font-black uppercase transition-colors hover:bg-gray-50 ${lang === l ? 'text-[#3498db] bg-blue-50' : 'text-gray-500'}`}
+                                        >
+                                            {l === Language.EN && 'English'}
+                                            {l === Language.BM && 'Bahasa Melayu'}
+                                            {l === Language.BC && '中文'}
+                                            {l === Language.BI && 'Bahasa Iban'}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
                         </div>
 
                         <button 
-                            onClick={() => setShowSupportChat(!showSupportChat)}
+                            onClick={(e) => { e.stopPropagation(); setShowSupportChat(!showSupportChat); }}
                             className="bg-[#3498db] text-white w-16 h-16 rounded-full shadow-[0_8px_32px_rgba(52,152,219,0.3)] flex items-center justify-center hover:scale-110 active:scale-95 transition-all border-4 border-white z-[201]"
                         >
                             <i className="fas fa-comment-dots text-3xl"></i>
@@ -239,7 +245,7 @@ const App: React.FC = () => {
             </div>
 
             <aside className={`fixed inset-y-0 left-0 w-[80vw] sm:w-80 bg-white z-[301] transform transition-transform duration-500 shadow-2xl flex flex-col ${isMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-                <div className="p-8 flex flex-col h-full">
+                <div className="p-8 flex flex-col h-full" onClick={(e) => e.stopPropagation()}>
                     <div className="flex justify-between items-center mb-12">
                         <h2 className="text-xl font-black italic text-[#2c3e50] uppercase tracking-tighter">Miri Connect</h2>
                         <button onClick={() => setIsMenuOpen(false)} className="text-gray-400 hover:text-red-500"><i className="fas fa-times text-2xl"></i></button>
@@ -448,16 +454,23 @@ const HomePage: React.FC<{t: any, user: UserProfile | null}> = ({t, user}) => {
                         <h3 className="text-xs font-black uppercase text-gray-400 tracking-widest">Announcements</h3>
                         {isAdmin && <button onClick={() => setIsEditingAnnounce(!isEditingAnnounce)} className="text-[10px] font-black uppercase text-[#3498db]">{isEditingAnnounce ? t('cancel') : 'Update'}</button>}
                     </div>
-                    <div className="bg-white rounded-[2rem] border p-6 shadow-sm">
+                    <div className="bg-white rounded-[2rem] border p-6 shadow-sm overflow-hidden">
                         {isEditingAnnounce ? (
                             <div className="space-y-4">
-                                <textarea value={announceInput} onChange={e => setAnnounceInput(e.target.value)} className="w-full h-24 p-4 bg-gray-50 rounded-xl outline-none font-bold text-sm" />
+                                <textarea 
+                                    value={announceInput} 
+                                    onChange={e => setAnnounceInput(e.target.value)} 
+                                    className="w-full min-h-[120px] p-4 bg-gray-50 rounded-xl outline-none font-bold text-sm resize-y" 
+                                    placeholder="Type announcements here... line breaks are preserved."
+                                />
                                 <button onClick={saveAnnouncement} className="bg-[#2c3e50] text-white px-8 py-2 rounded-lg font-black uppercase text-[10px]">Publish</button>
                             </div>
                         ) : (
                             <div className="flex items-start gap-4">
                                 <i className="fas fa-bullhorn text-[#3498db] mt-1"></i>
-                                <p className="text-sm font-bold text-[#2c3e50] italic">{announcement.text || "No announcements today."}</p>
+                                <p className="text-sm font-bold text-[#2c3e50] italic whitespace-pre-wrap flex-1">
+                                    {announcement.text || "No announcements today."}
+                                </p>
                             </div>
                         )}
                     </div>
@@ -471,7 +484,14 @@ const HomePage: React.FC<{t: any, user: UserProfile | null}> = ({t, user}) => {
                                     <h3 className="text-xl font-black text-[#2c3e50]">{item.itemName}</h3>
                                     <div className="bg-blue-50 text-[#3498db] px-3 py-1 rounded-full text-[10px] font-black">Qty: {item.qty}</div>
                                 </div>
-                                <div className="mb-4"><span className="bg-gray-50 text-gray-400 px-3 py-1 rounded-md text-[10px] font-black uppercase">{item.category}</span></div>
+                                <div className="mb-4 flex flex-wrap gap-2">
+                                    <span className="bg-gray-50 text-gray-400 px-3 py-1 rounded-md text-[10px] font-black uppercase">{item.category}</span>
+                                    {item.createdAt && (
+                                        <span className="bg-gray-50 text-gray-400 px-3 py-1 rounded-md text-[10px] font-black uppercase">
+                                            <i className="far fa-calendar-alt mr-1"></i> {item.createdAt.toDate().toLocaleDateString()}
+                                        </span>
+                                    )}
+                                </div>
                                 <div className="space-y-2 flex-1 mb-6 text-gray-400 font-bold text-sm">
                                     <div><i className="far fa-user mr-2"></i>{item.donorName}</div>
                                 </div>
@@ -830,7 +850,7 @@ const AdminChatLogWindow: React.FC<{userId: string}> = ({userId}) => {
 const ShopPage: React.FC<{user: any | null, t: any, onAuth: any, onRedeemConfirm: (i: any) => void}> = ({user, t, onAuth, onRedeemConfirm}) => {
     const [shopItems, setShopItems] = useState<any[]>([]);
     const [isAdding, setIsAdding] = useState(false);
-    const [newProduct, setNewProduct] = useState({ name: '', cost: 20, color: '#3498db' });
+    const [newProduct, setNewProduct] = useState({ name: '', cost: 20, color: '#3498db', id: '' });
     const isAdmin = user?.isAdmin || user?.email === 'admin@gmail.com';
 
     useEffect(() => {
@@ -842,15 +862,23 @@ const ShopPage: React.FC<{user: any | null, t: any, onAuth: any, onRedeemConfirm
         return unsub;
     }, []);
 
-    const handleAddProduct = async (e: React.FormEvent) => {
+    const handleAddOrUpdateProduct = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            await firebase.firestore().collection('shop_items').add({
-                ...newProduct, createdAt: firebase.firestore.FieldValue.serverTimestamp()
-            });
+            const db = firebase.firestore();
+            if (newProduct.id) {
+                await db.collection('shop_items').doc(newProduct.id).update({
+                    name: newProduct.name, cost: newProduct.cost, color: newProduct.color
+                });
+            } else {
+                await db.collection('shop_items').add({
+                    name: newProduct.name, cost: newProduct.cost, color: newProduct.color,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+            }
             setIsAdding(false);
-            setNewProduct({ name: '', cost: 20, color: '#3498db' });
-        } catch (e) { alert("Failed to add product."); }
+            setNewProduct({ name: '', cost: 20, color: '#3498db', id: '' });
+        } catch (e) { alert("Failed to save product."); }
     };
 
     return (
@@ -858,7 +886,7 @@ const ShopPage: React.FC<{user: any | null, t: any, onAuth: any, onRedeemConfirm
             <div className="flex justify-between items-center">
                 <h1 className="text-3xl font-black italic uppercase text-[#2c3e50] tracking-tighter">{t('points_shop')}</h1>
                 {isAdmin && (
-                    <button onClick={() => setIsAdding(true)} className="bg-[#2ecc71] text-white px-6 py-2 rounded-full font-black text-[10px] uppercase shadow-lg hover:scale-105 transition-all">
+                    <button onClick={() => { setNewProduct({ name: '', cost: 20, color: '#3498db', id: '' }); setIsAdding(true); }} className="bg-[#2ecc71] text-white px-6 py-2 rounded-full font-black text-[10px] uppercase shadow-lg hover:scale-105 transition-all">
                         <i className="fas fa-plus mr-2"></i> Add Reward
                     </button>
                 )}
@@ -867,8 +895,8 @@ const ShopPage: React.FC<{user: any | null, t: any, onAuth: any, onRedeemConfirm
             {isAdding && (
                 <div className="fixed inset-0 bg-black/80 z-[600] flex items-center justify-center p-4 backdrop-blur-sm">
                     <div className="bg-white w-full max-w-md rounded-[2rem] p-8 shadow-2xl animate-in zoom-in">
-                        <h2 className="text-xl font-black uppercase italic mb-6">New Reward</h2>
-                        <form onSubmit={handleAddProduct} className="space-y-4">
+                        <h2 className="text-xl font-black uppercase italic mb-6">{newProduct.id ? 'Edit Reward' : 'New Reward'}</h2>
+                        <form onSubmit={handleAddOrUpdateProduct} className="space-y-4">
                             <AdminInput label="Product Name" value={newProduct.name} onChange={v => setNewProduct({...newProduct, name: v})} placeholder="e.g. Free Coffee" />
                             <AdminInput label="Point Cost" type="number" value={newProduct.cost} onChange={v => setNewProduct({...newProduct, cost: v})} />
                             <AdminInput label="Color Code (Hex)" value={newProduct.color} onChange={v => setNewProduct({...newProduct, color: v})} placeholder="#3498db" />
@@ -890,7 +918,13 @@ const ShopPage: React.FC<{user: any | null, t: any, onAuth: any, onRedeemConfirm
                                 <h3 className="font-black text-lg mb-2 uppercase italic text-[#2c3e50]">{item.name}</h3>
                                 <div className="text-2xl font-black text-[#f39c12]">{item.cost} {t('points')}</div>
                             </div>
-                            <button onClick={() => user ? onRedeemConfirm(item) : onAuth()} className="w-full py-6 font-black uppercase text-white tracking-widest text-[11px]" style={{backgroundColor: item.color}}>{t('redeem_now')}</button>
+                            {isAdmin ? (
+                                <button onClick={() => { setNewProduct(item); setIsAdding(true); }} className="w-full py-6 font-black uppercase text-white tracking-widest text-[11px] bg-gray-700 hover:bg-gray-800">
+                                    <i className="fas fa-edit mr-2"></i> Edit Content
+                                </button>
+                            ) : (
+                                <button onClick={() => user ? onRedeemConfirm(item) : onAuth()} className="w-full py-6 font-black uppercase text-white tracking-widest text-[11px]" style={{backgroundColor: item.color}}>{t('redeem_now')}</button>
+                            )}
                         </div>
                     ))}
                 </div>
@@ -910,12 +944,12 @@ const HistoryPage: React.FC<{user: any | null, t: any, onAuth: any}> = ({user, t
     const [offers, setOffers] = useState<any[]>([]);
     const [redeems, setRedeems] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [isEditingOffer, setIsEditingOffer] = useState<any>(null);
 
     useEffect(() => {
         if (!user || typeof firebase === 'undefined' || !firebase.firestore) return;
         const db = firebase.firestore();
         
-        // Listen for offers (active + completed)
         const unsubOffers = db.collection('donations').where('userId', '==', user.uid).onSnapshot((snapOffer: any) => {
             const pending = snapOffer.docs.map((d: any) => ({ ...d.data(), type: 'offer_pending', id: d.id }));
             
@@ -929,7 +963,6 @@ const HistoryPage: React.FC<{user: any | null, t: any, onAuth: any}> = ({user, t
             return unsubCompleted;
         });
 
-        // Listen for redeems
         const unsubRedeem = db.collection('redeem_history').where('userId', '==', user.uid).onSnapshot((snap: any) => {
             const data = snap.docs.map((d: any) => ({ ...d.data(), type: 'redeem', id: d.id }));
             data.sort((a: any, b: any) => (b.redeemedAt?.toMillis?.() || 0) - (a.redeemedAt?.toMillis?.() || 0));
@@ -938,6 +971,27 @@ const HistoryPage: React.FC<{user: any | null, t: any, onAuth: any}> = ({user, t
 
         return () => { unsubOffers(); unsubRedeem(); };
     }, [user]);
+
+    const deleteOffer = async (id: string) => {
+        if (!window.confirm("Are you sure you want to delete this offer?")) return;
+        try {
+            await firebase.firestore().collection('donations').doc(id).delete();
+            alert("Deleted successfully.");
+        } catch (e) { alert("Failed to delete."); }
+    };
+
+    const updateOffer = async (e: React.FormEvent) => {
+        e.preventDefault();
+        try {
+            await firebase.firestore().collection('donations').doc(isEditingOffer.id).update({
+                itemName: isEditingOffer.itemName,
+                qty: Number(isEditingOffer.qty),
+                category: isEditingOffer.category
+            });
+            setIsEditingOffer(null);
+            alert("Updated successfully.");
+        } catch (e) { alert("Update failed."); }
+    };
     
     if (!user) return <div className="text-center py-20 font-black uppercase text-gray-300">{t('login_register')}</div>;
 
@@ -961,11 +1015,37 @@ const HistoryPage: React.FC<{user: any | null, t: any, onAuth: any}> = ({user, t
                 </div>
             </div>
 
+            {isEditingOffer && (
+                <div className="fixed inset-0 bg-black/80 z-[600] flex items-center justify-center p-4 backdrop-blur-sm">
+                    <div className="bg-white w-full max-w-md rounded-[2rem] p-8 shadow-2xl">
+                        <h2 className="text-xl font-black uppercase mb-6">Edit Offer</h2>
+                        <form onSubmit={updateOffer} className="space-y-4">
+                            <AdminInput label="Item Name" value={isEditingOffer.itemName} onChange={v => setIsEditingOffer({...isEditingOffer, itemName: v})} />
+                            <AdminInput label="Quantity" type="number" value={isEditingOffer.qty} onChange={v => setIsEditingOffer({...isEditingOffer, qty: v})} />
+                            <div className="space-y-1">
+                                <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Category</label>
+                                <select value={isEditingOffer.category} onChange={e => setIsEditingOffer({...isEditingOffer, category: e.target.value})} className="w-full p-3 bg-white border-2 border-gray-100 rounded-xl font-bold text-sm outline-none">
+                                    <option>{t('category_food')}</option>
+                                    <option>{t('category_clothing')}</option>
+                                    <option>{t('category_books')}</option>
+                                    <option>{t('category_furniture')}</option>
+                                    <option>{t('category_toiletries')}</option>
+                                </select>
+                            </div>
+                            <div className="flex gap-2 pt-4">
+                                <button type="submit" className="flex-1 bg-[#3498db] text-white py-3 rounded-xl font-black uppercase text-xs">Update</button>
+                                <button type="button" onClick={() => setIsEditingOffer(null)} className="flex-1 bg-gray-100 text-gray-500 py-3 rounded-xl font-black uppercase text-xs">Cancel</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
             <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
                 {activeHistoryTab === 'offers' ? (
                     offers.length > 0 ? (
                         offers.map((h) => (
-                            <div key={h.id} className="bg-white p-6 rounded-[2rem] border border-gray-100 flex items-center justify-between shadow-sm hover:shadow-md transition-shadow group">
+                            <div key={h.id} className="bg-white p-6 rounded-[2rem] border border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between shadow-sm hover:shadow-md transition-shadow group gap-4">
                                 <div className="flex items-center gap-6">
                                     <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-xl shadow-inner ${h.type === 'offer_pending' ? 'bg-amber-50 text-amber-500' : 'bg-green-50 text-green-500'}`}>
                                         <i className={`fas fa-${h.type === 'offer_pending' ? 'hourglass-half' : 'check-double'}`}></i>
@@ -982,12 +1062,20 @@ const HistoryPage: React.FC<{user: any | null, t: any, onAuth: any}> = ({user, t
                                         </div>
                                     </div>
                                 </div>
-                                <div className="text-right flex flex-col items-end">
-                                    <div className="text-[10px] font-black uppercase text-gray-400 tracking-tighter">Points Earned</div>
-                                    <div className={`font-black text-2xl ${h.type === 'offer_pending' ? 'text-gray-300' : 'text-green-500'}`}>
-                                        {h.type === 'offer_pending' ? '--' : `+${h.earnedPoints || '??'}`}
+                                
+                                <div className="flex items-center gap-6 justify-between sm:justify-end">
+                                    {h.type === 'offer_pending' && (
+                                        <div className="flex gap-2">
+                                            <button onClick={() => setIsEditingOffer(h)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"><i className="fas fa-edit"></i></button>
+                                            <button onClick={() => deleteOffer(h.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"><i className="fas fa-trash"></i></button>
+                                        </div>
+                                    )}
+                                    <div className="text-right flex flex-col items-end min-w-[100px]">
+                                        <div className="text-[10px] font-black uppercase text-gray-400 tracking-tighter">Points Earned</div>
+                                        <div className={`font-black text-2xl ${h.type === 'offer_pending' ? 'text-gray-300' : 'text-green-500'}`}>
+                                            {h.type === 'offer_pending' ? '--' : `+${h.earnedPoints || '??'}`}
+                                        </div>
                                     </div>
-                                    {!h.earnedPoints && h.type === 'offer_completed' && <span className="text-[8px] font-bold text-gray-400">Awarded</span>}
                                 </div>
                             </div>
                         ))
