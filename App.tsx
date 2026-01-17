@@ -250,7 +250,6 @@ const App: React.FC = () => {
                 <main className={`flex-1 overflow-y-auto transition-all duration-300 ${isAdmin && showAdminPanel ? 'lg:mr-96' : ''}`}>
                     <div className="container mx-auto px-4 py-8 max-w-6xl">
                         {page === 'home' && <HomePage t={t} user={user} />}
-                        {page === 'offer_help' && <OfferHelpPage user={user} t={t} onAuth={() => setIsAuthModalOpen(true)} onNavigate={setPage} />}
                         {page === 'profile' && <ProfilePage user={user} t={t} onAuth={() => setIsAuthModalOpen(true)} onNavigate={setPage} />}
                         {page === 'shop' && <ShopPage user={user} t={t} onAuth={() => setIsAuthModalOpen(true)} onRedeemConfirm={setItemToRedeem} />}
                         {page === 'history' && <HistoryPage user={user} t={t} onAuth={() => setIsAuthModalOpen(true)} />}
@@ -278,7 +277,6 @@ const App: React.FC = () => {
                     )}
                     <nav className="flex flex-col gap-2">
                         <MenuItem icon="home" label={t('home')} onClick={() => { setPage('home'); setIsMenuOpen(false); }} active={page === 'home'} />
-                        <MenuItem icon="hand-holding-heart" label={t('offer_help')} onClick={() => { setPage('offer_help'); setIsMenuOpen(false); }} active={page === 'offer_help'} />
                         <MenuItem icon="user" label={t('profile')} onClick={() => { setPage('profile'); setIsMenuOpen(false); }} active={page === 'profile'} />
                         <MenuItem icon="shopping-cart" label={t('points_shop')} onClick={() => { setPage('shop'); setIsMenuOpen(false); }} active={page === 'shop'} />
                         <MenuItem icon="history" label={t('history')} onClick={() => { setPage('history'); setIsMenuOpen(false); }} active={page === 'history'} />
@@ -325,8 +323,11 @@ const App: React.FC = () => {
             
             {isQuickOfferOpen && user && (
                 <div className="fixed inset-0 bg-black/80 z-[600] flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setIsQuickOfferOpen(false)}>
-                    <div className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl p-8 animate-in zoom-in" onClick={e => e.stopPropagation()}>
-                         <OfferHelpPage user={user} t={t} onAuth={() => {}} onNavigate={() => setIsQuickOfferOpen(false)} isPopup />
+                    <div className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl p-8 animate-in zoom-in relative" onClick={e => e.stopPropagation()}>
+                         <button onClick={() => setIsQuickOfferOpen(false)} className="absolute top-6 right-6 w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center hover:bg-red-500 hover:text-white transition-all z-10">
+                            <i className="fas fa-times"></i>
+                         </button>
+                         <QuickOfferModalContent user={user} t={t} onComplete={() => setIsQuickOfferOpen(false)} />
                     </div>
                 </div>
             )}
@@ -360,6 +361,72 @@ const App: React.FC = () => {
                     }} 
                 />
             )}
+        </div>
+    );
+};
+
+const QuickOfferModalContent: React.FC<{user: any, t: any, onComplete: () => void}> = ({user, t, onComplete}) => {
+    const [item, setItem] = useState({ itemName: '', category: translations[Language.EN]['category_food'], qty: 1, donorName: user?.displayName || '' });
+    const [posting, setPosting] = useState(false);
+
+    const handlePost = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (typeof firebase === 'undefined' || !firebase.firestore) return;
+        setPosting(true);
+        try {
+            const db = firebase.firestore();
+            await db.collection('donations').add({
+                ...item, createdAt: firebase.firestore.FieldValue.serverTimestamp(), userId: user.uid, donorName: user.displayName
+            });
+
+            const adminQuery = await db.collection('users').where('isAdmin', '==', true).get();
+            adminQuery.forEach(async (adminDoc: any) => {
+                await db.collection('notifications').add({
+                    userId: adminDoc.id,
+                    title: `New Offer: ${item.itemName}`,
+                    message: `${user.displayName} from ${user.userClass || 'unknown class'} has offered an item.`,
+                    type: 'offer', read: false, createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+            });
+
+            alert("Offer Posted Successfully!");
+            onComplete();
+        } catch (err) { 
+            alert("Failed to post offer."); 
+        } finally { 
+            setPosting(false); 
+        }
+    };
+
+    return (
+        <div className="pt-4">
+            <h2 className="text-3xl font-black text-[#2c3e50] mb-8 uppercase italic">{t('offer_help')}</h2>
+            <form onSubmit={handlePost} className="space-y-6">
+                <div className="space-y-1">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">{t('item_name')}</label>
+                    <input value={item.itemName} onChange={e => setItem({...item, itemName: e.target.value})} className="w-full p-4 rounded-2xl border-2 outline-none font-bold" required placeholder={t('item_name')} />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">{t('status')}</label>
+                        <select value={item.category} onChange={e => setItem({...item, category: e.target.value})} className="w-full p-4 rounded-2xl border-2 outline-none font-bold">
+                            <option>{t('category_food')}</option>
+                            <option>{t('category_clothing')}</option>
+                            <option>{t('category_books')}</option>
+                            <option>{t('category_furniture')}</option>
+                            <option>{t('category_toiletries')}</option>
+                            <option>{t('category_others')}</option>
+                        </select>
+                    </div>
+                    <div className="space-y-1">
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">{t('quantity')}</label>
+                        <input type="number" value={item.qty} min="1" onChange={e => setItem({...item, qty: Number(e.target.value)})} className="w-full p-4 rounded-2xl border-2 outline-none font-bold" required />
+                    </div>
+                </div>
+                <button type="submit" disabled={posting} className="w-full bg-[#3498db] text-white py-5 rounded-2xl font-black text-xl shadow-xl uppercase transition-transform active:scale-95">
+                    {posting ? '...' : t('post_offer')}
+                </button>
+            </form>
         </div>
     );
 };
@@ -426,7 +493,7 @@ const SupportChatBody: React.FC<{userId: string, userName: string, t: any, isGue
             .where('userId', '==', userId)
             .onSnapshot((snap: any) => {
                 const data = snap.docs.map((d: any) => d.data());
-                data.sort((a: any, b: any) => (a.createdAt?.toMillis?.() || 0) - (b.createdAt?.toMillis?.() || 0));
+                data.sort((a: any, b: any) => (a.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
                 setMsgs(data);
             }, (err: any) => console.error(err));
         return unsub;
@@ -603,73 +670,6 @@ const HomePage: React.FC<{t: any, user: any | null}> = ({t, user}) => {
             </div>
         </div>
     );
-};
-
-const OfferHelpPage: React.FC<{user: any | null, t: any, onAuth: () => void, onNavigate: (p: string) => void, isPopup?: boolean}> = ({user, t, onAuth, onNavigate, isPopup}) => {
-    const [item, setItem] = useState({ itemName: '', category: translations[Language.EN]['category_food'], qty: 1, donorName: user?.displayName || '' });
-    const [posting, setPosting] = useState(false);
-
-    const handlePost = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!user) { onAuth(); return; }
-        if (typeof firebase === 'undefined' || !firebase.firestore) return;
-        setPosting(true);
-        try {
-            const db = firebase.firestore();
-            await db.collection('donations').add({
-                ...item, createdAt: firebase.firestore.FieldValue.serverTimestamp(), userId: user.uid, donorName: user.displayName
-            });
-
-            const adminQuery = await db.collection('users').where('isAdmin', '==', true).get();
-            adminQuery.forEach(async (adminDoc: any) => {
-                await db.collection('notifications').add({
-                    userId: adminDoc.id,
-                    title: `New Offer: ${item.itemName}`,
-                    message: `${user.displayName} from ${user.userClass || 'unknown class'} has offered an item.`,
-                    type: 'offer', read: false, createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                });
-            });
-
-            alert("Offer Posted Successfully!");
-            onNavigate('home');
-        } catch (err) { alert("Failed."); } finally { setPosting(false); }
-    };
-
-    if (!user) return <div className="text-center py-24"><button onClick={onAuth} className="bg-[#3498db] text-white px-12 py-4 rounded-full font-black uppercase shadow-xl">{t('login')}</button></div>;
-
-    const content = (
-        <div className={`${isPopup ? '' : 'bg-white rounded-[3rem] shadow-2xl p-10 border border-gray-50'}`}>
-            <h2 className="text-3xl font-black text-[#2c3e50] mb-8 uppercase italic">{t('offer_help')}</h2>
-            <form onSubmit={handlePost} className="space-y-6">
-                <div className="space-y-1">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">{t('item_name')}</label>
-                    <input value={item.itemName} onChange={e => setItem({...item, itemName: e.target.value})} className="w-full p-4 rounded-2xl border-2 outline-none font-bold" required placeholder={t('item_name')} />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">{t('status')}</label>
-                        <select value={item.category} onChange={e => setItem({...item, category: e.target.value})} className="w-full p-4 rounded-2xl border-2 outline-none font-bold">
-                            <option>{t('category_food')}</option>
-                            <option>{t('category_clothing')}</option>
-                            <option>{t('category_books')}</option>
-                            <option>{t('category_furniture')}</option>
-                            <option>{t('category_toiletries')}</option>
-                            <option>{t('category_others')}</option>
-                        </select>
-                    </div>
-                    <div className="space-y-1">
-                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">{t('quantity')}</label>
-                        <input type="number" value={item.qty} min="1" onChange={e => setItem({...item, qty: Number(e.target.value)})} className="w-full p-4 rounded-2xl border-2 outline-none font-bold" required />
-                    </div>
-                </div>
-                <button type="submit" disabled={posting} className="w-full bg-[#3498db] text-white py-5 rounded-2xl font-black text-xl shadow-xl uppercase transition-transform active:scale-95">
-                    {posting ? '...' : t('post_offer')}
-                </button>
-            </form>
-        </div>
-    );
-
-    return isPopup ? content : <div className="max-w-2xl mx-auto py-12">{content}</div>;
 };
 
 const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
@@ -928,7 +928,7 @@ const AdminChatLogWindow: React.FC<{userId: string}> = ({userId}) => {
         if (!userId || typeof firebase === 'undefined' || !firebase.firestore) return;
         const unsub = firebase.firestore().collection('support_chats').where('userId', '==', userId).onSnapshot((snap: any) => {
             const data = snap.docs.map((d: any) => d.data());
-            data.sort((a: any, b: any) => (a.createdAt?.toMillis?.() || 0) - (b.createdAt?.toMillis?.() || 0));
+            data.sort((a: any, b: any) => (a.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
             setMsgs(data);
         }, (err: any) => console.error(err));
         return unsub;
