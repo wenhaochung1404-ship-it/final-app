@@ -315,7 +315,7 @@ const App: React.FC = () => {
                     <div className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl flex flex-col overflow-hidden animate-in zoom-in duration-300 max-h-[80vh]" onClick={e => e.stopPropagation()}>
                         <div className="p-6 bg-gray-50 border-b flex justify-between items-center">
                             <h3 className="font-black uppercase text-sm italic text-[#2c3e50] tracking-tighter">Activity Logs</h3>
-                            <button onClick={() => setIsNotifOpen(false)} className="w-10 h-10 bg-200/50 rounded-full flex items-center justify-center hover:bg-red-500 hover:text-white transition-all">
+                            <button onClick={() => setIsNotifOpen(false)} className="w-10 h-10 bg-gray-200/50 rounded-full flex items-center justify-center hover:bg-red-500 hover:text-white transition-all">
                                 <i className="fas fa-times text-xs"></i>
                             </button>
                         </div>
@@ -772,8 +772,8 @@ const OfferHelpPage: React.FC<{user: UserProfile | null, t: any, onAuth: () => v
 };
 
 const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
-    const [activeTab, setActiveTab] = useState<'users' | 'items' | 'chats'>('users');
-    const [data, setData] = useState<{users: any[], items: any[], completedItems: any[], supportChats: any[]}>({users: [], items: [], completedItems: [], supportChats: []});
+    const [activeTab, setActiveTab] = useState<'users' | 'items' | 'chats' | 'vouchers'>('users');
+    const [data, setData] = useState<{users: any[], items: any[], completedItems: any[], supportChats: any[], redemptions: any[]}>({users: [], items: [], completedItems: [], supportChats: [], redemptions: []});
     const [activeSupportUser, setActiveSupportUser] = useState<any>(null);
     const [adminReply, setAdminReply] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
@@ -786,6 +786,7 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
         const unsubUsers = db.collection('users').onSnapshot((snap: any) => setData(prev => ({...prev, users: snap.docs.map((d: any) => ({...d.data(), uid: d.id}))})));
         const unsubItems = db.collection('donations').onSnapshot((snap: any) => setData(prev => ({...prev, items: snap.docs.map((d: any) => ({...d.data(), id: d.id}))})));
         const unsubCompleted = db.collection('completed_donations').onSnapshot((snap: any) => setData(prev => ({...prev, completedItems: snap.docs.map((d: any) => ({...d.data(), id: d.id}))})));
+        const unsubRedemptions = db.collection('redeem_history').orderBy('redeemedAt', 'desc').onSnapshot((snap: any) => setData(prev => ({...prev, redemptions: snap.docs.map((d: any) => ({...d.data(), id: d.id}))})));
         
         const unsubSupport = db.collection('support_chats').onSnapshot((snap: any) => {
             const rawDocs = snap.docs.map((d: any) => d.data());
@@ -806,7 +807,7 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
             setData(prev => ({...prev, supportChats: grouped}));
         }, (err: any) => console.error("Admin support snap error:", err));
 
-        return () => { unsubUsers(); unsubItems(); unsubCompleted(); unsubSupport(); };
+        return () => { unsubUsers(); unsubItems(); unsubCompleted(); unsubSupport(); unsubRedemptions(); };
     }, []);
 
     const filteredUsers = useMemo(() => {
@@ -865,10 +866,11 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
         <div className="h-full flex flex-col p-4 sm:p-6 overflow-hidden bg-white">
             <h2 className="text-xl sm:text-2xl font-black italic uppercase text-[#2c3e50] mb-4 border-b-4 border-[#3498db] pb-2 inline-block">{t('admin_panel')}</h2>
             
-            <div className="flex gap-1 mb-4">
-                <button onClick={() => { setActiveTab('users'); setActiveSupportUser(null); setSelectedOffer(null); }} className={`flex-1 py-2 rounded-xl text-[8px] font-black uppercase transition-all ${activeTab === 'users' ? 'bg-[#2c3e50] text-white' : 'bg-gray-100 text-gray-400'}`}>{t('user_management')}</button>
-                <button onClick={() => { setActiveTab('items'); setActiveSupportUser(null); setSelectedOffer(null); }} className={`flex-1 py-2 rounded-xl text-[8px] font-black uppercase transition-all ${activeTab === 'items' ? 'bg-[#2c3e50] text-white' : 'bg-gray-100 text-gray-400'}`}>{t('offer_help')}</button>
-                <button onClick={() => { setActiveTab('chats'); setActiveSupportUser(null); setSelectedOffer(null); }} className={`flex-1 py-2 rounded-xl text-[8px] font-black uppercase transition-all ${activeTab === 'chats' ? 'bg-[#2c3e50] text-white' : 'bg-gray-100 text-gray-400'}`}>{t('support_inbox')}</button>
+            <div className="flex flex-wrap gap-1 mb-4">
+                <button onClick={() => { setActiveTab('users'); setActiveSupportUser(null); setSelectedOffer(null); }} className={`flex-1 min-w-[60px] py-2 rounded-xl text-[7px] font-black uppercase transition-all ${activeTab === 'users' ? 'bg-[#2c3e50] text-white' : 'bg-gray-100 text-gray-400'}`}>{t('user_management')}</button>
+                <button onClick={() => { setActiveTab('items'); setActiveSupportUser(null); setSelectedOffer(null); }} className={`flex-1 min-w-[60px] py-2 rounded-xl text-[7px] font-black uppercase transition-all ${activeTab === 'items' ? 'bg-[#2c3e50] text-white' : 'bg-gray-100 text-gray-400'}`}>{t('offer_help')}</button>
+                <button onClick={() => { setActiveTab('chats'); setActiveSupportUser(null); setSelectedOffer(null); }} className={`flex-1 min-w-[60px] py-2 rounded-xl text-[7px] font-black uppercase transition-all ${activeTab === 'chats' ? 'bg-[#2c3e50] text-white' : 'bg-gray-100 text-gray-400'}`}>{t('support_inbox')}</button>
+                <button onClick={() => { setActiveTab('vouchers'); setActiveSupportUser(null); setSelectedOffer(null); }} className={`flex-1 min-w-[60px] py-2 rounded-xl text-[7px] font-black uppercase transition-all ${activeTab === 'vouchers' ? 'bg-[#2c3e50] text-white' : 'bg-gray-100 text-gray-400'}`}>Vouchers</button>
             </div>
 
             <div className="flex-1 overflow-y-auto space-y-4 pr-1">
@@ -986,6 +988,24 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
                             ))}
                         </div>
                     )
+                )}
+
+                {activeTab === 'vouchers' && (
+                    <div className="space-y-3">
+                        {data.redemptions.map(r => (
+                            <div key={r.id} className="bg-white p-4 border-2 border-orange-50 rounded-2xl shadow-sm">
+                                <div className="flex justify-between items-start mb-2">
+                                    <div className="font-black text-[11px] text-[#f39c12] uppercase">{r.itemName}</div>
+                                    <div className="text-[8px] font-black text-gray-300 uppercase">{r.redeemedAt?.toDate().toLocaleDateString()}</div>
+                                </div>
+                                <div className="space-y-1">
+                                    <div className="text-[10px] font-bold text-gray-700 uppercase">User: {r.fullName}</div>
+                                    <div className="text-[9px] font-black text-[#3498db] uppercase tracking-wider">Class: {r.userClass}</div>
+                                </div>
+                            </div>
+                        ))}
+                        {data.redemptions.length === 0 && <div className="text-center py-10 font-black text-gray-300 text-xs uppercase italic">No redemptions yet.</div>}
+                    </div>
                 )}
             </div>
         </div>
@@ -1154,18 +1174,36 @@ const ShopPage: React.FC<{user: any | null, t: any, onAuth: any, onRedeemConfirm
 
 const HistoryPage: React.FC<{user: any | null, t: any, onAuth: any}> = ({user, t, onAuth}) => {
     const [history, setHistory] = useState<any[]>([]);
+    
     useEffect(() => {
         if (!user || typeof firebase === 'undefined' || !firebase.firestore) return;
-        const unsub = firebase.firestore().collection('redeem_history').where('userId', '==', user.uid).onSnapshot((snap: any) => {
-            const data = snap.docs.map((d: any) => d.data());
-            data.sort((a: any, b: any) => {
-                const timeA = a.redeemedAt?.toMillis?.() || 0;
-                const timeB = b.redeemedAt?.toMillis?.() || 0;
-                return timeB - timeA;
+        const db = firebase.firestore();
+        
+        // Listen to Redemptions
+        const unsubRedeem = db.collection('redeem_history').where('userId', '==', user.uid).onSnapshot((snap: any) => {
+            const redeems = snap.docs.map((d: any) => ({ ...d.data(), type: 'redeem' }));
+            
+            // Listen to Offers (both pending and completed)
+            const unsubOffers = db.collection('donations').where('userId', '==', user.uid).onSnapshot((snapOffer: any) => {
+                const pendingOffers = snapOffer.docs.map((d: any) => ({ ...d.data(), type: 'offer_pending' }));
+                
+                const unsubCompleted = db.collection('completed_donations').where('userId', '==', user.uid).onSnapshot((snapComp: any) => {
+                    const completedOffers = snapComp.docs.map((d: any) => ({ ...d.data(), type: 'offer_completed' }));
+                    
+                    const combined = [...redeems, ...pendingOffers, ...completedOffers];
+                    combined.sort((a, b) => {
+                        const timeA = (a.redeemedAt || a.createdAt || a.completedAt)?.toMillis?.() || 0;
+                        const timeB = (b.redeemedAt || b.createdAt || b.completedAt)?.toMillis?.() || 0;
+                        return timeB - timeA;
+                    });
+                    setHistory(combined);
+                });
+                return unsubCompleted;
             });
-            setHistory(data);
-        }, (err: any) => console.error("History snap error:", err));
-        return unsub;
+            return unsubOffers;
+        });
+        
+        return unsubRedeem;
     }, [user]);
     
     if (!user) return <div className="text-center py-20 font-black uppercase text-gray-300">{t('login_register')}</div>;
@@ -1174,20 +1212,33 @@ const HistoryPage: React.FC<{user: any | null, t: any, onAuth: any}> = ({user, t
         <div className="max-w-4xl mx-auto space-y-10 py-12 pb-24">
             <h1 className="text-3xl font-black italic uppercase text-[#2c3e50] tracking-tighter">{t('history')}</h1>
             <div className="space-y-4">
-                <h2 className="text-[10px] font-black uppercase text-gray-400 tracking-widest px-2">{t('redemptions')}</h2>
+                <h2 className="text-[10px] font-black uppercase text-gray-400 tracking-widest px-2">Timeline of Kindness</h2>
                 {history.map((h, i) => (
-                    <div key={i} className="bg-white p-6 rounded-2xl border border-gray-100 flex items-center justify-between shadow-sm animate-in slide-in-from-bottom">
+                    <div key={i} className={`bg-white p-6 rounded-2xl border flex items-center justify-between shadow-sm animate-in slide-in-from-bottom border-gray-100`}>
                         <div className="flex items-center gap-4">
-                            <i className="fas fa-ticket-alt text-[#f39c12] text-xl"></i>
+                            <div className={`w-12 h-12 rounded-full flex items-center justify-center text-lg ${
+                                h.type === 'redeem' ? 'bg-orange-50 text-orange-500' : 
+                                h.type === 'offer_completed' ? 'bg-green-50 text-green-500' : 'bg-blue-50 text-blue-500'
+                            }`}>
+                                <i className={`fas fa-${h.type === 'redeem' ? 'ticket-alt' : 'hand-holding-heart'}`}></i>
+                            </div>
                             <div>
-                                <div className="font-black uppercase italic text-[#2c3e50] text-sm">{h.itemName}</div>
-                                <div className="text-[10px] font-bold text-gray-300 uppercase">{h.redeemedAt?.toDate().toLocaleDateString()}</div>
+                                <div className="font-black uppercase italic text-[#2c3e50] text-sm">
+                                    {h.type === 'redeem' ? h.itemName : `Offered: ${h.itemName}`}
+                                </div>
+                                <div className="text-[8px] font-black text-gray-300 uppercase">
+                                    {h.type === 'redeem' ? 'Reward Claimed' : (h.type === 'offer_completed' ? 'Kindness Shared' : 'Pending Verification')}
+                                    {' • '}
+                                    {(h.redeemedAt || h.createdAt || h.completedAt)?.toDate().toLocaleDateString()}
+                                </div>
                             </div>
                         </div>
-                        <div className="text-[#e74c3c] font-black text-xl">-{h.itemPoints}</div>
+                        <div className={`font-black text-xl tabular-nums ${h.type === 'redeem' ? 'text-red-500' : 'text-green-500'}`}>
+                            {h.type === 'redeem' ? `-${h.itemPoints}` : `+5`}
+                        </div>
                     </div>
                 ))}
-                {history.length === 0 && <div className="text-center py-10 text-gray-300 font-black uppercase italic bg-white rounded-2xl border">...</div>}
+                {history.length === 0 && <div className="text-center py-20 text-gray-300 font-black uppercase italic bg-white rounded-2xl border">No history found yet.</div>}
             </div>
         </div>
     );
