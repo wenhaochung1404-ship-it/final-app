@@ -89,7 +89,7 @@ const App: React.FC = () => {
                             } else {
                                 setUser({ uid: authUser.uid, email: authUser.email, points: 5 } as any);
                             }
-                        });
+                        }, (err: any) => console.error(err));
 
                         unsubNotifs = db.collection('notifications')
                             .where('userId', '==', authUser.uid)
@@ -97,7 +97,7 @@ const App: React.FC = () => {
                                 const notifs = snap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
                                 notifs.sort((a: any, b: any) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
                                 setNotifications(notifs);
-                            });
+                            }, (err: any) => console.error(err));
                     } else { 
                         setUser(null); 
                         setNotifications([]);
@@ -307,6 +307,7 @@ const App: React.FC = () => {
                 <RedeemConfirmModal 
                     item={itemToRedeem} user={user!} t={t} onCancel={() => setItemToRedeem(null)} 
                     onConfirm={async (fullName, userClass) => {
+                        if (typeof firebase === 'undefined' || !firebase.firestore) return;
                         const db = firebase.firestore();
                         try {
                             const userRef = db.collection('users').doc(user!.uid);
@@ -343,7 +344,7 @@ const SupportChatBody: React.FC<{userId: string, userName: string, t: any, isGue
                 const data = snap.docs.map((d: any) => d.data());
                 data.sort((a: any, b: any) => (a.createdAt?.toMillis?.() || 0) - (b.createdAt?.toMillis?.() || 0));
                 setMsgs(data);
-            });
+            }, (err: any) => console.error(err));
         return unsub;
     }, [userId]);
 
@@ -392,18 +393,19 @@ const HomePage: React.FC<{t: any, user: any | null}> = ({t, user}) => {
         const db = firebase.firestore();
         const unsubDonations = db.collection('donations').orderBy('createdAt', 'desc').onSnapshot((snap: any) => {
             setDonations(snap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
-        });
+        }, (err: any) => console.error(err));
         const unsubAnnounce = db.collection('settings').doc('announcement').onSnapshot((doc: any) => {
             if (doc.exists) {
                 const data = doc.data();
                 setAnnouncement(data);
                 setAnnounceInput(data.text);
             }
-        });
+        }, (err: any) => console.error(err));
         return () => { unsubDonations(); unsubAnnounce(); };
     }, []);
 
     const saveAnnouncement = async () => {
+        if (typeof firebase === 'undefined' || !firebase.firestore) return;
         await firebase.firestore().collection('settings').doc('announcement').set({
             text: announceInput, updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         });
@@ -411,7 +413,7 @@ const HomePage: React.FC<{t: any, user: any | null}> = ({t, user}) => {
     };
 
     const handleConfirmReceived = async (donation: any) => {
-        if (!user || (!user.isAdmin && user.email !== 'admin@gmail.com')) return;
+        if (!user || (!user.isAdmin && user.email !== 'admin@gmail.com') || typeof firebase === 'undefined' || !firebase.firestore) return;
         const itemQty = donation.qty || 1;
         const pointsToEarn = itemQty * 5;
         const confirmResult = window.confirm(`Confirm receipt? Donor offered ${itemQty} item(s) and will earn ${pointsToEarn} points.`);
@@ -520,12 +522,13 @@ const HomePage: React.FC<{t: any, user: any | null}> = ({t, user}) => {
 };
 
 const OfferHelpPage: React.FC<{user: any | null, t: any, onAuth: () => void, onNavigate: (p: string) => void}> = ({user, t, onAuth, onNavigate}) => {
-    const [item, setItem] = useState({ itemName: '', category: t('category_food'), qty: 1, donorName: user?.displayName || '' });
+    const [item, setItem] = useState({ itemName: '', category: translations[Language.EN]['category_food'], qty: 1, donorName: user?.displayName || '' });
     const [posting, setPosting] = useState(false);
 
     const handlePost = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!user) { onAuth(); return; }
+        if (typeof firebase === 'undefined' || !firebase.firestore) return;
         setPosting(true);
         try {
             const db = firebase.firestore();
@@ -597,10 +600,10 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
     useEffect(() => {
         if (typeof firebase === 'undefined' || !firebase.firestore) return;
         const db = firebase.firestore();
-        const unsubUsers = db.collection('users').onSnapshot((snap: any) => setData(prev => ({...prev, users: snap.docs.map((d: any) => ({...d.data(), uid: d.id}))})));
-        const unsubItems = db.collection('donations').onSnapshot((snap: any) => setData(prev => ({...prev, items: snap.docs.map((d: any) => ({...d.data(), id: d.id}))})));
-        const unsubCompleted = db.collection('completed_donations').onSnapshot((snap: any) => setData(prev => ({...prev, completedItems: snap.docs.map((d: any) => ({...d.data(), id: d.id}))})));
-        const unsubRedemptions = db.collection('redeem_history').orderBy('redeemedAt', 'desc').onSnapshot((snap: any) => setData(prev => ({...prev, redemptions: snap.docs.map((d: any) => ({...d.data(), id: d.id}))})));
+        const unsubUsers = db.collection('users').onSnapshot((snap: any) => setData(prev => ({...prev, users: snap.docs.map((d: any) => ({...d.data(), uid: d.id}))})), (err: any) => console.error(err));
+        const unsubItems = db.collection('donations').onSnapshot((snap: any) => setData(prev => ({...prev, items: snap.docs.map((d: any) => ({...d.data(), id: d.id}))})), (err: any) => console.error(err));
+        const unsubCompleted = db.collection('completed_donations').onSnapshot((snap: any) => setData(prev => ({...prev, completedItems: snap.docs.map((d: any) => ({...d.data(), id: d.id}))})), (err: any) => console.error(err));
+        const unsubRedemptions = db.collection('redeem_history').orderBy('redeemedAt', 'desc').onSnapshot((snap: any) => setData(prev => ({...prev, redemptions: snap.docs.map((d: any) => ({...d.data(), id: d.id}))})), (err: any) => console.error(err));
         
         const unsubSupport = db.collection('support_chats').onSnapshot((snap: any) => {
             const rawDocs = snap.docs.map((d: any) => d.data());
@@ -614,7 +617,7 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
                 }
             });
             setData(prev => ({...prev, supportChats: grouped}));
-        });
+        }, (err: any) => console.error(err));
 
         return () => { unsubUsers(); unsubItems(); unsubCompleted(); unsubRedemptions(); unsubSupport(); };
     }, []);
@@ -631,6 +634,7 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
 
     const handleUpdateUser = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (typeof firebase === 'undefined' || !firebase.firestore) return;
         try {
             await firebase.firestore().collection('users').doc(editingUser.uid).update({
                 displayName: editingUser.displayName,
@@ -647,7 +651,7 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
 
     const sendAdminReply = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!adminReply.trim() || !activeSupportUser) return;
+        if (!adminReply.trim() || !activeSupportUser || typeof firebase === 'undefined' || !firebase.firestore) return;
         const text = adminReply;
         setAdminReply('');
         await firebase.firestore().collection('support_chats').add({
@@ -659,6 +663,7 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
     };
 
     const approveOffer = async (offer: any) => {
+        if (typeof firebase === 'undefined' || !firebase.firestore) return;
         const itemQty = offer.qty || 1;
         const pointsToEarn = itemQty * 5;
         const db = firebase.firestore();
@@ -839,9 +844,9 @@ const AdminChatLogWindow: React.FC<{userId: string}> = ({userId}) => {
         if (!userId || typeof firebase === 'undefined' || !firebase.firestore) return;
         const unsub = firebase.firestore().collection('support_chats').where('userId', '==', userId).onSnapshot((snap: any) => {
             const data = snap.docs.map((d: any) => d.data());
-            data.sort((a: any, b: any) => (a.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+            data.sort((a: any, b: any) => (a.createdAt?.toMillis?.() || 0) - (b.createdAt?.toMillis?.() || 0));
             setMsgs(data);
-        });
+        }, (err: any) => console.error(err));
         return unsub;
     }, [userId]);
 
@@ -869,12 +874,13 @@ const ShopPage: React.FC<{user: any | null, t: any, onAuth: any, onRedeemConfirm
         const db = firebase.firestore();
         const unsub = db.collection('shop_items').orderBy('createdAt', 'desc').onSnapshot((snap: any) => {
             setShopItems(snap.docs.map((d: any) => ({ ...d.data(), id: d.id })));
-        });
+        }, (err: any) => console.error(err));
         return unsub;
     }, []);
 
     const handleAddOrUpdateProduct = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (typeof firebase === 'undefined' || !firebase.firestore) return;
         try {
             const db = firebase.firestore();
             if (newProduct.id) {
@@ -970,20 +976,21 @@ const HistoryPage: React.FC<{user: any | null, t: any, onAuth: any}> = ({user, t
                 combined.sort((a, b) => ((b.createdAt || b.completedAt)?.toMillis?.() || 0) - ((a.createdAt || a.completedAt)?.toMillis?.() || 0));
                 setOffers(combined);
                 setLoading(false);
-            });
+            }, (err: any) => console.error(err));
             return unsubCompleted;
-        });
+        }, (err: any) => console.error(err));
 
         const unsubRedeem = db.collection('redeem_history').where('userId', '==', user.uid).onSnapshot((snap: any) => {
             const data = snap.docs.map((d: any) => ({ ...d.data(), type: 'redeem', id: d.id }));
             data.sort((a: any, b: any) => (b.redeemedAt?.toMillis?.() || 0) - (a.redeemedAt?.toMillis?.() || 0));
             setRedeems(data);
-        });
+        }, (err: any) => console.error(err));
 
         return () => { unsubOffers(); unsubRedeem(); };
     }, [user]);
 
     const deleteOffer = async (id: string) => {
+        if (typeof firebase === 'undefined' || !firebase.firestore) return;
         if (!window.confirm("Are you sure you want to delete this offer?")) return;
         try {
             await firebase.firestore().collection('donations').doc(id).delete();
@@ -993,6 +1000,7 @@ const HistoryPage: React.FC<{user: any | null, t: any, onAuth: any}> = ({user, t
 
     const updateOffer = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (typeof firebase === 'undefined' || !firebase.firestore) return;
         try {
             await firebase.firestore().collection('donations').doc(isEditingOffer.id).update({
                 itemName: isEditingOffer.itemName,
@@ -1140,6 +1148,7 @@ const AuthModal: React.FC<{onClose: () => void, t: any}> = ({onClose, t}) => {
 
     const submit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (typeof firebase === 'undefined' || !firebase.auth) return;
         setLoading(true); setError(null); setSuccess(null);
         try {
             if (mode === 'login') {
@@ -1243,7 +1252,7 @@ const ProfilePage: React.FC<{user: any | null, t: any, onAuth: any, onNavigate: 
     if (!user) return <div className="text-center py-20"><button onClick={onAuth} className="bg-[#3498db] text-white px-12 py-4 rounded-full font-black uppercase shadow-xl">{t('login')}</button></div>;
 
     const handleSave = async () => {
-        if (!editData || !user) return;
+        if (!editData || !user || typeof firebase === 'undefined' || !firebase.firestore) return;
         setSaving(true);
         try {
             await firebase.firestore().collection('users').doc(user.uid).update(editData);
