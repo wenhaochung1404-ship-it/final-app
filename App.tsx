@@ -1049,22 +1049,143 @@ const RedeemConfirmModal: React.FC<{item: any, user: any, t: any, onCancel: () =
 };
 
 const ProfilePage: React.FC<{user: any | null, t: any, onAuth: any, onNavigate: any}> = ({user, t, onAuth}) => {
+    const [isEditing, setIsEditing] = useState(false);
+    const [editData, setEditData] = useState<any>(null);
+    const [saving, setSaving] = useState(false);
+
+    useEffect(() => {
+        if (user) {
+            setEditData({
+                displayName: user.displayName || '',
+                userClass: user.userClass || '',
+                phone: user.phone || '',
+                birthdate: user.birthdate || '',
+                address: user.address || ''
+            });
+        }
+    }, [user, isEditing]);
+
     if (!user) return <div className="text-center py-20"><button onClick={onAuth} className="bg-[#3498db] text-white px-12 py-4 rounded-full font-black uppercase shadow-xl">{t('login')}</button></div>;
+
+    const handleSave = async () => {
+        if (!editData || !user) return;
+        setSaving(true);
+        try {
+            await firebase.firestore().collection('users').doc(user.uid).update(editData);
+            setIsEditing(false);
+            alert("Profile updated successfully!");
+        } catch (err) {
+            alert("Failed to update profile.");
+        } finally {
+            setSaving(false);
+        }
+    };
+
     return (
         <div className="max-w-2xl mx-auto space-y-8 pb-20">
-            <div className="bg-[#2c3e50] p-12 rounded-[2rem] shadow-xl text-white text-center border-b-8 border-[#f39c12]">
-                <div className="w-20 h-20 bg-[#3498db] rounded-full flex items-center justify-center text-3xl font-black mx-auto mb-6 uppercase">{user.displayName?.[0] || '?'}</div>
-                <h1 className="text-2xl font-black uppercase italic mb-2">{user.displayName || 'Guest'}</h1>
-                <p className="text-[#f39c12] font-black text-xl">{user.points} Points</p>
-                {user.userClass && <p className="text-xs font-bold uppercase tracking-widest text-white/60 mt-2">{user.userClass}</p>}
-            </div>
-            <div className="bg-white p-8 rounded-[2rem] border shadow-sm space-y-4">
-                <h3 className="text-sm font-black uppercase text-gray-400 tracking-widest border-b pb-2">Profile Details</h3>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div><label className="text-[8px] font-black text-gray-400 uppercase">Phone</label><p className="font-bold">{user.phone || 'N/A'}</p></div>
-                    <div><label className="text-[8px] font-black text-gray-400 uppercase">Birthdate</label><p className="font-bold">{user.birthdate || 'N/A'}</p></div>
-                    <div className="col-span-2"><label className="text-[8px] font-black text-gray-400 uppercase">Address</label><p className="font-bold">{user.address || 'N/A'}</p></div>
+            <div className="bg-[#2c3e50] p-12 rounded-[2rem] shadow-xl text-white text-center border-b-8 border-[#f39c12] relative overflow-hidden">
+                <div className="w-20 h-20 bg-[#3498db] rounded-full flex items-center justify-center text-3xl font-black mx-auto mb-6 uppercase border-4 border-white/20 shadow-inner">
+                    {user.displayName?.[0] || '?'}
                 </div>
+                {isEditing ? (
+                    <div className="space-y-4 max-w-xs mx-auto">
+                        <input 
+                            value={editData.displayName} 
+                            onChange={e => setEditData({...editData, displayName: e.target.value})}
+                            placeholder="Display Name"
+                            className="w-full bg-white/10 border-2 border-white/20 rounded-xl p-3 text-white font-black uppercase text-center placeholder:text-white/40 outline-none focus:border-[#3498db] transition-all"
+                        />
+                        <input 
+                            value={editData.userClass} 
+                            onChange={e => setEditData({...editData, userClass: e.target.value})}
+                            placeholder="Class"
+                            className="w-full bg-white/10 border-2 border-white/20 rounded-xl p-3 text-white font-black uppercase text-center placeholder:text-white/40 outline-none focus:border-[#3498db] transition-all"
+                        />
+                    </div>
+                ) : (
+                    <>
+                        <h1 className="text-2xl font-black uppercase italic mb-2 tracking-tighter">{user.displayName || 'Guest'}</h1>
+                        <p className="text-[#f39c12] font-black text-xl flex items-center justify-center gap-2">
+                            <i className="fas fa-star"></i> {user.points} Points
+                        </p>
+                        {user.userClass && <p className="text-xs font-bold uppercase tracking-widest text-white/60 mt-2">{user.userClass}</p>}
+                    </>
+                )}
+                
+                <button 
+                    onClick={() => isEditing ? handleSave() : setIsEditing(true)} 
+                    disabled={saving}
+                    className="absolute top-6 right-6 w-12 h-12 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center transition-all border border-white/10 group"
+                >
+                    <i className={`fas fa-${isEditing ? (saving ? 'spinner fa-spin' : 'check') : 'pen'} text-xs text-white`}></i>
+                </button>
+                {isEditing && (
+                    <button 
+                        onClick={() => setIsEditing(false)} 
+                        className="absolute top-6 left-6 w-12 h-12 bg-red-500/20 hover:bg-red-500/40 rounded-full flex items-center justify-center transition-all border border-red-500/20"
+                    >
+                        <i className="fas fa-times text-xs text-white"></i>
+                    </button>
+                )}
+            </div>
+
+            <div className="bg-white p-8 rounded-[2rem] border shadow-sm space-y-6 relative group border-gray-100">
+                <h3 className="text-[10px] font-black uppercase text-gray-400 tracking-widest border-b border-gray-50 pb-3">Personal Information</h3>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <div className="space-y-1">
+                        <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest ml-1">Phone Number</label>
+                        {isEditing ? (
+                            <input 
+                                value={editData.phone} 
+                                onChange={e => setEditData({...editData, phone: e.target.value})}
+                                className="w-full p-3 bg-gray-50 border-2 border-gray-100 rounded-xl font-bold text-xs outline-none focus:border-[#3498db]"
+                            />
+                        ) : (
+                            <p className="font-bold text-[#2c3e50] bg-gray-50/50 p-3 rounded-xl border border-transparent">{user.phone || 'Not Set'}</p>
+                        )}
+                    </div>
+                    
+                    <div className="space-y-1">
+                        <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest ml-1">Birthdate</label>
+                        {isEditing ? (
+                            <input 
+                                type="date"
+                                value={editData.birthdate} 
+                                onChange={e => setEditData({...editData, birthdate: e.target.value})}
+                                className="w-full p-3 bg-gray-50 border-2 border-gray-100 rounded-xl font-bold text-xs outline-none focus:border-[#3498db]"
+                            />
+                        ) : (
+                            <p className="font-bold text-[#2c3e50] bg-gray-50/50 p-3 rounded-xl border border-transparent">{user.birthdate || 'Not Set'}</p>
+                        )}
+                    </div>
+
+                    <div className="col-span-1 sm:col-span-2 space-y-1">
+                        <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest ml-1">Home Address</label>
+                        {isEditing ? (
+                            <textarea 
+                                value={editData.address} 
+                                onChange={e => setEditData({...editData, address: e.target.value})}
+                                className="w-full p-3 bg-gray-50 border-2 border-gray-100 rounded-xl font-bold text-xs outline-none focus:border-[#3498db] min-h-[80px]"
+                            />
+                        ) : (
+                            <p className="font-bold text-[#2c3e50] bg-gray-50/50 p-3 rounded-xl border border-transparent">{user.address || 'Not Set'}</p>
+                        )}
+                    </div>
+                </div>
+
+                {isEditing && (
+                    <div className="pt-4">
+                        <button 
+                            onClick={handleSave} 
+                            disabled={saving}
+                            className="w-full bg-[#3498db] text-white py-4 rounded-2xl font-black uppercase text-xs shadow-xl shadow-blue-100 transition-all hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2"
+                        >
+                            {saving ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-save"></i>}
+                            Save Profile Updates
+                        </button>
+                    </div>
+                )}
             </div>
         </div>
     );
