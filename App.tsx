@@ -86,7 +86,7 @@ const App: React.FC = () => {
                             if (doc.exists) {
                                 setUser({ ...doc.data(), uid: authUser.uid });
                             } else {
-                                setUser({ uid: authUser.uid, email: authUser.email, points: 10 } as any);
+                                setUser({ uid: authUser.uid, email: authUser.email, points: 5 } as any);
                             }
                         });
 
@@ -982,9 +982,12 @@ const HistoryPage: React.FC<{user: any | null, t: any, onAuth: any}> = ({user, t
                                         </div>
                                     </div>
                                 </div>
-                                <div className={`text-right ${h.type === 'offer_pending' ? 'opacity-30' : ''}`}>
+                                <div className="text-right flex flex-col items-end">
                                     <div className="text-[10px] font-black uppercase text-gray-400 tracking-tighter">Points Earned</div>
-                                    <div className="font-black text-2xl text-green-500">+{h.earnedPoints || '??'}</div>
+                                    <div className={`font-black text-2xl ${h.type === 'offer_pending' ? 'text-gray-300' : 'text-green-500'}`}>
+                                        {h.type === 'offer_pending' ? '--' : `+${h.earnedPoints || '??'}`}
+                                    </div>
+                                    {!h.earnedPoints && h.type === 'offer_completed' && <span className="text-[8px] font-bold text-gray-400">Awarded</span>}
                                 </div>
                             </div>
                         ))
@@ -1046,7 +1049,7 @@ const AuthModal: React.FC<{onClose: () => void, t: any}> = ({onClose, t}) => {
                 if (!data.email.toLowerCase().endsWith("@moe-dl.edu.my") && data.email !== 'admin@gmail.com') throw new Error("MOE Email Required");
                 const {user} = await firebase.auth().createUserWithEmailAndPassword(data.email, data.password);
                 await firebase.firestore().collection('users').doc(user.uid).set({ 
-                    email: data.email, displayName: data.name, points: 10, birthdate: data.birthdate, 
+                    email: data.email, displayName: data.name, points: 5, birthdate: data.birthdate, 
                     phone: data.phone, address: data.address, userClass: data.userClass, 
                     isAdmin: data.email === 'admin@gmail.com'
                 });
@@ -1078,7 +1081,7 @@ const AuthModal: React.FC<{onClose: () => void, t: any}> = ({onClose, t}) => {
                             <input placeholder="Address" value={data.address} onChange={e => setData({...data, address: e.target.value})} className="w-full bg-gray-50 border-2 p-4 rounded-2xl outline-none font-bold text-sm" required />
                         </>
                     )}
-                    <input type="email" placeholder="Email (MOE)" value={data.email} onChange={e => setData({...data, email: e.target.value})} className="w-full bg-gray-50 border-2 p-4 rounded-2xl outline-none font-bold text-sm" required />
+                    <input type="email" placeholder="m-xxxxxxxx@moe-dl.edu.my" value={data.email} onChange={e => setData({...data, email: e.target.value})} className="w-full bg-gray-50 border-2 p-4 rounded-2xl outline-none font-bold text-sm placeholder:text-gray-300" required />
                     {mode !== 'forgot' && (
                         <div className="relative">
                             <input type={showPassword ? "text" : "password"} placeholder="Password" value={data.password} onChange={e => setData({...data, password: e.target.value})} className="w-full bg-gray-50 border-2 p-4 rounded-2xl outline-none font-bold text-sm" required />
