@@ -60,7 +60,7 @@ const App: React.FC = () => {
         let unsubNotifs: () => void = () => {};
 
         const initFirebase = async () => {
-            if (typeof firebase === 'undefined') {
+            if (typeof firebase === 'undefined' || !firebase.auth) {
                 setTimeout(initFirebase, 500);
                 return;
             }
@@ -126,7 +126,7 @@ const App: React.FC = () => {
     const isAdmin = user?.isAdmin || user?.email === 'admin@gmail.com';
 
     const markNotifRead = async (notification: any) => {
-        if (typeof firebase === 'undefined') return;
+        if (typeof firebase === 'undefined' || !firebase.firestore) return;
         try {
             await firebase.firestore().collection('notifications').doc(notification.id).update({ read: true });
         } catch (e) {
@@ -177,7 +177,7 @@ const App: React.FC = () => {
                             </div>
                         )}
                         {user ? (
-                            <button onClick={() => typeof firebase !== 'undefined' && firebase.auth().signOut()} className="bg-red-500 hover:bg-red-600 text-white px-2 sm:px-4 py-1.5 rounded-full text-[8px] sm:text-[10px] font-black uppercase shadow-lg flex items-center gap-1 whitespace-nowrap">
+                            <button onClick={() => typeof firebase !== 'undefined' && firebase.auth && firebase.auth().signOut()} className="bg-red-500 hover:bg-red-600 text-white px-2 sm:px-4 py-1.5 rounded-full text-[8px] sm:text-[10px] font-black uppercase shadow-lg flex items-center gap-1 whitespace-nowrap">
                                 <i className="fas fa-sign-out-alt"></i>
                                 <span>{t('logout')}</span>
                             </button>
@@ -379,7 +379,7 @@ const App: React.FC = () => {
                     t={t}
                     onCancel={() => setItemToRedeem(null)} 
                     onConfirm={async (fullName, userClass) => {
-                        if (typeof firebase === 'undefined') return;
+                        if (typeof firebase === 'undefined' || !firebase.firestore) return;
                         const db = firebase.firestore();
                         try {
                             const userRef = db.collection('users').doc(user!.uid);
@@ -408,7 +408,7 @@ const SupportChatBody: React.FC<{userId: string, userName: string, t: any, isGue
     const scrollRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        if (!userId || typeof firebase === 'undefined') return;
+        if (!userId || typeof firebase === 'undefined' || !firebase.firestore) return;
         const db = firebase.firestore();
         const unsub = db.collection('support_chats')
             .where('userId', '==', userId)
@@ -432,7 +432,7 @@ const SupportChatBody: React.FC<{userId: string, userName: string, t: any, isGue
 
     const send = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!input.trim() || !userId || typeof firebase === 'undefined') return;
+        if (!input.trim() || !userId || typeof firebase === 'undefined' || !firebase.firestore) return;
         const msgText = input;
         setInput('');
         
@@ -496,7 +496,7 @@ const HomePage: React.FC<{t: any, user: UserProfile | null}> = ({t, user}) => {
     const [announceInput, setAnnounceInput] = useState('');
 
     useEffect(() => {
-        if (typeof firebase === 'undefined') return;
+        if (typeof firebase === 'undefined' || !firebase.firestore) return;
         const db = firebase.firestore();
         const unsubDonations = db.collection('donations').orderBy('createdAt', 'desc').onSnapshot((snap: any) => {
             setDonations(snap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
@@ -514,7 +514,7 @@ const HomePage: React.FC<{t: any, user: UserProfile | null}> = ({t, user}) => {
     }, []);
 
     const saveAnnouncement = async () => {
-        if (typeof firebase === 'undefined') return;
+        if (typeof firebase === 'undefined' || !firebase.firestore) return;
         try {
             await firebase.firestore().collection('settings').doc('announcement').set({
                 text: announceInput,
@@ -527,7 +527,7 @@ const HomePage: React.FC<{t: any, user: UserProfile | null}> = ({t, user}) => {
     };
 
     const handleConfirmReceived = async (donation: any) => {
-        if (!user || (!user.isAdmin && user.email !== 'admin@gmail.com') || typeof firebase === 'undefined') return;
+        if (!user || (!user.isAdmin && user.email !== 'admin@gmail.com') || typeof firebase === 'undefined' || !firebase.firestore) return;
         const confirmResult = window.confirm(`Confirm receipt? Donor earns 5 points.`);
         if (!confirmResult) return;
         const db = firebase.firestore();
@@ -666,7 +666,7 @@ const OfferHelpPage: React.FC<{user: UserProfile | null, t: any, onAuth: () => v
     const handlePost = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!user) { onAuth(); return; }
-        if (typeof firebase === 'undefined') return;
+        if (typeof firebase === 'undefined' || !firebase.firestore) return;
         setPosting(true);
         try {
             const db = firebase.firestore();
@@ -757,7 +757,7 @@ const AdminPanelContent: React.FC<{t: any, user: UserProfile | null}> = ({t, use
     const [selectedOffer, setSelectedOffer] = useState<any>(null);
 
     useEffect(() => {
-        if (typeof firebase === 'undefined') return;
+        if (typeof firebase === 'undefined' || !firebase.firestore) return;
         const db = firebase.firestore();
         const unsubUsers = db.collection('users').onSnapshot((snap: any) => setData(prev => ({...prev, users: snap.docs.map((d: any) => ({...d.data(), uid: d.id}))})));
         const unsubItems = db.collection('donations').onSnapshot((snap: any) => setData(prev => ({...prev, items: snap.docs.map((d: any) => ({...d.data(), id: d.id}))})));
@@ -796,7 +796,7 @@ const AdminPanelContent: React.FC<{t: any, user: UserProfile | null}> = ({t, use
 
     const handleUpdateUser = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (typeof firebase === 'undefined') return;
+        if (typeof firebase === 'undefined' || !firebase.firestore) return;
         try {
             await firebase.firestore().collection('users').doc(editingUser.uid).update({
                 displayName: editingUser.displayName,
@@ -811,7 +811,7 @@ const AdminPanelContent: React.FC<{t: any, user: UserProfile | null}> = ({t, use
 
     const sendAdminReply = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!adminReply.trim() || !activeSupportUser || typeof firebase === 'undefined') return;
+        if (!adminReply.trim() || !activeSupportUser || typeof firebase === 'undefined' || !firebase.firestore) return;
         const reply = adminReply;
         setAdminReply('');
         const db = firebase.firestore();
@@ -968,7 +968,7 @@ const AdminPanelContent: React.FC<{t: any, user: UserProfile | null}> = ({t, use
 const ChatLogWindow: React.FC<{userId: string}> = ({userId}) => {
     const [msgs, setMsgs] = useState<any[]>([]);
     useEffect(() => {
-        if (!userId || typeof firebase === 'undefined') return;
+        if (!userId || typeof firebase === 'undefined' || !firebase.firestore) return;
         const db = firebase.firestore();
         const unsub = db.collection('support_chats').where('userId', '==', userId).onSnapshot((snap: any) => {
             const data = snap.docs.map((d: any) => d.data());
@@ -1013,7 +1013,7 @@ const ProfilePage: React.FC<{user: UserProfile | null, t: any, onAuth: any, onNa
 
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!user || typeof firebase === 'undefined') return;
+        if (!user || typeof firebase === 'undefined' || !firebase.firestore) return;
         setIsSaving(true);
         try {
             await firebase.firestore().collection('users').doc(user.uid).update({
@@ -1114,7 +1114,7 @@ const ShopPage: React.FC<{user: UserProfile | null, t: any, onAuth: any, onRedee
 const HistoryPage: React.FC<{user: UserProfile | null, t: any, onAuth: any}> = ({user, t, onAuth}) => {
     const [history, setHistory] = useState<any[]>([]);
     useEffect(() => {
-        if (!user || typeof firebase === 'undefined') return;
+        if (!user || typeof firebase === 'undefined' || !firebase.firestore) return;
         const unsub = firebase.firestore().collection('redeem_history').where('userId', '==', user.uid).onSnapshot((snap: any) => {
             const data = snap.docs.map((d: any) => d.data());
             data.sort((a: any, b: any) => {
@@ -1162,7 +1162,7 @@ const AuthModal: React.FC<{onClose: () => void, t: any}> = ({onClose, t}) => {
 
     const submit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (typeof firebase === 'undefined') return;
+        if (typeof firebase === 'undefined' || !firebase.auth) return;
         setLoading(true);
         setError(null);
         setSuccess(null);
@@ -1196,10 +1196,22 @@ const AuthModal: React.FC<{onClose: () => void, t: any}> = ({onClose, t}) => {
         } catch (err: any) { 
             console.error("Auth error:", err);
             let msg = err.message;
-            if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-login-credentials' || (err.message && err.message.includes('INVALID_LOGIN_CREDENTIALS'))) {
+            // Clean handling of INVALID_LOGIN_CREDENTIALS
+            if (err.code === 'auth/wrong-password' || 
+                err.code === 'auth/invalid-login-credentials' || 
+                (err.message && err.message.includes('INVALID_LOGIN_CREDENTIALS')) ||
+                (err.message && err.message.includes('invalid'))) {
                 msg = "Incorrect login credentials. Please try again.";
             } else if (err.code === 'auth/user-not-found') {
                 msg = "No account found with this email.";
+            } else if (err.message && err.message.startsWith('{')) {
+                // Handle cases where error might be a stringified object
+                try {
+                   const parsed = JSON.parse(err.message);
+                   if (parsed.error && parsed.error.message === 'INVALID_LOGIN_CREDENTIALS') {
+                       msg = "Incorrect login credentials. Please try again.";
+                   }
+                } catch(e) {}
             }
             setError(msg); 
         } finally { 
