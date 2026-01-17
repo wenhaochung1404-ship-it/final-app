@@ -906,50 +906,122 @@ const ShopPage: React.FC<{user: any | null, t: any, onAuth: any, onRedeemConfirm
 };
 
 const HistoryPage: React.FC<{user: any | null, t: any, onAuth: any}> = ({user, t, onAuth}) => {
-    const [history, setHistory] = useState<any[]>([]);
+    const [activeHistoryTab, setActiveHistoryTab] = useState<'offers' | 'redeems'>('offers');
+    const [offers, setOffers] = useState<any[]>([]);
+    const [redeems, setRedeems] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+
     useEffect(() => {
         if (!user || typeof firebase === 'undefined' || !firebase.firestore) return;
         const db = firebase.firestore();
-        const unsubRedeem = db.collection('redeem_history').where('userId', '==', user.uid).onSnapshot((snap: any) => {
-            const redeems = snap.docs.map((d: any) => ({ ...d.data(), type: 'redeem' }));
-            const unsubOffers = db.collection('donations').where('userId', '==', user.uid).onSnapshot((snapOffer: any) => {
-                const pendingOffers = snapOffer.docs.map((d: any) => ({ ...d.data(), type: 'offer_pending' }));
-                const unsubCompleted = db.collection('completed_donations').where('userId', '==', user.uid).onSnapshot((snapComp: any) => {
-                    const completedOffers = snapComp.docs.map((d: any) => ({ ...d.data(), type: 'offer_completed' }));
-                    const combined = [...redeems, ...pendingOffers, ...completedOffers];
-                    combined.sort((a, b) => ((b.redeemedAt || b.createdAt || b.completedAt)?.toMillis?.() || 0) - ((a.redeemedAt || a.createdAt || a.completedAt)?.toMillis?.() || 0));
-                    setHistory(combined);
-                });
-                return unsubCompleted;
+        
+        // Listen for offers (active + completed)
+        const unsubOffers = db.collection('donations').where('userId', '==', user.uid).onSnapshot((snapOffer: any) => {
+            const pending = snapOffer.docs.map((d: any) => ({ ...d.data(), type: 'offer_pending', id: d.id }));
+            
+            const unsubCompleted = db.collection('completed_donations').where('userId', '==', user.uid).onSnapshot((snapComp: any) => {
+                const completed = snapComp.docs.map((d: any) => ({ ...d.data(), type: 'offer_completed', id: d.id }));
+                const combined = [...pending, ...completed];
+                combined.sort((a, b) => ((b.createdAt || b.completedAt)?.toMillis?.() || 0) - ((a.createdAt || a.completedAt)?.toMillis?.() || 0));
+                setOffers(combined);
+                setLoading(false);
             });
-            return unsubOffers;
+            return unsubCompleted;
         });
-        return unsubRedeem;
+
+        // Listen for redeems
+        const unsubRedeem = db.collection('redeem_history').where('userId', '==', user.uid).onSnapshot((snap: any) => {
+            const data = snap.docs.map((d: any) => ({ ...d.data(), type: 'redeem', id: d.id }));
+            data.sort((a: any, b: any) => (b.redeemedAt?.toMillis?.() || 0) - (a.redeemedAt?.toMillis?.() || 0));
+            setRedeems(data);
+        });
+
+        return () => { unsubOffers(); unsubRedeem(); };
     }, [user]);
     
     if (!user) return <div className="text-center py-20 font-black uppercase text-gray-300">{t('login_register')}</div>;
+
     return (
         <div className="max-w-4xl mx-auto space-y-10 py-12">
-            <h1 className="text-3xl font-black italic uppercase text-[#2c3e50] tracking-tighter">{t('history')}</h1>
-            <div className="space-y-4">
-                {history.map((h, i) => (
-                    <div key={i} className={`bg-white p-6 rounded-2xl border flex items-center justify-between shadow-sm border-gray-100`}>
-                        <div className="flex items-center gap-4">
-                            <div className={`w-12 h-12 rounded-full flex items-center justify-center text-lg ${h.type === 'redeem' ? 'bg-orange-50 text-orange-500' : 'bg-green-50 text-green-500'}`}>
-                                <i className={`fas fa-${h.type === 'redeem' ? 'ticket-alt' : 'hand-holding-heart'}`}></i>
-                            </div>
-                            <div>
-                                <div className="font-black uppercase italic text-[#2c3e50] text-sm">{h.type === 'redeem' ? h.itemName : `Offered: ${h.itemName} (x${h.qty})`}</div>
-                                <div className="text-[8px] font-black text-gray-300 uppercase">
-                                    {(h.redeemedAt || h.createdAt || h.completedAt)?.toDate().toLocaleDateString()}
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6">
+                <h1 className="text-4xl font-black italic uppercase text-[#2c3e50] tracking-tighter">My Activity</h1>
+                <div className="flex bg-white p-1 rounded-2xl shadow-sm border border-gray-100">
+                    <button 
+                        onClick={() => setActiveHistoryTab('offers')}
+                        className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase transition-all flex items-center gap-2 ${activeHistoryTab === 'offers' ? 'bg-[#3498db] text-white shadow-lg' : 'text-gray-400 hover:text-[#2c3e50]'}`}
+                    >
+                        <i className="fas fa-hand-holding-heart"></i> Contributions
+                    </button>
+                    <button 
+                        onClick={() => setActiveHistoryTab('redeems')}
+                        className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase transition-all flex items-center gap-2 ${activeHistoryTab === 'redeems' ? 'bg-[#3498db] text-white shadow-lg' : 'text-gray-400 hover:text-[#2c3e50]'}`}
+                    >
+                        <i className="fas fa-gift"></i> Rewards
+                    </button>
+                </div>
+            </div>
+
+            <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                {activeHistoryTab === 'offers' ? (
+                    offers.length > 0 ? (
+                        offers.map((h) => (
+                            <div key={h.id} className="bg-white p-6 rounded-[2rem] border border-gray-100 flex items-center justify-between shadow-sm hover:shadow-md transition-shadow group">
+                                <div className="flex items-center gap-6">
+                                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-xl shadow-inner ${h.type === 'offer_pending' ? 'bg-amber-50 text-amber-500' : 'bg-green-50 text-green-500'}`}>
+                                        <i className={`fas fa-${h.type === 'offer_pending' ? 'hourglass-half' : 'check-double'}`}></i>
+                                    </div>
+                                    <div>
+                                        <div className="font-black uppercase italic text-[#2c3e50] text-lg leading-tight">{h.itemName} <span className="text-xs opacity-40 ml-1">x{h.qty}</span></div>
+                                        <div className="flex items-center gap-3 mt-1">
+                                            <span className="text-[8px] font-black text-gray-300 uppercase tracking-widest">
+                                                {(h.createdAt || h.completedAt)?.toDate().toLocaleDateString()}
+                                            </span>
+                                            <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full ${h.type === 'offer_pending' ? 'bg-amber-100 text-amber-600' : 'bg-green-100 text-green-600'}`}>
+                                                {h.type === 'offer_pending' ? 'Pending Approval' : 'Verified'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className={`text-right ${h.type === 'offer_pending' ? 'opacity-30' : ''}`}>
+                                    <div className="text-[10px] font-black uppercase text-gray-400 tracking-tighter">Points Earned</div>
+                                    <div className="font-black text-2xl text-green-500">+{h.earnedPoints || '??'}</div>
                                 </div>
                             </div>
+                        ))
+                    ) : (
+                        <div className="py-24 text-center bg-white rounded-[3rem] border border-dashed border-gray-200">
+                            <i className="fas fa-seedling text-4xl text-gray-100 mb-4"></i>
+                            <p className="font-black uppercase text-xs text-gray-300">You haven't offered any help yet. Start small!</p>
                         </div>
-                        <div className={`font-black text-xl ${h.type === 'redeem' ? 'text-red-500' : 'text-green-500'}`}>
-                            {h.type === 'redeem' ? `-${h.itemPoints}` : `+${h.earnedPoints || 'Pending'}`}
+                    )
+                ) : (
+                    redeems.length > 0 ? (
+                        redeems.map((h) => (
+                            <div key={h.id} className="bg-white p-6 rounded-[2rem] border border-gray-100 flex items-center justify-between shadow-sm hover:shadow-md transition-shadow group border-l-8 border-l-[#f39c12]">
+                                <div className="flex items-center gap-6">
+                                    <div className="w-14 h-14 bg-orange-50 text-orange-500 rounded-2xl flex items-center justify-center text-xl shadow-inner">
+                                        <i className="fas fa-ticket-alt"></i>
+                                    </div>
+                                    <div>
+                                        <div className="font-black uppercase italic text-[#2c3e50] text-lg leading-tight">{h.itemName}</div>
+                                        <div className="text-[8px] font-black text-gray-300 uppercase tracking-widest mt-1">
+                                            {h.redeemedAt?.toDate().toLocaleString()}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="text-right">
+                                    <div className="text-[10px] font-black uppercase text-gray-400 tracking-tighter">Points Spent</div>
+                                    <div className="font-black text-2xl text-red-500">-{h.itemPoints}</div>
+                                </div>
+                            </div>
+                        ))
+                    ) : (
+                        <div className="py-24 text-center bg-white rounded-[3rem] border border-dashed border-gray-200">
+                            <i className="fas fa-shopping-basket text-4xl text-gray-100 mb-4"></i>
+                            <p className="font-black uppercase text-xs text-gray-300">No rewards redeemed yet. Earn more points!</p>
                         </div>
-                    </div>
-                ))}
+                    )
+                )}
             </div>
         </div>
     );
