@@ -3,7 +3,6 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Language, UserProfile, HelpRequest, ChatMessage, ChatRoom } from './types';
 import { translations } from './translations';
 
-// Using declare to avoid TS errors for globally injected scripts
 declare const firebase: any;
 
 const MenuItem: React.FC<{icon: string, label: string, onClick: () => void, active?: boolean}> = ({icon, label, onClick, active}) => (
@@ -176,7 +175,6 @@ const App: React.FC = () => {
                     </button>
                 )}
 
-                {/* Restore Floating Action Buttons */}
                 <div className="fixed right-6 bottom-6 z-[200] flex flex-col items-end gap-3 sm:gap-4">
                     {showSupportChat && (
                         <div className="w-[85vw] sm:w-80 h-[450px] bg-white rounded-3xl shadow-2xl border border-gray-100 flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 mb-2 origin-bottom-right">
@@ -563,6 +561,7 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
     const [editingUser, setEditingUser] = useState<any>(null);
     const [activeSupportUser, setActiveSupportUser] = useState<any>(null);
     const [adminReply, setAdminReply] = useState('');
+    const [selectedOffer, setSelectedOffer] = useState<any>(null);
 
     useEffect(() => {
         if (typeof firebase === 'undefined' || !firebase.firestore) return;
@@ -628,14 +627,40 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
         });
     };
 
+    const approveOffer = async (offer: any) => {
+        const itemQty = offer.qty || 1;
+        const pointsToEarn = itemQty * 5;
+        const db = firebase.firestore();
+        try {
+            const donorRef = db.collection('users').doc(offer.userId);
+            await db.runTransaction(async (transaction: any) => {
+                const donorDoc = await transaction.get(donorRef);
+                const currentPoints = donorDoc.exists ? (donorDoc.data().points || 0) : 0;
+                transaction.update(donorRef, { points: currentPoints + pointsToEarn });
+                transaction.set(db.collection('completed_donations').doc(offer.id), {
+                    ...offer, completedAt: firebase.firestore.FieldValue.serverTimestamp(), confirmedBy: user.uid, earnedPoints: pointsToEarn
+                });
+                transaction.delete(db.collection('donations').doc(offer.id));
+            });
+            await db.collection('notifications').add({
+                userId: offer.userId,
+                title: `Offer Approved: ${offer.itemName}`,
+                message: `Your donation was verified. You earned ${pointsToEarn} points!`,
+                type: 'status', read: false, createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            alert("Approved!");
+            setSelectedOffer(null);
+        } catch (err) { alert("Approval failed."); }
+    };
+
     return (
         <div className="h-full flex flex-col p-4 sm:p-6 overflow-hidden bg-white">
             <h2 className="text-xl font-black italic uppercase text-[#2c3e50] mb-6 border-b-4 border-[#3498db] pb-2 inline-block">Admin</h2>
             <div className="flex flex-wrap gap-1 mb-6">
-                <button onClick={() => { setActiveTab('users'); setEditingUser(null); setActiveSupportUser(null); }} className={`flex-1 min-w-[60px] py-2 rounded-xl text-[7px] font-black uppercase ${activeTab === 'users' ? 'bg-[#2c3e50] text-white' : 'bg-gray-100'}`}>Users</button>
-                <button onClick={() => { setActiveTab('items'); setEditingUser(null); setActiveSupportUser(null); }} className={`flex-1 min-w-[60px] py-2 rounded-xl text-[7px] font-black uppercase ${activeTab === 'items' ? 'bg-[#2c3e50] text-white' : 'bg-gray-100'}`}>Offers</button>
-                <button onClick={() => { setActiveTab('vouchers'); setEditingUser(null); setActiveSupportUser(null); }} className={`flex-1 min-w-[60px] py-2 rounded-xl text-[7px] font-black uppercase ${activeTab === 'vouchers' ? 'bg-[#2c3e50] text-white' : 'bg-gray-100'}`}>Vouchers</button>
-                <button onClick={() => { setActiveTab('chats'); setEditingUser(null); setActiveSupportUser(null); }} className={`flex-1 min-w-[60px] py-2 rounded-xl text-[7px] font-black uppercase ${activeTab === 'chats' ? 'bg-[#2c3e50] text-white' : 'bg-gray-100'}`}>Support</button>
+                <button onClick={() => { setActiveTab('users'); setEditingUser(null); setActiveSupportUser(null); setSelectedOffer(null); }} className={`flex-1 min-w-[60px] py-2 rounded-xl text-[7px] font-black uppercase ${activeTab === 'users' ? 'bg-[#2c3e50] text-white' : 'bg-gray-100'}`}>Users</button>
+                <button onClick={() => { setActiveTab('items'); setEditingUser(null); setActiveSupportUser(null); setSelectedOffer(null); }} className={`flex-1 min-w-[60px] py-2 rounded-xl text-[7px] font-black uppercase ${activeTab === 'items' ? 'bg-[#2c3e50] text-white' : 'bg-gray-100'}`}>Offers</button>
+                <button onClick={() => { setActiveTab('vouchers'); setEditingUser(null); setActiveSupportUser(null); setSelectedOffer(null); }} className={`flex-1 min-w-[60px] py-2 rounded-xl text-[7px] font-black uppercase ${activeTab === 'vouchers' ? 'bg-[#2c3e50] text-white' : 'bg-gray-100'}`}>Vouchers</button>
+                <button onClick={() => { setActiveTab('chats'); setEditingUser(null); setActiveSupportUser(null); setSelectedOffer(null); }} className={`flex-1 min-w-[60px] py-2 rounded-xl text-[7px] font-black uppercase ${activeTab === 'chats' ? 'bg-[#2c3e50] text-white' : 'bg-gray-100'}`}>Support</button>
             </div>
             
             <div className="flex-1 overflow-y-auto space-y-4 pr-1">
@@ -647,6 +672,7 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
                                 <AdminInput label="Points" type="number" value={editingUser.points} onChange={v => setEditingUser({...editingUser, points: v})} />
                                 <AdminInput label="Phone" value={editingUser.phone} onChange={v => setEditingUser({...editingUser, phone: v})} />
                                 <AdminInput label="Address" value={editingUser.address} onChange={v => setEditingUser({...editingUser, address: v})} />
+                                <AdminInput label="Birthdate" value={editingUser.birthdate} onChange={v => setEditingUser({...editingUser, birthdate: v})} />
                                 <AdminInput label="Class" value={editingUser.userClass} onChange={v => setEditingUser({...editingUser, userClass: v})} />
                                 <div className="flex gap-2">
                                     <button type="submit" className="flex-1 bg-[#2ecc71] text-white py-2 rounded-lg font-black text-[10px] uppercase">Save</button>
@@ -662,7 +688,7 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
                                             <div className="font-black text-[10px] uppercase">{u.displayName}</div>
                                             <div className="text-[9px] text-gray-400">{u.points} Points • {u.email}</div>
                                         </div>
-                                        <button onClick={() => setEditingUser(u)} className="text-[#3498db] opacity-0 group-hover:opacity-100"><i className="fas fa-edit"></i></button>
+                                        <button onClick={() => setEditingUser(u)} className="text-[#3498db] opacity-0 group-hover:opacity-100 transition-opacity"><i className="fas fa-edit"></i></button>
                                     </div>
                                 ))}
                             </>
@@ -671,26 +697,73 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
                 )}
 
                 {activeTab === 'items' && (
-                    <div className="space-y-6">
-                        <div>
-                            <h3 className="text-[10px] font-black uppercase text-gray-400 mb-2 tracking-widest">Pending Approval</h3>
-                            {data.items.map(i => (
-                                <div key={i.id} className="bg-white p-3 border border-red-50 rounded-xl mb-2 flex justify-between items-center">
-                                    <div><div className="font-black text-xs uppercase">{i.itemName}</div><div className="text-[9px] text-gray-400">Donor: {i.donorName}</div></div>
-                                    <div className="text-orange-500 font-black text-[10px] uppercase">Reviewing</div>
+                    selectedOffer ? (
+                        <div className="bg-gray-50 p-5 rounded-3xl border border-gray-100 space-y-5 animate-in slide-in-from-right-2">
+                            <button onClick={() => setSelectedOffer(null)} className="text-[10px] font-black uppercase text-gray-400 hover:text-[#2c3e50] transition-colors flex items-center gap-2">
+                                <i className="fas fa-arrow-left"></i> Back to List
+                            </button>
+                            <div className="space-y-4">
+                                <div>
+                                    <h3 className="text-xl font-black uppercase italic text-[#2c3e50] leading-tight">{selectedOffer.itemName}</h3>
+                                    <div className="flex items-center gap-2 mt-2">
+                                        <span className="bg-[#3498db] text-white px-3 py-1 rounded-full text-[10px] font-black uppercase">Quantity: {selectedOffer.qty}</span>
+                                        <span className="bg-gray-100 text-gray-500 px-3 py-1 rounded-full text-[10px] font-black uppercase">{selectedOffer.category}</span>
+                                    </div>
                                 </div>
-                            ))}
-                        </div>
-                        <div>
-                            <h3 className="text-[10px] font-black uppercase text-gray-400 mb-2 tracking-widest">Approved Offers</h3>
-                            {data.completedItems.map(i => (
-                                <div key={i.id} className="bg-white p-3 border border-green-50 rounded-xl mb-2 flex justify-between items-center opacity-80">
-                                    <div><div className="font-black text-xs uppercase">{i.itemName}</div><div className="text-[9px] text-gray-400">Donor: {i.donorName}</div></div>
-                                    <div className="text-green-500 font-black text-[10px] uppercase">Verified</div>
+                                <div className="space-y-4 pt-4 border-t border-gray-200">
+                                    <div>
+                                        <p className="text-[8px] font-black uppercase text-gray-400 tracking-widest mb-1">Donor Details</p>
+                                        <div className="bg-white p-3 rounded-2xl border border-gray-100">
+                                            <p className="text-sm font-bold text-[#2c3e50]">{selectedOffer.donorName}</p>
+                                            <p className="text-[10px] font-bold text-[#3498db] uppercase">{selectedOffer.userClass || 'No Class Info'}</p>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <p className="text-[8px] font-black uppercase text-gray-400 tracking-widest mb-1">Status</p>
+                                        <p className="text-[10px] font-black uppercase italic text-[#f39c12]">
+                                            {data.completedItems.find(c => c.id === selectedOffer.id) ? 'Verified & Completed' : 'Pending Verification'}
+                                        </p>
+                                    </div>
                                 </div>
-                            ))}
+                            </div>
+                            {!data.completedItems.find(c => c.id === selectedOffer.id) && (
+                                <button onClick={() => approveOffer(selectedOffer)} className="w-full bg-[#2ecc71] hover:bg-[#27ae60] text-white py-4 rounded-2xl font-black uppercase text-xs shadow-xl shadow-green-100 transition-all active:scale-95">
+                                    <i className="fas fa-check-circle mr-2"></i> Approve & Award Points
+                                </button>
+                            )}
                         </div>
-                    </div>
+                    ) : (
+                        <div className="space-y-6">
+                            <div>
+                                <h3 className="text-[10px] font-black uppercase text-gray-400 mb-2 tracking-widest flex items-center gap-2 px-1">
+                                    <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span> Pending Approval
+                                </h3>
+                                {data.items.length === 0 ? <p className="text-[10px] text-gray-300 italic px-1">No pending offers.</p> : data.items.map(i => (
+                                    <div key={i.id} onClick={() => setSelectedOffer(i)} className="bg-white p-4 border border-gray-100 rounded-2xl mb-2 flex justify-between items-center cursor-pointer hover:border-[#3498db] hover:shadow-md transition-all group">
+                                        <div className="flex-1">
+                                            <div className="font-black text-xs uppercase text-[#2c3e50]">{i.itemName}</div>
+                                            <div className="text-[9px] text-gray-400 font-bold uppercase tracking-tighter">Donor: {i.donorName} • Qty: {i.qty}</div>
+                                        </div>
+                                        <i className="fas fa-chevron-right text-gray-200 group-hover:text-[#3498db] transition-colors"></i>
+                                    </div>
+                                ))}
+                            </div>
+                            <div>
+                                <h3 className="text-[10px] font-black uppercase text-gray-400 mb-2 tracking-widest flex items-center gap-2 px-1">
+                                    <span className="w-2 h-2 rounded-full bg-green-500"></span> Approved Offers
+                                </h3>
+                                {data.completedItems.length === 0 ? <p className="text-[10px] text-gray-300 italic px-1">No approved offers.</p> : data.completedItems.map(i => (
+                                    <div key={i.id} onClick={() => setSelectedOffer(i)} className="bg-white p-4 border border-green-50 rounded-2xl mb-2 flex justify-between items-center opacity-70 cursor-pointer hover:opacity-100 hover:border-green-200 transition-all group">
+                                        <div className="flex-1">
+                                            <div className="font-black text-xs uppercase text-[#2c3e50]">{i.itemName}</div>
+                                            <div className="text-[9px] text-gray-400 font-bold uppercase tracking-tighter">Donor: {i.donorName}</div>
+                                        </div>
+                                        <div className="text-green-500 font-black text-[9px] uppercase italic">Verified</div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )
                 )}
 
                 {activeTab === 'vouchers' && data.redemptions.map(r => (
@@ -704,21 +777,21 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
                 {activeTab === 'chats' && (
                     activeSupportUser ? (
                         <div className="flex flex-col h-full space-y-4">
-                            <button onClick={() => setActiveSupportUser(null)} className="text-[10px] font-black uppercase text-gray-400"><i className="fas fa-arrow-left"></i> Back to inbox</button>
+                            <button onClick={() => setActiveSupportUser(null)} className="text-[10px] font-black uppercase text-gray-400 hover:text-[#2c3e50] transition-colors"><i className="fas fa-arrow-left mr-2"></i> Back to inbox</button>
                             <div className="flex-1 h-[300px] overflow-y-auto bg-gray-50 rounded-xl p-3 space-y-2">
                                 <AdminChatLogWindow userId={activeSupportUser.userId} />
                             </div>
                             <form onSubmit={sendAdminReply} className="flex gap-2">
-                                <input value={adminReply} onChange={e => setAdminReply(e.target.value)} placeholder="Type official response..." className="flex-1 bg-gray-100 p-2 rounded-xl text-xs font-bold border outline-none" />
-                                <button className="bg-[#2c3e50] text-white px-4 rounded-xl text-[10px] font-black">Send</button>
+                                <input value={adminReply} onChange={e => setAdminReply(e.target.value)} placeholder="Type official response..." className="flex-1 bg-gray-100 p-2 rounded-xl text-xs font-bold border outline-none focus:border-[#2c3e50] transition-all" />
+                                <button className="bg-[#2c3e50] text-white px-4 rounded-xl text-[10px] font-black hover:bg-black transition-colors">Send</button>
                             </form>
                         </div>
                     ) : (
                         <div className="space-y-2">
-                            {data.supportChats.map(s => (
-                                <div key={s.userId} onClick={() => setActiveSupportUser(s)} className="bg-white p-4 border rounded-xl cursor-pointer hover:border-[#3498db]">
-                                    <div className="font-black text-[11px] uppercase">{s.userName}</div>
-                                    <div className="text-[10px] text-gray-400 truncate">{s.lastMsg}</div>
+                            {data.supportChats.length === 0 ? <p className="text-[10px] text-gray-300 italic px-1">No support chats found.</p> : data.supportChats.map(s => (
+                                <div key={s.userId} onClick={() => setActiveSupportUser(s)} className="bg-white p-4 border border-gray-100 rounded-2xl cursor-pointer hover:border-[#3498db] hover:shadow-md transition-all">
+                                    <div className="font-black text-[11px] uppercase text-[#2c3e50]">{s.userName}</div>
+                                    <div className="text-[10px] text-gray-400 truncate italic mt-1 font-medium">"{s.lastMsg}"</div>
                                 </div>
                             ))}
                         </div>
@@ -745,7 +818,7 @@ const AdminChatLogWindow: React.FC<{userId: string}> = ({userId}) => {
         <>
             {msgs.map((m, i) => (
                 <div key={i} className={`flex flex-col ${m.sender === 'user' ? 'items-start' : 'items-end'}`}>
-                    <div className={`max-w-[90%] p-2 rounded-xl text-[10px] font-bold ${m.sender === 'user' ? 'bg-white text-[#2c3e50] border' : 'bg-[#2c3e50] text-white'}`}>
+                    <div className={`max-w-[90%] p-2 rounded-xl text-[10px] font-bold ${m.sender === 'user' ? 'bg-white text-[#2c3e50] border shadow-sm' : 'bg-[#2c3e50] text-white'}`}>
                         {m.text}
                     </div>
                 </div>
