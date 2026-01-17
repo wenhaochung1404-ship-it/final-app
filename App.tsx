@@ -461,14 +461,13 @@ const HomePage: React.FC<{t: any, user: any | null}> = ({t, user}) => {
                                     value={announceInput} 
                                     onChange={e => setAnnounceInput(e.target.value)} 
                                     className="w-full min-h-[120px] p-4 bg-gray-50 rounded-xl outline-none font-bold text-sm resize-y" 
-                                    placeholder="Type announcements here... line breaks are preserved."
                                 />
                                 <button onClick={saveAnnouncement} className="bg-[#2c3e50] text-white px-8 py-2 rounded-lg font-black uppercase text-[10px]">Publish</button>
                             </div>
                         ) : (
                             <div className="flex items-start gap-4">
                                 <i className="fas fa-bullhorn text-[#3498db] mt-1"></i>
-                                <p className="text-sm font-bold text-[#2c3e50] italic whitespace-pre-wrap flex-1">
+                                <p className="text-sm font-bold text-[#2c3e50] whitespace-pre-wrap flex-1">
                                     {announcement.text || "No announcements today."}
                                 </p>
                             </div>
@@ -840,7 +839,7 @@ const AdminChatLogWindow: React.FC<{userId: string}> = ({userId}) => {
         if (!userId || typeof firebase === 'undefined' || !firebase.firestore) return;
         const unsub = firebase.firestore().collection('support_chats').where('userId', '==', userId).onSnapshot((snap: any) => {
             const data = snap.docs.map((d: any) => d.data());
-            data.sort((a: any, b: any) => (a.createdAt?.toMillis?.() || 0) - (b.createdAt?.toMillis?.() || 0));
+            data.sort((a: any, b: any) => (a.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
             setMsgs(data);
         });
         return unsub;
@@ -1115,7 +1114,7 @@ const HistoryPage: React.FC<{user: any | null, t: any, onAuth: any}> = ({user, t
                                 </div>
                                 <div className="text-right">
                                     <div className="text-[10px] font-black uppercase text-gray-400 tracking-tighter">Points Spent</div>
-                                    <div className="font-black text-2xl text-red-500">-{h.itemPoints}</div>
+                                    <div className={`font-black text-2xl text-red-500`}>-{h.itemPoints}</div>
                                 </div>
                             </div>
                         ))
@@ -1337,7 +1336,7 @@ const ProfilePage: React.FC<{user: any | null, t: any, onAuth: any, onNavigate: 
                     </div>
 
                     <div className="col-span-1 sm:col-span-2 space-y-1">
-                        <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest ml-1">Home Address</label>
+                        <label className="text-[8px] font-black uppercase text-gray-400 tracking-widest ml-1">Home Address</label>
                         {isEditing ? (
                             <textarea 
                                 value={editData.address} 
