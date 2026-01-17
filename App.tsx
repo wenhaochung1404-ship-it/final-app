@@ -31,7 +31,7 @@ const AdminInput: React.FC<{label: string, value: any, onChange?: (v: any) => vo
 
 const App: React.FC = () => {
     const [lang, setLang] = useState<Language>(Language.EN);
-    const [user, setUser] = useState<UserProfile | null>(null);
+    const [user, setUser] = useState<any | null>(null);
     const [page, setPage] = useState<string>('home');
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -54,6 +54,30 @@ const App: React.FC = () => {
         }
         setGuestId(storedGuestId);
     }, []);
+
+    // Check for New Year's Day reminder
+    useEffect(() => {
+        if (!user || typeof firebase === 'undefined' || !firebase.firestore) return;
+        
+        const now = new Date();
+        const isNewYear = now.getMonth() === 0 && now.getDate() === 1;
+        const currentYear = now.getFullYear();
+        const lastReminderYear = localStorage.getItem(`class_reminder_${user.uid}`);
+
+        if (isNewYear && lastReminderYear !== currentYear.toString()) {
+            const db = firebase.firestore();
+            db.collection('notifications').add({
+                userId: user.uid,
+                title: 'New Academic Year!',
+                message: 'Please update your class in profile page.',
+                type: 'message',
+                read: false,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            }).then(() => {
+                localStorage.setItem(`class_reminder_${user.uid}`, currentYear.toString());
+            });
+        }
+    }, [user]);
 
     useEffect(() => {
         let unsubscribeAuth: () => void = () => {};
@@ -86,7 +110,7 @@ const App: React.FC = () => {
                     if (authUser) {
                         db.collection('users').doc(authUser.uid).onSnapshot((doc: any) => {
                             if (doc.exists) {
-                                setUser({ ...doc.data(), uid: authUser.uid } as UserProfile);
+                                setUser({ ...doc.data(), uid: authUser.uid });
                             } else {
                                 setUser({ uid: authUser.uid, email: authUser.email, points: 10 } as any);
                             }
@@ -747,7 +771,7 @@ const OfferHelpPage: React.FC<{user: UserProfile | null, t: any, onAuth: () => v
     );
 };
 
-const AdminPanelContent: React.FC<{t: any, user: UserProfile | null}> = ({t, user}) => {
+const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
     const [activeTab, setActiveTab] = useState<'users' | 'items' | 'chats'>('users');
     const [data, setData] = useState<{users: any[], items: any[], completedItems: any[], supportChats: any[]}>({users: [], items: [], completedItems: [], supportChats: []});
     const [activeSupportUser, setActiveSupportUser] = useState<any>(null);
@@ -790,7 +814,8 @@ const AdminPanelContent: React.FC<{t: any, user: UserProfile | null}> = ({t, use
         const q = searchQuery.toLowerCase();
         return data.users.filter(u => 
             u.displayName?.toLowerCase().includes(q) || 
-            u.email?.toLowerCase().includes(q)
+            u.email?.toLowerCase().includes(q) ||
+            u.userClass?.toLowerCase().includes(q)
         );
     }, [data.users, searchQuery]);
 
@@ -802,7 +827,8 @@ const AdminPanelContent: React.FC<{t: any, user: UserProfile | null}> = ({t, use
                 displayName: editingUser.displayName,
                 points: Number(editingUser.points),
                 phone: editingUser.phone || '',
-                address: editingUser.address || ''
+                address: editingUser.address || '',
+                userClass: editingUser.userClass || ''
             });
             alert("User updated successfully");
             setEditingUser(null);
@@ -851,6 +877,7 @@ const AdminPanelContent: React.FC<{t: any, user: UserProfile | null}> = ({t, use
                         {editingUser ? (
                             <form onSubmit={handleUpdateUser} className="bg-gray-50 p-4 rounded-2xl border space-y-3">
                                 <AdminInput label={t('full_name')} value={editingUser.displayName} onChange={v => setEditingUser({...editingUser, displayName: v})} />
+                                <AdminInput label={t('class_label')} value={editingUser.userClass} onChange={v => setEditingUser({...editingUser, userClass: v})} />
                                 <AdminInput label={t('points')} type="number" value={editingUser.points} onChange={v => setEditingUser({...editingUser, points: v})} />
                                 <AdminInput label={t('phone_number')} value={editingUser.phone} onChange={v => setEditingUser({...editingUser, phone: v})} />
                                 <AdminInput label={t('home_address')} value={editingUser.address} onChange={v => setEditingUser({...editingUser, address: v})} />
@@ -864,7 +891,7 @@ const AdminPanelContent: React.FC<{t: any, user: UserProfile | null}> = ({t, use
                                 <div className="relative">
                                     <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-300 text-xs"></i>
                                     <input 
-                                        placeholder="Search by Name/Email..." 
+                                        placeholder="Search by Name/Email/Class..." 
                                         className="w-full bg-gray-50 border p-3 pl-10 rounded-xl text-xs font-bold outline-none focus:border-[#3498db]"
                                         value={searchQuery}
                                         onChange={e => setSearchQuery(e.target.value)}
@@ -873,7 +900,7 @@ const AdminPanelContent: React.FC<{t: any, user: UserProfile | null}> = ({t, use
                                 {filteredUsers.map(u => (
                                     <div key={u.uid} className="bg-white p-3 border rounded-xl flex justify-between items-center group">
                                         <div className="overflow-hidden">
-                                            <div className="font-black text-[10px] uppercase truncate">{u.displayName}</div>
+                                            <div className="font-black text-[10px] uppercase truncate">{u.displayName} {u.userClass && <span className="text-[#3498db]">({u.userClass})</span>}</div>
                                             <div className="text-[9px] text-gray-400 truncate">{u.email}</div>
                                         </div>
                                         <button onClick={() => setEditingUser(u)} className="bg-gray-50 p-2 rounded-lg hover:bg-[#3498db] hover:text-white transition-all">
@@ -995,9 +1022,9 @@ const ChatLogWindow: React.FC<{userId: string}> = ({userId}) => {
     );
 };
 
-const ProfilePage: React.FC<{user: UserProfile | null, t: any, onAuth: any, onNavigate: any}> = ({user, t, onAuth}) => {
+const ProfilePage: React.FC<{user: any | null, t: any, onAuth: any, onNavigate: any}> = ({user, t, onAuth}) => {
     const [isEditing, setIsEditing] = useState(false);
-    const [editData, setEditData] = useState({ displayName: '', phone: '', address: '', birthdate: '' });
+    const [editData, setEditData] = useState({ displayName: '', phone: '', address: '', birthdate: '', userClass: '' });
     const [isSaving, setIsSaving] = useState(false);
 
     useEffect(() => {
@@ -1006,7 +1033,8 @@ const ProfilePage: React.FC<{user: UserProfile | null, t: any, onAuth: any, onNa
                 displayName: user.displayName || '',
                 phone: user.phone || '',
                 address: user.address || '',
-                birthdate: user.birthdate || ''
+                birthdate: user.birthdate || '',
+                userClass: user.userClass || ''
             });
         }
     }, [user]);
@@ -1039,6 +1067,7 @@ const ProfilePage: React.FC<{user: UserProfile | null, t: any, onAuth: any, onNa
                 </div>
                 <h1 className="text-2xl font-black uppercase italic mb-2 tracking-tighter">{user.displayName || 'Guest'}</h1>
                 <p className="text-[#f39c12] font-black text-xl">{user.points} {t('points')}</p>
+                {user.userClass && <p className="text-xs font-bold uppercase tracking-widest text-white/60 mt-2">{user.userClass}</p>}
             </div>
 
             <div className="bg-white p-8 rounded-[2rem] border border-gray-100 shadow-sm space-y-6">
@@ -1065,12 +1094,24 @@ const ProfilePage: React.FC<{user: UserProfile | null, t: any, onAuth: any, onNa
                         )}
                     </div>
                     <div>
+                        <label className="text-[8px] font-black uppercase text-gray-400 block mb-1 tracking-widest">{t('class_label')}</label>
+                        {isEditing ? (
+                            <input value={editData.userClass} onChange={e => setEditData({...editData, userClass: e.target.value})} className="w-full bg-gray-50 border p-2 rounded-lg font-bold text-sm outline-none focus:border-[#3498db]" placeholder="e.g. 5 Amanah" />
+                        ) : (
+                            <p className="font-bold text-sm text-[#2c3e50]">{user.userClass || 'Not set'}</p>
+                        )}
+                    </div>
+                    <div>
                         <label className="text-[8px] font-black uppercase text-gray-400 block mb-1 tracking-widest">{t('phone_number')}</label>
                         {isEditing ? (
                             <input type="tel" value={editData.phone} onChange={e => setEditData({...editData, phone: e.target.value})} className="w-full bg-gray-50 border p-2 rounded-lg font-bold text-sm outline-none focus:border-[#3498db]" />
                         ) : (
                             <p className="font-bold text-sm text-[#2c3e50]">{user.phone || '...'}</p>
                         )}
+                    </div>
+                    <div>
+                        <label className="text-[8px] font-black uppercase text-gray-400 block mb-1 tracking-widest">{t('age')}</label>
+                        <p className="font-bold text-sm text-[#2c3e50]">{user.age || '...'}</p>
                     </div>
                     <div className="sm:col-span-2">
                         <label className="text-[8px] font-black uppercase text-gray-400 block mb-1 tracking-widest">{t('home_address')}</label>
@@ -1086,7 +1127,7 @@ const ProfilePage: React.FC<{user: UserProfile | null, t: any, onAuth: any, onNa
     );
 };
 
-const ShopPage: React.FC<{user: UserProfile | null, t: any, onAuth: any, onRedeemConfirm: (i: any) => void}> = ({user, t, onAuth, onRedeemConfirm}) => {
+const ShopPage: React.FC<{user: any | null, t: any, onAuth: any, onRedeemConfirm: (i: any) => void}> = ({user, t, onAuth, onRedeemConfirm}) => {
     const items = [
         { id: '1', name: t('voucher_5'), cost: 20, color: '#27ae60' },
         { id: '2', name: t('voucher_10'), cost: 40, color: '#3498db' },
@@ -1111,7 +1152,7 @@ const ShopPage: React.FC<{user: UserProfile | null, t: any, onAuth: any, onRedee
     );
 };
 
-const HistoryPage: React.FC<{user: UserProfile | null, t: any, onAuth: any}> = ({user, t, onAuth}) => {
+const HistoryPage: React.FC<{user: any | null, t: any, onAuth: any}> = ({user, t, onAuth}) => {
     const [history, setHistory] = useState<any[]>([]);
     useEffect(() => {
         if (!user || typeof firebase === 'undefined' || !firebase.firestore) return;
@@ -1154,11 +1195,21 @@ const HistoryPage: React.FC<{user: UserProfile | null, t: any, onAuth: any}> = (
 
 const AuthModal: React.FC<{onClose: () => void, t: any}> = ({onClose, t}) => {
     const [mode, setMode] = useState<'login' | 'register' | 'forgot'>('login');
-    const [data, setData] = useState({ email: '', password: '', name: '', birthdate: '', phone: '', address: '' });
+    const [data, setData] = useState({ email: '', password: '', name: '', birthdate: '', phone: '', address: '', userClass: '' });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
     const [showPassword, setShowPassword] = useState(false);
+
+    // Calculate Dynamic Age Range
+    const dateRange = useMemo(() => {
+        const now = new Date();
+        const yearShift = Math.max(0, now.getFullYear() - 2024);
+        return {
+            min: `${2008 + yearShift}-01-01`,
+            max: `${2026 + yearShift}-01-01`
+        };
+    }, []);
 
     const submit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -1166,6 +1217,16 @@ const AuthModal: React.FC<{onClose: () => void, t: any}> = ({onClose, t}) => {
         setLoading(true);
         setError(null);
         setSuccess(null);
+
+        // Client-side range validation
+        if (mode === 'register') {
+            if (data.birthdate < dateRange.min || data.birthdate > dateRange.max) {
+                setError(`Birthdate must be between ${dateRange.min.split('-').reverse().join('/')} and ${dateRange.max.split('-').reverse().join('/')}`);
+                setLoading(false);
+                return;
+            }
+        }
+
         try {
             if (mode === 'login') {
                 await firebase.auth().signInWithEmailAndPassword(data.email, data.password);
@@ -1189,6 +1250,7 @@ const AuthModal: React.FC<{onClose: () => void, t: any}> = ({onClose, t}) => {
                     age: age,
                     phone: data.phone,
                     address: data.address,
+                    userClass: data.userClass,
                     isAdmin: data.email === 'admin@gmail.com'
                 });
                 onClose();
@@ -1196,7 +1258,6 @@ const AuthModal: React.FC<{onClose: () => void, t: any}> = ({onClose, t}) => {
         } catch (err: any) { 
             console.error("Auth error:", err);
             let msg = err.message;
-            // Clean handling of INVALID_LOGIN_CREDENTIALS
             if (err.code === 'auth/wrong-password' || 
                 err.code === 'auth/invalid-login-credentials' || 
                 (err.message && err.message.includes('INVALID_LOGIN_CREDENTIALS')) ||
@@ -1204,14 +1265,6 @@ const AuthModal: React.FC<{onClose: () => void, t: any}> = ({onClose, t}) => {
                 msg = "Incorrect login credentials. Please try again.";
             } else if (err.code === 'auth/user-not-found') {
                 msg = "No account found with this email.";
-            } else if (err.message && err.message.startsWith('{')) {
-                // Handle cases where error might be a stringified object
-                try {
-                   const parsed = JSON.parse(err.message);
-                   if (parsed.error && parsed.error.message === 'INVALID_LOGIN_CREDENTIALS') {
-                       msg = "Incorrect login credentials. Please try again.";
-                   }
-                } catch(e) {}
             }
             setError(msg); 
         } finally { 
@@ -1253,10 +1306,24 @@ const AuthModal: React.FC<{onClose: () => void, t: any}> = ({onClose, t}) => {
                                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">{t('full_name')}</label>
                                 <input placeholder="Your Name" value={data.name} onChange={e => setData({...data, name: e.target.value})} className="w-full bg-gray-50 border-2 border-gray-100 p-4 rounded-2xl outline-none font-bold text-black text-sm" required />
                             </div>
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">{t('class_label')}</label>
+                                <input placeholder="e.g. 4 Amanah" value={data.userClass} onChange={e => setData({...data, userClass: e.target.value})} className="w-full bg-gray-50 border-2 border-gray-100 p-4 rounded-2xl outline-none font-bold text-black text-sm" required />
+                            </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-1">
-                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">{t('age')}</label>
-                                    <input type="date" value={data.birthdate} onChange={e => setData({...data, birthdate: e.target.value})} className="w-full bg-gray-50 border-2 border-gray-100 p-4 rounded-2xl outline-none font-bold text-black text-sm" required />
+                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">
+                                        {t('birthdate')}
+                                    </label>
+                                    <input 
+                                        type="date" 
+                                        min={dateRange.min}
+                                        max={dateRange.max}
+                                        value={data.birthdate} 
+                                        onChange={e => setData({...data, birthdate: e.target.value})} 
+                                        className="w-full bg-gray-50 border-2 border-gray-100 p-4 rounded-2xl outline-none font-bold text-black text-sm" 
+                                        required 
+                                    />
                                 </div>
                                 <div className="space-y-1">
                                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">{t('phone_number')}</label>
