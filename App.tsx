@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Language, UserProfile, HelpRequest, ChatMessage, ChatRoom } from './types';
+import { Language, UserProfile } from './types';
 import { translations } from './translations';
 
 declare const firebase: any;
@@ -104,7 +104,7 @@ const App: React.FC = () => {
                         if (unsubNotifs) unsubNotifs();
                     }
                     setLoading(false);
-                });
+                }, () => setLoading(false));
             } catch (err) {
                 console.error("Firebase init error:", err);
                 setLoading(false);
@@ -290,7 +290,7 @@ const App: React.FC = () => {
                                             <div className="flex-1">
                                                 <p className="text-[11px] font-black text-gray-800 uppercase tracking-tighter">{n.title}</p>
                                                 <p className="text-[10px] text-gray-500 font-medium">{n.message}</p>
-                                                <div className="mt-2 text-[8px] font-black text-gray-400 uppercase">{n.createdAt?.toDate().toLocaleString()}</div>
+                                                <div className="mt-2 text-[8px] font-black text-gray-400 uppercase">{n.createdAt?.toDate?.() ? n.createdAt.toDate().toLocaleString() : 'Recent'}</div>
                                             </div>
                                         </div>
                                     </div>
@@ -381,7 +381,7 @@ const SupportChatBody: React.FC<{userId: string, userName: string, t: any, isGue
     );
 };
 
-const HomePage: React.FC<{t: any, user: UserProfile | null}> = ({t, user}) => {
+const HomePage: React.FC<{t: any, user: any | null}> = ({t, user}) => {
     const [donations, setDonations] = useState<any[]>([]);
     const [announcement, setAnnouncement] = useState<{text: string, updatedAt: any}>({text: '', updatedAt: null});
     const [isEditingAnnounce, setIsEditingAnnounce] = useState(false);
@@ -477,39 +477,50 @@ const HomePage: React.FC<{t: any, user: UserProfile | null}> = ({t, user}) => {
                 </div>
                 <div className="space-y-6">
                     <h2 className="text-lg font-black text-[#2c3e50] uppercase tracking-tight">{t('offer_help')}</h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {donations.map(item => (
-                            <div key={item.id} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col group">
-                                <div className="flex justify-between items-start mb-4">
-                                    <h3 className="text-xl font-black text-[#2c3e50]">{item.itemName}</h3>
-                                    <div className="bg-blue-50 text-[#3498db] px-3 py-1 rounded-full text-[10px] font-black">Qty: {item.qty}</div>
-                                </div>
-                                <div className="mb-4 flex flex-wrap gap-2">
-                                    <span className="bg-gray-50 text-gray-400 px-3 py-1 rounded-md text-[10px] font-black uppercase">{item.category}</span>
-                                    {item.createdAt && (
-                                        <span className="bg-gray-50 text-gray-400 px-3 py-1 rounded-md text-[10px] font-black uppercase">
-                                            <i className="far fa-calendar-alt mr-1"></i> {item.createdAt.toDate().toLocaleDateString()}
-                                        </span>
+                    {donations.length === 0 ? (
+                        <div className="bg-white p-12 rounded-3xl border-4 border-dashed border-gray-100 text-center flex flex-col items-center gap-6">
+                            <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center text-[#3498db] text-3xl">
+                                <i className="fas fa-hand-holding-heart"></i>
+                            </div>
+                            <p className="text-[#2c3e50] font-black text-xl italic uppercase tracking-tighter max-w-md mx-auto">
+                                {t('empty_offers_msg')}
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {donations.map(item => (
+                                <div key={item.id} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col group">
+                                    <div className="flex justify-between items-start mb-4">
+                                        <h3 className="text-xl font-black text-[#2c3e50]">{item.itemName}</h3>
+                                        <div className="bg-blue-50 text-[#3498db] px-3 py-1 rounded-full text-[10px] font-black">Qty: {item.qty}</div>
+                                    </div>
+                                    <div className="mb-4 flex flex-wrap gap-2">
+                                        <span className="bg-gray-50 text-gray-400 px-3 py-1 rounded-md text-[10px] font-black uppercase">{item.category}</span>
+                                        {item.createdAt && (
+                                            <span className="bg-gray-50 text-gray-400 px-3 py-1 rounded-md text-[10px] font-black uppercase">
+                                                <i className="far fa-calendar-alt mr-1"></i> {item.createdAt.toDate?.() ? item.createdAt.toDate().toLocaleDateString() : 'Today'}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="space-y-2 flex-1 mb-6 text-gray-400 font-bold text-sm">
+                                        <div><i className="far fa-user mr-2"></i>{item.donorName}</div>
+                                    </div>
+                                    {isAdmin && (
+                                        <button onClick={() => handleConfirmReceived(item)} className="w-full bg-[#2ecc71] hover:bg-[#27ae60] text-white py-3 rounded-xl text-xs font-black uppercase shadow-md transition-all">
+                                            <i className="fas fa-check-circle mr-2"></i> Confirm & Reward
+                                        </button>
                                     )}
                                 </div>
-                                <div className="space-y-2 flex-1 mb-6 text-gray-400 font-bold text-sm">
-                                    <div><i className="far fa-user mr-2"></i>{item.donorName}</div>
-                                </div>
-                                {isAdmin && (
-                                    <button onClick={() => handleConfirmReceived(item)} className="w-full bg-[#2ecc71] hover:bg-[#27ae60] text-white py-3 rounded-xl text-xs font-black uppercase shadow-md transition-all">
-                                        <i className="fas fa-check-circle mr-2"></i> Confirm & Reward
-                                    </button>
-                                )}
-                            </div>
-                        ))}
-                    </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
     );
 };
 
-const OfferHelpPage: React.FC<{user: UserProfile | null, t: any, onAuth: () => void, onNavigate: (p: string) => void}> = ({user, t, onAuth, onNavigate}) => {
+const OfferHelpPage: React.FC<{user: any | null, t: any, onAuth: () => void, onNavigate: (p: string) => void}> = ({user, t, onAuth, onNavigate}) => {
     const [item, setItem] = useState({ itemName: '', category: t('category_food'), qty: 1, donorName: user?.displayName || '' });
     const [posting, setPosting] = useState(false);
 
@@ -520,7 +531,7 @@ const OfferHelpPage: React.FC<{user: UserProfile | null, t: any, onAuth: () => v
         try {
             const db = firebase.firestore();
             await db.collection('donations').add({
-                ...item, createdAt: firebase.firestore.FieldValue.serverTimestamp(), userId: user.uid
+                ...item, createdAt: firebase.firestore.FieldValue.serverTimestamp(), userId: user.uid, donorName: user.displayName
             });
 
             const adminQuery = await db.collection('users').where('isAdmin', '==', true).get();
@@ -558,6 +569,7 @@ const OfferHelpPage: React.FC<{user: UserProfile | null, t: any, onAuth: () => v
                                 <option>{t('category_books')}</option>
                                 <option>{t('category_furniture')}</option>
                                 <option>{t('category_toiletries')}</option>
+                                <option>{t('category_others')}</option>
                             </select>
                         </div>
                         <div className="space-y-1">
@@ -1030,6 +1042,7 @@ const HistoryPage: React.FC<{user: any | null, t: any, onAuth: any}> = ({user, t
                                     <option>{t('category_books')}</option>
                                     <option>{t('category_furniture')}</option>
                                     <option>{t('category_toiletries')}</option>
+                                    <option>{t('category_others')}</option>
                                 </select>
                             </div>
                             <div className="flex gap-2 pt-4">
@@ -1054,7 +1067,7 @@ const HistoryPage: React.FC<{user: any | null, t: any, onAuth: any}> = ({user, t
                                         <div className="font-black uppercase italic text-[#2c3e50] text-lg leading-tight">{h.itemName} <span className="text-xs opacity-40 ml-1">x{h.qty}</span></div>
                                         <div className="flex items-center gap-3 mt-1">
                                             <span className="text-[8px] font-black text-gray-300 uppercase tracking-widest">
-                                                {(h.createdAt || h.completedAt)?.toDate().toLocaleDateString()}
+                                                {h.createdAt?.toDate?.() ? h.createdAt.toDate().toLocaleDateString() : (h.completedAt?.toDate?.() ? h.completedAt.toDate().toLocaleDateString() : 'Recent')}
                                             </span>
                                             <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full ${h.type === 'offer_pending' ? 'bg-amber-100 text-amber-600' : 'bg-green-100 text-green-600'}`}>
                                                 {h.type === 'offer_pending' ? 'Pending Approval' : 'Verified'}
@@ -1096,7 +1109,7 @@ const HistoryPage: React.FC<{user: any | null, t: any, onAuth: any}> = ({user, t
                                     <div>
                                         <div className="font-black uppercase italic text-[#2c3e50] text-lg leading-tight">{h.itemName}</div>
                                         <div className="text-[8px] font-black text-gray-300 uppercase tracking-widest mt-1">
-                                            {h.redeemedAt?.toDate().toLocaleString()}
+                                            {h.redeemedAt?.toDate?.() ? h.redeemedAt.toDate().toLocaleString() : 'Recent'}
                                         </div>
                                     </div>
                                 </div>
