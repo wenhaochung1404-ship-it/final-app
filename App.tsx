@@ -1441,6 +1441,8 @@ const ProfilePage: React.FC<{user: any | null, t: any, onAuth: any, onNavigate?:
     const [editData, setEditData] = useState<any>(null);
     const [saving, setSaving] = useState(false);
 
+    const isAdmin = user?.isAdmin || user?.email === 'admin@gmail.com';
+
     useEffect(() => {
         if (user) {
             setEditData({
@@ -1473,6 +1475,8 @@ const ProfilePage: React.FC<{user: any | null, t: any, onAuth: any, onNavigate?:
     };
 
     const handleDeleteAccount = async () => {
+        if (isAdmin) return; // Fail-safe for admin
+        
         if (window.confirm(t('delete_confirm'))) {
             if (window.confirm("FINAL WARNING: All points and data will be lost. Proceed?")) {
                 try {
@@ -1597,10 +1601,12 @@ const ProfilePage: React.FC<{user: any | null, t: any, onAuth: any, onNavigate?:
                                 <i className="fas fa-sign-out-alt"></i>
                                 {t('logout')}
                             </button>
-                            <button onClick={handleDeleteAccount} className="w-full border-2 border-red-100 text-red-500 py-4 rounded-2xl font-black uppercase text-[10px] transition-all hover:bg-red-50 flex items-center justify-center gap-2">
-                                <i className="fas fa-trash"></i>
-                                {t('delete_account')}
-                            </button>
+                            {!isAdmin && (
+                                <button onClick={handleDeleteAccount} className="w-full border-2 border-red-100 text-red-500 py-4 rounded-2xl font-black uppercase text-[10px] transition-all hover:bg-red-50 flex items-center justify-center gap-2">
+                                    <i className="fas fa-trash"></i>
+                                    {t('delete_account')}
+                                </button>
+                            )}
                         </>
                     )}
                 </div>
