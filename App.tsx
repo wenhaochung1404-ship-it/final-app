@@ -94,13 +94,16 @@ const App: React.FC = () => {
                             }
                         }, (err: any) => {});
 
-                        // Real-time notifications for the specific user
                         unsubNotifs = db.collection('notifications')
                             .where('userId', '==', authUser.uid)
                             .onSnapshot((snap: any) => {
-                                const notifs = snap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
-                                // Sort by newest first locally just in case
-                                notifs.sort((a: any, b: any) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+                                const notifs = snap.docs.map((d: any) => ({ 
+                                    id: d.id, 
+                                    ...d.data(),
+                                    // Pre-convert timestamp to number to avoid circular dependency issues in sorting or logging
+                                    createdAtMillis: d.data().createdAt?.toMillis?.() || 0
+                                }));
+                                notifs.sort((a: any, b: any) => b.createdAtMillis - a.createdAtMillis);
                                 setNotifications(notifs);
                             }, (err: any) => {});
                     } else { 
@@ -321,7 +324,9 @@ const App: React.FC = () => {
                                             <div className="flex-1">
                                                 <p className="text-[11px] font-black text-gray-800 uppercase tracking-tighter">{n.title}</p>
                                                 <p className="text-[10px] text-gray-500 font-medium">{n.message}</p>
-                                                <div className="mt-2 text-[8px] font-black text-gray-400 uppercase">{n.createdAt?.toDate?.() ? n.createdAt.toDate().toLocaleString() : 'Recent'}</div>
+                                                <div className="mt-2 text-[8px] font-black text-gray-400 uppercase">
+                                                  {n.createdAt?.toDate?.() ? n.createdAt.toDate().toLocaleString() : 'Recent'}
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
