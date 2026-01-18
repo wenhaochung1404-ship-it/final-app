@@ -91,7 +91,15 @@ export const translations: Record<Language, Record<string, string>> = {
         "offers": "Offers",
         "vouchers": "Vouchers",
         "support": "Support",
-        "search_placeholder": "Search by name, email or class..."
+        "search_placeholder": "Search by name, email or class...",
+        "activity_logs": "Activity Logs",
+        "nothing_here": "Nothing here yet.",
+        "new_offer_notif": "New Offer Added",
+        "support_msg_notif": "New Support Message",
+        "points_earned_notif": "Points Awarded!",
+        "offer_approved_notif": "Offer Approved",
+        "loading_citizens": "Connecting citizens...",
+        "moe_email_required": "MOE Email Required (@moe-dl.edu.my)"
     },
     [Language.BM]: {
         "menu": "Menu",
@@ -182,7 +190,15 @@ export const translations: Record<Language, Record<string, string>> = {
         "offers": "Tawaran",
         "vouchers": "Baucar",
         "support": "Sokongan",
-        "search_placeholder": "Cari mengikut nama, emel atau kelas..."
+        "search_placeholder": "Cari mengikut nama, emel atau kelas...",
+        "activity_logs": "Log Aktiviti",
+        "nothing_here": "Tiada apa-apa di sini lagi.",
+        "new_offer_notif": "Tawaran Baru Ditambah",
+        "support_msg_notif": "Mesej Sokongan Baru",
+        "points_earned_notif": "Mata Diberikan!",
+        "offer_approved_notif": "Tawaran Diluluskan",
+        "loading_citizens": "Menghubungkan warga...",
+        "moe_email_required": "Emel MOE Diperlukan (@moe-dl.edu.my)"
     },
     [Language.BC]: {
         "menu": "菜单",
@@ -273,7 +289,15 @@ export const translations: Record<Language, Record<string, string>> = {
         "offers": "提供",
         "vouchers": "代金券",
         "support": "支持",
-        "search_placeholder": "按姓名、电子邮件或班级搜索..."
+        "search_placeholder": "按姓名、电子邮件或班级搜索...",
+        "activity_logs": "活动日志",
+        "nothing_here": "目前没有任何内容。",
+        "new_offer_notif": "添加了新提供",
+        "support_msg_notif": "新的支持消息",
+        "points_earned_notif": "积分已发放！",
+        "offer_approved_notif": "提供已批准",
+        "loading_citizens": "正在连接市民...",
+        "moe_email_required": "需要 MOE 电子邮件 (@moe-dl.edu.my)"
     },
     [Language.BI]: {
         "menu": "Menu",
@@ -364,6 +388,14 @@ export const translations: Record<Language, Record<string, string>> = {
         "offers": "Tawaran",
         "vouchers": "Baucar",
         "support": "Sokongan",
-        "search_placeholder": "Giga ngena nama, emel tauka kelas..."
+        "search_placeholder": "Giga ngena nama, emel tauka kelas...",
+        "activity_logs": "Rikut Pengawa",
+        "nothing_here": "Nadai utai ditu diatu.",
+        "new_offer_notif": "Tawaran Baru Udah Ditambah",
+        "support_msg_notif": "Pesan Baru ari Admin",
+        "points_earned_notif": "Mata Udah Diberi!",
+        "offer_approved_notif": "Tawaran Udah Diterima",
+        "loading_citizens": "Nyunbung orang...",
+        "moe_email_required": "Guna Emel MOE (@moe-dl.edu.my)"
     }
 };

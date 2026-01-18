@@ -100,7 +100,6 @@ const App: React.FC = () => {
                                 const notifs = snap.docs.map((d: any) => ({ 
                                     id: d.id, 
                                     ...d.data(),
-                                    // Pre-convert timestamp to number to avoid circular dependency issues in sorting or logging
                                     createdAtMillis: d.data().createdAt?.toMillis?.() || 0
                                 }));
                                 notifs.sort((a: any, b: any) => b.createdAtMillis - a.createdAtMillis);
@@ -141,7 +140,7 @@ const App: React.FC = () => {
         try {
             if (firebase.auth().currentUser) {
                 await firebase.auth().currentUser.sendEmailVerification();
-                alert("Verification email sent! Please check your inbox.");
+                alert(t('email_sent_alert') || "Verification email sent! Please check your inbox.");
             }
         } catch (e: any) {
             alert(e.message);
@@ -151,7 +150,7 @@ const App: React.FC = () => {
     if (loading) return (
         <div className="h-screen w-screen flex flex-col items-center justify-center bg-[#f8f9fa] text-[#3498db] font-black italic uppercase text-center">
             <i className="fas fa-spinner fa-spin text-5xl mb-4"></i>
-            Connecting citizens...
+            {t('loading_citizens')}
         </div>
     );
 
@@ -191,8 +190,8 @@ const App: React.FC = () => {
 
             {!emailVerified && user && (
                 <div className="bg-amber-500 text-white p-2 text-center text-[10px] font-black uppercase tracking-widest animate-pulse">
-                    Please verify your email address to access all features. 
-                    <button onClick={resendVerification} className="ml-4 underline hover:text-black">Resend Link</button>
+                    {t('verify_email_msg') || "Please verify your email address to access all features."}
+                    <button onClick={resendVerification} className="ml-4 underline hover:text-black">{t('update')}</button>
                 </div>
             )}
 
@@ -305,14 +304,14 @@ const App: React.FC = () => {
                 <div className="fixed inset-0 bg-black/80 z-[600] flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setIsNotifOpen(false)}>
                     <div className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl flex flex-col overflow-hidden animate-in zoom-in duration-300 max-h-[80vh]" onClick={e => e.stopPropagation()}>
                         <div className="p-6 bg-gray-50 border-b flex justify-between items-center">
-                            <h3 className="font-black uppercase text-sm italic text-[#2c3e50] tracking-tighter">Activity Logs</h3>
+                            <h3 className="font-black uppercase text-sm italic text-[#2c3e50] tracking-tighter">{t('activity_logs')}</h3>
                             <button onClick={() => setIsNotifOpen(false)} className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center hover:bg-red-500 hover:text-white transition-all"><i className="fas fa-times text-xs"></i></button>
                         </div>
                         <div className="flex-1 overflow-y-auto p-4 space-y-4">
                             {notifications.length === 0 ? (
                                 <div className="py-20 text-center flex flex-col items-center gap-4">
                                     <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center text-gray-300"><i className="fas fa-bell-slash text-2xl"></i></div>
-                                    <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Nothing here yet.</p>
+                                    <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest">{t('nothing_here')}</p>
                                 </div>
                             ) : (
                                 notifications.map(n => (
@@ -322,7 +321,9 @@ const App: React.FC = () => {
                                                 <i className={`fas fa-${n.type === 'offer' ? 'hand-holding-heart' : n.type === 'message' ? 'comment' : 'star'}`}></i>
                                             </div>
                                             <div className="flex-1">
-                                                <p className="text-[11px] font-black text-gray-800 uppercase tracking-tighter">{n.title}</p>
+                                                <p className="text-[11px] font-black text-gray-800 uppercase tracking-tighter">
+                                                  {n.type === 'offer' ? t('new_offer_notif') : n.type === 'message' ? t('support_msg_notif') : t('points_earned_notif')}
+                                                </p>
                                                 <p className="text-[10px] text-gray-500 font-medium">{n.message}</p>
                                                 <div className="mt-2 text-[8px] font-black text-gray-400 uppercase">
                                                   {n.createdAt?.toDate?.() ? n.createdAt.toDate().toLocaleString() : 'Recent'}
@@ -368,7 +369,7 @@ const App: React.FC = () => {
                                 });
                             });
                             setItemToRedeem(null);
-                            alert("Voucher redeemed!");
+                            alert(t('voucher_redeemed_alert') || "Voucher redeemed!");
                         } catch (e: any) { alert("Failed: " + e.message); }
                     }} 
                 />
@@ -378,7 +379,7 @@ const App: React.FC = () => {
 };
 
 const QuickOfferModalContent: React.FC<{user: any, t: any, onComplete: () => void}> = ({user, t, onComplete}) => {
-    const [item, setItem] = useState({ itemName: '', category: translations[Language.EN]['category_food'], qty: 1 });
+    const [item, setItem] = useState({ itemName: '', category: t('category_food'), qty: 1 });
     const [posting, setPosting] = useState(false);
 
     const handlePost = async (e: React.FormEvent) => {
@@ -395,7 +396,6 @@ const QuickOfferModalContent: React.FC<{user: any, t: any, onComplete: () => voi
                 userClass: user.userClass || 'N/A'
             });
 
-            // Send notification to all Admins
             const adminQuery = await db.collection('users').where('isAdmin', '==', true).get();
             adminQuery.forEach(async (adminDoc: any) => {
                 await db.collection('notifications').add({
@@ -408,7 +408,7 @@ const QuickOfferModalContent: React.FC<{user: any, t: any, onComplete: () => voi
                 });
             });
 
-            alert("Offer Posted Successfully!");
+            alert(t('offer_posted_alert') || "Offer Posted Successfully!");
             onComplete();
         } catch (err) { 
             alert("Failed to post offer."); 
@@ -536,7 +536,7 @@ const HomePage: React.FC<{t: any, user: any | null}> = ({t, user}) => {
         if (!user || (!user.isAdmin && user.email !== 'admin@gmail.com') || typeof firebase === 'undefined' || !firebase.firestore) return;
         const itemQty = donation.qty || 1;
         const pointsToEarn = itemQty * 5;
-        const confirmResult = window.confirm(`Confirm receipt? Donor offered ${itemQty} item(s) and will earn ${pointsToEarn} points.`);
+        const confirmResult = window.confirm(`${t('confirm')}? ${t('points_earned')}: ${pointsToEarn}`);
         if (!confirmResult) return;
         const db = firebase.firestore();
         try {
@@ -551,17 +551,16 @@ const HomePage: React.FC<{t: any, user: any | null}> = ({t, user}) => {
                 transaction.delete(db.collection('donations').doc(donation.id));
             });
 
-            // Notify donor about earned points
             await db.collection('notifications').add({
                 userId: donation.userId,
-                title: `You earned ${pointsToEarn} points!`,
-                message: `Thank you for offering ${itemQty} ${donation.itemName}. Your kindness matters!`,
+                title: t('points_earned_notif'),
+                message: `${t('quantity')}: ${itemQty} ${donation.itemName}.`,
                 type: 'status',
                 read: false,
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
             });
 
-            alert("Confirmed!");
+            alert(t('confirm') + "!");
         } catch (err) {}
     };
 
@@ -595,7 +594,7 @@ const HomePage: React.FC<{t: any, user: any | null}> = ({t, user}) => {
                             <div className="flex items-start gap-4">
                                 <i className="fas fa-bullhorn text-[#3498db] mt-1"></i>
                                 <p className="text-sm font-bold text-[#2c3e50] whitespace-pre-wrap flex-1">
-                                    {announcement.text || "No announcements today."}
+                                    {announcement.text || t('nothing_here')}
                                 </p>
                             </div>
                         )}
@@ -703,7 +702,7 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
                 birthdate: editingUser.birthdate || '',
                 userClass: editingUser.userClass || ''
             });
-            alert("User updated successfully");
+            alert(t('save') + "!");
             setEditingUser(null);
         } catch (err) {}
     };
@@ -720,12 +719,11 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
         });
         
-        // Notify user about official support response
         if (!activeSupportUser.isGuest) {
             await firebase.firestore().collection('notifications').add({
                 userId: activeSupportUser.userId,
-                title: "New Support Message",
-                message: "An admin has responded to your support request.",
+                title: t('support_msg_notif'),
+                message: t('support_msg_notif'),
                 type: 'message',
                 read: false,
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -750,24 +748,23 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
                 transaction.delete(db.collection('donations').doc(offer.id));
             });
 
-            // Notify donor about approval
             await db.collection('notifications').add({
                 userId: offer.userId,
-                title: `Offer Approved: ${offer.itemName}`,
-                message: `Your donation was verified. You earned ${pointsToEarn} points!`,
+                title: t('offer_approved_notif'),
+                message: `${t('verified')}! ${t('points_earned')}: ${pointsToEarn}`,
                 type: 'status',
                 read: false,
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
             });
 
-            alert("Approved!");
+            alert(t('verified') + "!");
             setSelectedOffer(null);
         } catch (err) {}
     };
 
     return (
         <div className="h-full flex flex-col p-4 sm:p-6 overflow-hidden bg-white">
-            <h2 className="text-xl font-black italic uppercase text-[#2c3e50] mb-6 border-b-4 border-[#3498db] pb-2 inline-block">Admin</h2>
+            <h2 className="text-xl font-black italic uppercase text-[#2c3e50] mb-6 border-b-4 border-[#3498db] pb-2 inline-block">{t('admin_panel')}</h2>
             <div className="flex flex-wrap gap-1 mb-6">
                 <button onClick={() => { setActiveTab('users'); setEditingUser(null); setActiveSupportUser(null); setSelectedOffer(null); }} className={`flex-1 min-w-[60px] py-2 rounded-xl text-[7px] font-black uppercase ${activeTab === 'users' ? 'bg-[#2c3e50] text-white' : 'bg-gray-100'}`}>{t('users')}</button>
                 <button onClick={() => { setActiveTab('items'); setEditingUser(null); setActiveSupportUser(null); setSelectedOffer(null); }} className={`flex-1 min-w-[60px] py-2 rounded-xl text-[7px] font-black uppercase ${activeTab === 'items' ? 'bg-[#2c3e50] text-white' : 'bg-gray-100'}`}>{t('offers')}</button>
@@ -798,7 +795,7 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
                                     <div key={u.uid} className="bg-white p-3 border rounded-xl flex justify-between items-center group">
                                         <div>
                                             <div className="font-black text-[10px] uppercase">{u.displayName}</div>
-                                            <div className="text-[9px] text-gray-400">{u.points} Points • {u.email}</div>
+                                            <div className="text-[9px] text-gray-400">{u.points} {t('points')} • {u.email}</div>
                                         </div>
                                         <button onClick={() => setEditingUser(u)} className="text-[#3498db] opacity-0 group-hover:opacity-100 transition-opacity"><i className="fas fa-edit"></i></button>
                                     </div>
@@ -827,7 +824,7 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
                                         <p className="text-[8px] font-black uppercase text-gray-400 tracking-widest mb-1">{t('donor_details')}</p>
                                         <div className="bg-white p-3 rounded-2xl border border-gray-100">
                                             <p className="text-sm font-bold text-[#2c3e50]">{selectedOffer.donorName}</p>
-                                            <p className="text-[10px] font-bold text-[#3498db] uppercase">{selectedOffer.userClass || 'No Class Info'}</p>
+                                            <p className="text-[10px] font-bold text-[#3498db] uppercase">{selectedOffer.userClass || 'N/A'}</p>
                                         </div>
                                     </div>
                                     <div>
@@ -850,11 +847,11 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
                                 <h3 className="text-[10px] font-black uppercase text-gray-400 mb-2 tracking-widest flex items-center gap-2 px-1">
                                     <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span> {t('pending_approval')}
                                 </h3>
-                                {data.items.length === 0 ? <p className="text-[10px] text-gray-300 italic px-1">No pending offers.</p> : data.items.map(i => (
+                                {data.items.length === 0 ? <p className="text-[10px] text-gray-300 italic px-1">{t('nothing_here')}</p> : data.items.map(i => (
                                     <div key={i.id} onClick={() => setSelectedOffer(i)} className="bg-white p-4 border border-gray-100 rounded-2xl mb-2 flex justify-between items-center cursor-pointer hover:border-[#3498db] hover:shadow-md transition-all group">
                                         <div className="flex-1">
                                             <div className="font-black text-xs uppercase text-[#2c3e50]">{i.itemName}</div>
-                                            <div className="text-[9px] text-gray-400 font-bold uppercase tracking-tighter">Donor: {i.donorName} ({i.userClass}) • Qty: {i.qty}</div>
+                                            <div className="text-[9px] text-gray-400 font-bold uppercase tracking-tighter">{t('donor_details')}: {i.donorName} ({i.userClass}) • {t('quantity')}: {i.qty}</div>
                                         </div>
                                         <i className="fas fa-chevron-right text-gray-200 group-hover:text-[#3498db] transition-colors"></i>
                                     </div>
@@ -864,11 +861,11 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
                                 <h3 className="text-[10px] font-black uppercase text-gray-400 mb-2 tracking-widest flex items-center gap-2 px-1">
                                     <span className="w-2 h-2 rounded-full bg-green-500"></span> {t('verified')}
                                 </h3>
-                                {data.completedItems.length === 0 ? <p className="text-[10px] text-gray-300 italic px-1">No approved offers.</p> : data.completedItems.map(i => (
+                                {data.completedItems.length === 0 ? <p className="text-[10px] text-gray-300 italic px-1">{t('nothing_here')}</p> : data.completedItems.map(i => (
                                     <div key={i.id} onClick={() => setSelectedOffer(i)} className="bg-white p-4 border border-green-50 rounded-2xl mb-2 flex justify-between items-center opacity-70 cursor-pointer hover:opacity-100 hover:border-green-200 transition-all group">
                                         <div className="flex-1">
                                             <div className="font-black text-xs uppercase text-[#2c3e50]">{i.itemName}</div>
-                                            <div className="text-[9px] text-gray-400 font-bold uppercase tracking-tighter">Donor: {i.donorName} ({i.userClass})</div>
+                                            <div className="text-[9px] text-gray-400 font-bold uppercase tracking-tighter">{t('donor_details')}: {i.donorName} ({i.userClass})</div>
                                         </div>
                                         <div className="text-green-500 font-black text-[9px] uppercase italic">{t('verified')}</div>
                                     </div>
@@ -881,26 +878,26 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
                 {activeTab === 'vouchers' && data.redemptions.map(r => (
                     <div key={r.id} className="bg-white p-4 border-2 border-orange-50 rounded-2xl">
                         <div className="font-black text-[11px] text-[#f39c12] uppercase">{r.itemName}</div>
-                        <div className="text-[10px] font-bold text-gray-700 uppercase">User: {r.fullName}</div>
-                        <div className="text-[9px] font-black text-[#3498db] uppercase">Class: {r.userClass}</div>
+                        <div className="text-[10px] font-bold text-gray-700 uppercase">{t('users')}: {r.fullName}</div>
+                        <div className="text-[9px] font-black text-[#3498db] uppercase">{t('class_label')}: {r.userClass}</div>
                     </div>
                 ))}
 
                 {activeTab === 'chats' && (
                     activeSupportUser ? (
                         <div className="flex flex-col h-full space-y-4">
-                            <button onClick={() => setActiveSupportUser(null)} className="text-[10px] font-black uppercase text-gray-400 hover:text-[#2c3e50] transition-colors"><i className="fas fa-arrow-left mr-2"></i> Back to inbox</button>
+                            <button onClick={() => setActiveSupportUser(null)} className="text-[10px] font-black uppercase text-gray-400 hover:text-[#2c3e50] transition-colors"><i className="fas fa-arrow-left mr-2"></i> {t('back_to_list')}</button>
                             <div className="flex-1 h-[300px] overflow-y-auto bg-gray-50 rounded-xl p-3 space-y-2">
                                 <AdminChatLogWindow userId={activeSupportUser.userId} />
                             </div>
                             <form onSubmit={sendAdminReply} className="flex gap-2">
-                                <input value={adminReply} onChange={e => setAdminReply(e.target.value)} placeholder="Type official response..." className="flex-1 bg-gray-100 p-2 rounded-xl text-xs font-bold border outline-none focus:border-[#2c3e50] transition-all" />
+                                <input value={adminReply} onChange={e => setAdminReply(e.target.value)} placeholder={t('type_message')} className="flex-1 bg-gray-100 p-2 rounded-xl text-xs font-bold border outline-none focus:border-[#2c3e50] transition-all" />
                                 <button className="bg-[#2c3e50] text-white px-4 rounded-xl text-[10px] font-black hover:bg-black transition-colors">{t('send')}</button>
                             </form>
                         </div>
                     ) : (
                         <div className="space-y-2">
-                            {data.supportChats.length === 0 ? <p className="text-[10px] text-gray-300 italic px-1">No support chats found.</p> : data.supportChats.map(s => (
+                            {data.supportChats.length === 0 ? <p className="text-[10px] text-gray-300 italic px-1">{t('nothing_here')}</p> : data.supportChats.map(s => (
                                 <div key={s.userId} onClick={() => setActiveSupportUser(s)} className="bg-white p-4 border border-gray-100 rounded-2xl cursor-pointer hover:border-[#3498db] hover:shadow-md transition-all">
                                     <div className="font-black text-[11px] uppercase text-[#2c3e50]">{s.userName}</div>
                                     <div className="text-[10px] text-gray-400 truncate italic mt-1 font-medium">"{s.lastMsg}"</div>
@@ -975,10 +972,10 @@ const ShopPage: React.FC<{user: any | null, t: any, onAuth: any, onRedeemConfirm
     };
 
     const handleDeleteProduct = async (id: string) => {
-        if (!window.confirm("Are you sure you want to delete this reward?")) return;
+        if (!window.confirm(t('delete') + "?")) return;
         try {
             await firebase.firestore().collection('shop_items').doc(id).delete();
-            alert("Reward deleted!");
+            alert(t('delete') + "!");
         } catch (e) {}
     };
 
@@ -1037,8 +1034,8 @@ const ShopPage: React.FC<{user: any | null, t: any, onAuth: any, onRedeemConfirm
             ) : (
                 <div className="py-24 text-center border-4 border-dashed border-gray-100 rounded-[3rem]">
                     <i className="fas fa-hourglass-half text-6xl text-gray-100 mb-6"></i>
-                    <h2 className="text-4xl font-black text-gray-200 uppercase italic tracking-tighter">Points Shop Coming Soon</h2>
-                    <p className="text-gray-300 font-bold uppercase text-xs mt-2">We are currently curating local rewards for you.</p>
+                    <h2 className="text-4xl font-black text-gray-200 uppercase italic tracking-tighter">{t('nothing_here')}</h2>
+                    <p className="text-gray-300 font-bold uppercase text-xs mt-2">{t('empty_offers_msg')}</p>
                 </div>
             )}
         </div>
@@ -1080,10 +1077,10 @@ const HistoryPage: React.FC<{user: any | null, t: any, onAuth: any}> = ({user, t
 
     const deleteOffer = async (id: string) => {
         if (typeof firebase === 'undefined' || !firebase.firestore) return;
-        if (!window.confirm("Are you sure you want to delete this offer?")) return;
+        if (!window.confirm(t('delete') + "?")) return;
         try {
             await firebase.firestore().collection('donations').doc(id).delete();
-            alert("Deleted successfully.");
+            alert(t('delete') + "!");
         } catch (e) {}
     };
 
@@ -1097,7 +1094,7 @@ const HistoryPage: React.FC<{user: any | null, t: any, onAuth: any}> = ({user, t
                 category: isEditingOffer.category
             });
             setIsEditingOffer(null);
-            alert("Updated successfully.");
+            alert(t('update') + "!");
         } catch (e) {}
     };
     
@@ -1191,7 +1188,7 @@ const HistoryPage: React.FC<{user: any | null, t: any, onAuth: any}> = ({user, t
                     ) : (
                         <div className="py-24 text-center bg-white rounded-[3rem] border border-dashed border-gray-200">
                             <i className="fas fa-seedling text-4xl text-gray-100 mb-4"></i>
-                            <p className="font-black uppercase text-xs text-gray-300">You haven't offered any help yet. Start small!</p>
+                            <p className="font-black uppercase text-xs text-gray-300">{t('nothing_here')}</p>
                         </div>
                     )
                 ) : (
@@ -1218,7 +1215,7 @@ const HistoryPage: React.FC<{user: any | null, t: any, onAuth: any}> = ({user, t
                     ) : (
                         <div className="py-24 text-center bg-white rounded-[3rem] border border-dashed border-gray-200">
                             <i className="fas fa-shopping-basket text-4xl text-gray-100 mb-4"></i>
-                            <p className="font-black uppercase text-xs text-gray-300">No rewards redeemed yet. Earn more points!</p>
+                            <p className="font-black uppercase text-xs text-gray-300">{t('nothing_here')}</p>
                         </div>
                     )
                 )}
@@ -1244,7 +1241,7 @@ const AuthModal: React.FC<{onClose: () => void, t: any, lang: Language}> = ({onC
                 onClose();
             } else if (mode === 'register') {
                 if (!data.email.toLowerCase().endsWith("@moe-dl.edu.my") && data.email !== 'admin@gmail.com') {
-                    throw new Error(lang === Language.BC ? "需要教育邮箱" : "MOE Email Required");
+                    throw new Error(t('moe_email_required'));
                 }
                 const {user} = await firebase.auth().createUserWithEmailAndPassword(data.email, data.password);
                 
@@ -1256,7 +1253,7 @@ const AuthModal: React.FC<{onClose: () => void, t: any, lang: Language}> = ({onC
                         phone: data.phone, address: data.address, userClass: data.userClass, 
                         isAdmin: data.email === 'admin@gmail.com'
                     });
-                    alert("Account created! A verification link has been sent to your email.");
+                    alert(t('register') + "!");
                 }
                 onClose();
             }
@@ -1340,7 +1337,7 @@ const ProfilePage: React.FC<{user: any | null, t: any, onAuth: any, onNavigate: 
         try {
             await firebase.firestore().collection('users').doc(user.uid).update(editData);
             setIsEditing(false);
-            alert("Profile updated successfully!");
+            alert(t('save') + "!");
         } catch (err) {
         } finally {
             setSaving(false);
