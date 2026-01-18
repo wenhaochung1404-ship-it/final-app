@@ -85,12 +85,15 @@ const App: React.FC = () => {
 
                 unsubscribeAuth = firebase.auth().onAuthStateChanged(async (authUser: any) => {
                     if (authUser) {
-                        setEmailVerified(!!authUser.emailVerified);
+                        // Admin account bypasses email verification
+                        const isHardcodedAdmin = authUser.email === 'admin@gmail.com';
+                        setEmailVerified(!!authUser.emailVerified || isHardcodedAdmin);
+                        
                         db.collection('users').doc(authUser.uid).onSnapshot((doc: any) => {
                             if (doc.exists) {
                                 setUser({ ...doc.data(), uid: authUser.uid });
                             } else {
-                                setUser({ uid: authUser.uid, email: authUser.email, points: 5 } as any);
+                                setUser({ uid: authUser.uid, email: authUser.email, points: 5, isAdmin: isHardcodedAdmin } as any);
                             }
                         }, (err: any) => {});
 
