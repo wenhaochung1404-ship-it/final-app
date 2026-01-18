@@ -85,8 +85,9 @@ const App: React.FC = () => {
 
                 unsubscribeAuth = firebase.auth().onAuthStateChanged(async (authUser: any) => {
                     if (authUser) {
-                        // Admin account bypasses email verification
                         const isHardcodedAdmin = authUser.email === 'admin@gmail.com';
+                        // Re-fetch user to check verification status more reliably
+                        await authUser.reload();
                         setEmailVerified(!!authUser.emailVerified || isHardcodedAdmin);
                         
                         db.collection('users').doc(authUser.uid).onSnapshot((doc: any) => {
@@ -143,7 +144,7 @@ const App: React.FC = () => {
         try {
             if (firebase.auth().currentUser) {
                 await firebase.auth().currentUser.sendEmailVerification();
-                alert(t('email_sent_alert') || "Verification email sent! Please check your inbox.");
+                alert(t('verification_sent'));
             }
         } catch (e: any) {
             alert(e.message);
@@ -180,11 +181,7 @@ const App: React.FC = () => {
                             </div>
                         )}
                         {user && <div className="flex items-center bg-[#f39c12] px-2 sm:px-4 py-1 rounded-full text-[8px] sm:text-xs font-black shadow-lg whitespace-nowrap"><i className="fas fa-star mr-1 sm:mr-2"></i> {user.points} <span className="ml-0.5">{t('points')}</span></div>}
-                        {user ? (
-                            <button onClick={() => firebase.auth().signOut()} className="bg-red-500 hover:bg-red-600 text-white px-2 sm:px-4 py-1.5 rounded-full text-[8px] sm:text-[10px] font-black uppercase shadow-lg flex items-center gap-1 whitespace-nowrap">
-                                <i className="fas fa-sign-out-alt"></i> <span>{t('logout')}</span>
-                            </button>
-                        ) : (
+                        {!user && (
                             <button onClick={(e) => { e.stopPropagation(); setIsAuthModalOpen(true); }} className="bg-[#3498db] hover:bg-blue-600 px-3 py-1.5 rounded-full text-[8px] sm:text-[10px] font-black uppercase shadow-lg">{t('login')}</button>
                         )}
                     </div>
@@ -193,7 +190,7 @@ const App: React.FC = () => {
 
             {!emailVerified && user && (
                 <div className="bg-amber-500 text-white p-2 text-center text-[10px] font-black uppercase tracking-widest animate-pulse">
-                    {t('verify_email_msg') || "Please verify your email address to access all features."}
+                    {t('check_email_verify')}
                     <button onClick={resendVerification} className="ml-4 underline hover:text-black">{t('update')}</button>
                 </div>
             )}
@@ -224,7 +221,13 @@ const App: React.FC = () => {
                     
                     <div className="flex items-center gap-3">
                         <button 
-                            onClick={(e) => { e.stopPropagation(); if(user) setIsQuickOfferOpen(true); else setIsAuthModalOpen(true); }}
+                            onClick={(e) => { 
+                                e.stopPropagation(); 
+                                if(user) {
+                                    if(emailVerified) setIsQuickOfferOpen(true);
+                                    else alert(t('check_email_verify'));
+                                } else setIsAuthModalOpen(true); 
+                            }}
                             className="bg-[#2ecc71] text-white w-12 h-12 sm:w-14 sm:h-14 rounded-full shadow-xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all border-4 border-gray-50"
                             title={t('quick_offer')}
                         >
@@ -649,6 +652,25 @@ const HomePage: React.FC<{t: any, user: any | null}> = ({t, user}) => {
         } catch (err) {}
     };
 
+    const handleDeclineOffer = async (donation: any) => {
+        if (!user || (!user.isAdmin && user.email !== 'admin@gmail.com') || typeof firebase === 'undefined' || !firebase.firestore) return;
+        const declineReason = window.confirm(`${t('decline')} "${donation.itemName}"?`);
+        if (!declineReason) return;
+        const db = firebase.firestore();
+        try {
+            await db.collection('donations').doc(donation.id).delete();
+            await db.collection('notifications').add({
+                userId: donation.userId,
+                title: t('offer_declined_notif'),
+                message: `${t('decline')}: ${donation.itemName}`,
+                type: 'status',
+                read: false,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            alert(t('decline') + "!");
+        } catch (err) {}
+    };
+
     const isAdmin = user?.isAdmin || user?.email === 'admin@gmail.com';
 
     return (
@@ -708,7 +730,9 @@ const HomePage: React.FC<{t: any, user: any | null}> = ({t, user}) => {
                                         <span className="bg-gray-50 text-gray-400 px-3 py-1 rounded-md text-[10px] font-black uppercase">{item.category}</span>
                                         {item.createdAt && (
                                             <span className="bg-gray-50 text-gray-400 px-3 py-1 rounded-md text-[10px] font-black uppercase">
-                                                <i className="far fa-calendar-alt mr-1"></i> {item.createdAt.toDate?.() ? item.createdAt.toDate().toLocaleDateString() : 'Today'}
+                                                <i className="far fa-calendar-alt mr-1"></i> {item.createdAt.toDate?.() ? 
+                                                    `${item.createdAt.toDate().getDate().toString().padStart(2, '0')}/${(item.createdAt.toDate().getMonth() + 1).toString().padStart(2, '0')}/${item.createdAt.toDate().getFullYear()}` 
+                                                    : 'Today'}
                                             </span>
                                         )}
                                     </div>
@@ -717,9 +741,14 @@ const HomePage: React.FC<{t: any, user: any | null}> = ({t, user}) => {
                                         {item.userClass && <div className="text-[10px]"><i className="fas fa-school mr-2"></i>{item.userClass}</div>}
                                     </div>
                                     {isAdmin && (
-                                        <button onClick={() => handleConfirmReceived(item)} className="w-full bg-[#2ecc71] hover:bg-[#27ae60] text-white py-3 rounded-xl text-xs font-black uppercase shadow-md transition-all">
-                                            <i className="fas fa-check-circle mr-2"></i> {t('confirm')}
-                                        </button>
+                                        <div className="flex gap-2">
+                                            <button onClick={() => handleConfirmReceived(item)} className="flex-1 bg-[#2ecc71] hover:bg-[#27ae60] text-white py-3 rounded-xl text-xs font-black uppercase shadow-md transition-all">
+                                                <i className="fas fa-check-circle mr-2"></i> {t('confirm')}
+                                            </button>
+                                            <button onClick={() => handleDeclineOffer(item)} className="bg-red-500 hover:bg-red-600 text-white px-4 py-3 rounded-xl text-xs font-black uppercase shadow-md transition-all">
+                                                {t('decline')}
+                                            </button>
+                                        </div>
                                     )}
                                 </div>
                             ))}
@@ -1245,7 +1274,11 @@ const HistoryPage: React.FC<{user: any | null, t: any, onAuth: any}> = ({user, t
                                         <div className="font-black uppercase italic text-[#2c3e50] text-lg leading-tight">{h.itemName} <span className="text-xs opacity-40 ml-1">x{h.qty}</span></div>
                                         <div className="flex items-center gap-3 mt-1">
                                             <span className="text-[8px] font-black text-gray-300 uppercase tracking-widest">
-                                                {h.createdAt?.toDate?.() ? h.createdAt.toDate().toLocaleDateString() : (h.completedAt?.toDate?.() ? h.completedAt.toDate().toLocaleDateString() : 'Recent')}
+                                                {h.createdAt?.toDate?.() ? 
+                                                    `${h.createdAt.toDate().getDate().toString().padStart(2, '0')}/${(h.createdAt.toDate().getMonth() + 1).toString().padStart(2, '0')}/${h.createdAt.toDate().getFullYear()}` 
+                                                    : (h.completedAt?.toDate?.() ? 
+                                                        `${h.completedAt.toDate().getDate().toString().padStart(2, '0')}/${(h.completedAt.toDate().getMonth() + 1).toString().padStart(2, '0')}/${h.completedAt.toDate().getFullYear()}` 
+                                                        : 'Recent')}
                                             </span>
                                             <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full ${h.type === 'offer_pending' ? 'bg-amber-100 text-amber-600' : 'bg-green-100 text-green-600'}`}>
                                                 {h.type === 'offer_pending' ? t('pending_approval') : t('verified')}
@@ -1322,7 +1355,12 @@ const AuthModal: React.FC<{onClose: () => void, t: any, lang: Language}> = ({onC
         setLoading(true); setError(null);
         try {
             if (mode === 'login') {
-                await firebase.auth().signInWithEmailAndPassword(data.email, data.password);
+                const { user } = await firebase.auth().signInWithEmailAndPassword(data.email, data.password);
+                const isHardcodedAdmin = data.email === 'admin@gmail.com';
+                if (!user.emailVerified && !isHardcodedAdmin) {
+                    await firebase.auth().signOut();
+                    throw new Error(translations[lang]['check_email_verify']);
+                }
                 onClose();
             } else if (mode === 'register') {
                 if (!data.email.toLowerCase().endsWith("@moe-dl.edu.my") && data.email !== 'admin@gmail.com') {
@@ -1332,15 +1370,16 @@ const AuthModal: React.FC<{onClose: () => void, t: any, lang: Language}> = ({onC
                 
                 if (user) {
                     await user.sendEmailVerification();
-                    
                     await firebase.firestore().collection('users').doc(user.uid).set({ 
                         email: data.email, displayName: data.name, points: 5, birthdate: data.birthdate, 
                         phone: data.phone, address: data.address, userClass: data.userClass, 
                         isAdmin: data.email === 'admin@gmail.com'
                     });
-                    alert(t('register') + "!");
+                    // Immediately sign out after registration to force verification flow
+                    await firebase.auth().signOut();
+                    alert(t('check_email_verify'));
+                    setMode('login');
                 }
-                onClose();
             }
         } catch (err: any) { setError(err.message); } finally { setLoading(false); }
     };
@@ -1352,7 +1391,7 @@ const AuthModal: React.FC<{onClose: () => void, t: any, lang: Language}> = ({onC
                 <h2 className="text-2xl font-black text-center uppercase italic text-[#2c3e50] mb-8">
                     {mode === 'login' ? t('login') : t('register')}
                 </h2>
-                {error && <div className="mb-6 bg-red-50 p-4 rounded-xl text-red-600 text-[10px] font-black uppercase tracking-wider">{error}</div>}
+                {error && <div className="mb-6 bg-amber-50 p-4 rounded-xl text-amber-800 text-[11px] font-black uppercase tracking-wider border-2 border-amber-200">{error}</div>}
                 <form onSubmit={submit} className="space-y-4">
                     {mode === 'register' && (
                         <>
@@ -1397,7 +1436,7 @@ const RedeemConfirmModal: React.FC<{item: any, user: any, t: any, onCancel: () =
     );
 };
 
-const ProfilePage: React.FC<{user: any | null, t: any, onAuth: any, onNavigate: any}> = ({user, t, onAuth}) => {
+const ProfilePage: React.FC<{user: any | null, t: any, onAuth: any, onNavigate?: any}> = ({user, t, onAuth}) => {
     const [isEditing, setIsEditing] = useState(false);
     const [editData, setEditData] = useState<any>(null);
     const [saving, setSaving] = useState(false);
@@ -1420,12 +1459,32 @@ const ProfilePage: React.FC<{user: any | null, t: any, onAuth: any, onNavigate: 
         if (!editData || !user || typeof firebase === 'undefined' || !firebase.firestore) return;
         setSaving(true);
         try {
-            await firebase.firestore().collection('users').doc(user.uid).update(editData);
+            await firebase.firestore().collection('users').doc(user.uid).set({
+                ...user,
+                ...editData
+            });
             setIsEditing(false);
             alert(t('save') + "!");
-        } catch (err) {
+        } catch (err: any) {
+            alert("Error: " + err.message);
         } finally {
             setSaving(false);
+        }
+    };
+
+    const handleDeleteAccount = async () => {
+        if (window.confirm(t('delete_confirm'))) {
+            if (window.confirm("FINAL WARNING: All points and data will be lost. Proceed?")) {
+                try {
+                    const currentUser = firebase.auth().currentUser;
+                    const uid = currentUser.uid;
+                    await firebase.firestore().collection('users').doc(uid).delete();
+                    await currentUser.delete();
+                    alert("Account deleted.");
+                } catch (err: any) {
+                    alert("Authentication required. Please logout and login again before deleting your account.");
+                }
+            }
         }
     };
 
@@ -1522,8 +1581,8 @@ const ProfilePage: React.FC<{user: any | null, t: any, onAuth: any, onNavigate: 
                     </div>
                 </div>
 
-                {isEditing && (
-                    <div className="pt-4">
+                <div className="pt-6 space-y-4">
+                    {isEditing ? (
                         <button 
                             onClick={handleSave} 
                             disabled={saving}
@@ -1532,8 +1591,19 @@ const ProfilePage: React.FC<{user: any | null, t: any, onAuth: any, onNavigate: 
                             {saving ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-save"></i>}
                             {t('save_profile')}
                         </button>
-                    </div>
-                )}
+                    ) : (
+                        <>
+                            <button onClick={() => firebase.auth().signOut()} className="w-full bg-[#2c3e50] text-white py-4 rounded-2xl font-black uppercase text-xs shadow-xl transition-all hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2">
+                                <i className="fas fa-sign-out-alt"></i>
+                                {t('logout')}
+                            </button>
+                            <button onClick={handleDeleteAccount} className="w-full border-2 border-red-100 text-red-500 py-4 rounded-2xl font-black uppercase text-[10px] transition-all hover:bg-red-50 flex items-center justify-center gap-2">
+                                <i className="fas fa-trash"></i>
+                                {t('delete_account')}
+                            </button>
+                        </>
+                    )}
+                </div>
             </div>
         </div>
     );
