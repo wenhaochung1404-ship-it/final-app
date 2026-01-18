@@ -61,7 +61,9 @@ const App: React.FC = () => {
         let unsubNotifs: () => void = () => {};
 
         const initFirebase = async () => {
+            // Check if firebase object exists yet
             if (typeof firebase === 'undefined' || !firebase.auth) {
+                console.warn("Firebase not yet loaded, retrying...");
                 setTimeout(initFirebase, 500);
                 return;
             }
@@ -85,14 +87,14 @@ const App: React.FC = () => {
 
                 unsubscribeAuth = firebase.auth().onAuthStateChanged(async (authUser: any) => {
                     if (authUser) {
-                        setEmailVerified(authUser.emailVerified);
+                        setEmailVerified(!!authUser.emailVerified);
                         db.collection('users').doc(authUser.uid).onSnapshot((doc: any) => {
                             if (doc.exists) {
                                 setUser({ ...doc.data(), uid: authUser.uid });
                             } else {
                                 setUser({ uid: authUser.uid, email: authUser.email, points: 5 } as any);
                             }
-                        }, (err: any) => console.error(err));
+                        }, (err: any) => console.error("Firestore user snapshot error:", err));
 
                         unsubNotifs = db.collection('notifications')
                             .where('userId', '==', authUser.uid)
@@ -100,7 +102,7 @@ const App: React.FC = () => {
                                 const notifs = snap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
                                 notifs.sort((a: any, b: any) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
                                 setNotifications(notifs);
-                            }, (err: any) => console.error(err));
+                            }, (err: any) => console.error("Firestore notif snapshot error:", err));
                     } else { 
                         setUser(null); 
                         setNotifications([]);
@@ -108,9 +110,12 @@ const App: React.FC = () => {
                         if (unsubNotifs) unsubNotifs();
                     }
                     setLoading(false);
-                }, () => setLoading(false));
+                }, (err: any) => {
+                    console.error("Auth state change error:", err);
+                    setLoading(false);
+                });
             } catch (err) {
-                console.error("Firebase init error:", err);
+                console.error("Firebase init catch error:", err);
                 setLoading(false);
             }
         };
@@ -133,8 +138,10 @@ const App: React.FC = () => {
 
     const resendVerification = async () => {
         try {
-            await firebase.auth().currentUser.sendEmailVerification();
-            alert("Verification email sent! Please check your inbox.");
+            if (firebase.auth().currentUser) {
+                await firebase.auth().currentUser.sendEmailVerification();
+                alert("Verification email sent! Please check your inbox.");
+            }
         } catch (e: any) {
             alert(e.message);
         }
@@ -1214,14 +1221,16 @@ const AuthModal: React.FC<{onClose: () => void, t: any, lang: Language}> = ({onC
                 const {user} = await firebase.auth().createUserWithEmailAndPassword(data.email, data.password);
                 
                 // Send email verification
-                await user.sendEmailVerification();
-                
-                await firebase.firestore().collection('users').doc(user.uid).set({ 
-                    email: data.email, displayName: data.name, points: 5, birthdate: data.birthdate, 
-                    phone: data.phone, address: data.address, userClass: data.userClass, 
-                    isAdmin: data.email === 'admin@gmail.com'
-                });
-                alert("Account created! A verification link has been sent to your email. Please verify to access all features.");
+                if (user) {
+                    await user.sendEmailVerification();
+                    
+                    await firebase.firestore().collection('users').doc(user.uid).set({ 
+                        email: data.email, displayName: data.name, points: 5, birthdate: data.birthdate, 
+                        phone: data.phone, address: data.address, userClass: data.userClass, 
+                        isAdmin: data.email === 'admin@gmail.com'
+                    });
+                    alert("Account created! A verification link has been sent to your email. Please verify to access all features.");
+                }
                 onClose();
             }
         } catch (err: any) { setError(err.message); } finally { setLoading(false); }
