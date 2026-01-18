@@ -268,6 +268,7 @@ const App: React.FC = () => {
                         {page === 'profile' && <ProfilePage user={user} t={t} onAuth={() => setIsAuthModalOpen(true)} onNavigate={setPage} />}
                         {page === 'shop' && <ShopPage user={user} t={t} onAuth={() => setIsAuthModalOpen(true)} onRedeemConfirm={setItemToRedeem} />}
                         {page === 'history' && <HistoryPage user={user} t={t} onAuth={() => setIsAuthModalOpen(true)} />}
+                        {page === 'guide' && <UserGuidePage t={t} isAdmin={isAdmin} />}
                     </div>
                 </main>
 
@@ -281,7 +282,7 @@ const App: React.FC = () => {
             <aside className={`fixed inset-y-0 left-0 w-[80vw] sm:w-80 bg-white z-[301] transform transition-transform duration-500 shadow-2xl flex flex-col ${isMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
                 <div className="p-8 flex flex-col h-full" onClick={(e) => e.stopPropagation()}>
                     <div className="flex justify-between items-center mb-12">
-                        <h2 className="text-xl font-black italic text-[#2c3e50] uppercase tracking-tighter">Miri Connect</h2>
+                        <h2 className="text-xl font-black italic text-[#2c3e50] uppercase tracking-tighter">MIRI CARE CONNECT</h2>
                         <button onClick={() => setIsMenuOpen(false)} className="text-gray-400 hover:text-red-500"><i className="fas fa-times text-2xl"></i></button>
                     </div>
                     {user && (
@@ -292,6 +293,7 @@ const App: React.FC = () => {
                     )}
                     <nav className="flex flex-col gap-2">
                         <MenuItem icon="home" label={t('home')} onClick={() => { setPage('home'); setIsMenuOpen(false); }} active={page === 'home'} />
+                        <MenuItem icon="book" label={t('user_guide')} onClick={() => { setPage('guide'); setIsMenuOpen(false); }} active={page === 'guide'} />
                         <MenuItem icon="user" label={t('profile')} onClick={() => { setPage('profile'); setIsMenuOpen(false); }} active={page === 'profile'} />
                         <MenuItem icon="shopping-cart" label={t('points_shop')} onClick={() => { setPage('shop'); setIsMenuOpen(false); }} active={page === 'shop'} />
                         <MenuItem icon="history" label={t('history')} onClick={() => { setPage('history'); setIsMenuOpen(false); }} active={page === 'history'} />
@@ -374,6 +376,86 @@ const App: React.FC = () => {
                     }} 
                 />
             )}
+        </div>
+    );
+};
+
+const UserGuidePage: React.FC<{t: any, isAdmin: boolean}> = ({t, isAdmin}) => {
+    const [guideContent, setGuideContent] = useState('');
+    const [isEditing, setIsEditing] = useState(false);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        if (typeof firebase === 'undefined' || !firebase.firestore) return;
+        const db = firebase.firestore();
+        const unsub = db.collection('settings').doc('user_guide').onSnapshot((doc: any) => {
+            if (doc.exists) {
+                setGuideContent(doc.data().content || '');
+            }
+            setLoading(false);
+        }, (err: any) => {
+            setLoading(false);
+        });
+        return unsub;
+    }, []);
+
+    const handleSave = async () => {
+        if (typeof firebase === 'undefined' || !firebase.firestore) return;
+        try {
+            await firebase.firestore().collection('settings').doc('user_guide').set({
+                content: guideContent,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            setIsEditing(false);
+            alert(t('save') + "!");
+        } catch (e) {
+            alert("Error saving: " + e.message);
+        }
+    };
+
+    if (loading) return (
+        <div className="py-20 text-center text-gray-400 uppercase font-black tracking-widest text-xs italic">
+            {t('loading_citizens')}
+        </div>
+    );
+
+    return (
+        <div className="max-w-4xl mx-auto space-y-8 py-12">
+            <div className="flex justify-between items-center border-b-4 border-[#2c3e50] pb-4">
+                <h1 className="text-4xl font-black italic uppercase text-[#2c3e50] tracking-tighter">
+                    {t('user_guide')}
+                </h1>
+                {isAdmin && (
+                    <button 
+                        onClick={() => isEditing ? handleSave() : setIsEditing(true)}
+                        className={`px-6 py-2 rounded-full font-black text-[10px] uppercase shadow-lg transition-all ${isEditing ? 'bg-[#2ecc71] text-white' : 'bg-[#3498db] text-white hover:scale-105'}`}
+                    >
+                        <i className={`fas fa-${isEditing ? 'save' : 'edit'} mr-2`}></i>
+                        {isEditing ? t('save') : t('update')}
+                    </button>
+                )}
+            </div>
+
+            <div className="bg-white rounded-[2.5rem] p-8 sm:p-12 shadow-xl min-h-[400px] border border-gray-100">
+                {isEditing ? (
+                    <textarea 
+                        value={guideContent}
+                        onChange={(e) => setGuideContent(e.target.value)}
+                        placeholder="Write user instructions here..."
+                        className="w-full h-[500px] p-6 bg-gray-50 border-2 border-dashed border-gray-200 rounded-[2rem] outline-none font-bold text-sm focus:border-[#3498db] transition-all resize-none"
+                    />
+                ) : (
+                    <div className="prose prose-blue max-w-none">
+                        <div className="whitespace-pre-wrap font-medium text-gray-600 text-sm sm:text-base leading-relaxed">
+                            {guideContent || (
+                                <div className="py-20 text-center text-gray-300 italic uppercase font-black text-xs tracking-widest">
+                                    No instructions added yet.
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+            </div>
         </div>
     );
 };
