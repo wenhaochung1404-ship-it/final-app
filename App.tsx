@@ -94,10 +94,12 @@ const App: React.FC = () => {
                             }
                         }, (err: any) => {});
 
+                        // Real-time notifications for the specific user
                         unsubNotifs = db.collection('notifications')
                             .where('userId', '==', authUser.uid)
                             .onSnapshot((snap: any) => {
                                 const notifs = snap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+                                // Sort by newest first locally just in case
                                 notifs.sort((a: any, b: any) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
                                 setNotifications(notifs);
                             }, (err: any) => {});
@@ -388,13 +390,16 @@ const QuickOfferModalContent: React.FC<{user: any, t: any, onComplete: () => voi
                 userClass: user.userClass || 'N/A'
             });
 
+            // Send notification to all Admins
             const adminQuery = await db.collection('users').where('isAdmin', '==', true).get();
             adminQuery.forEach(async (adminDoc: any) => {
                 await db.collection('notifications').add({
                     userId: adminDoc.id,
                     title: `New Offer: ${item.itemName}`,
                     message: `${user.displayName} from ${user.userClass || 'unknown class'} has offered an item.`,
-                    type: 'offer', read: false, createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                    type: 'offer',
+                    read: false,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
                 });
             });
 
@@ -540,12 +545,17 @@ const HomePage: React.FC<{t: any, user: any | null}> = ({t, user}) => {
                 });
                 transaction.delete(db.collection('donations').doc(donation.id));
             });
+
+            // Notify donor about earned points
             await db.collection('notifications').add({
                 userId: donation.userId,
                 title: `You earned ${pointsToEarn} points!`,
                 message: `Thank you for offering ${itemQty} ${donation.itemName}. Your kindness matters!`,
-                type: 'status', read: false, createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                type: 'status',
+                read: false,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
             });
+
             alert("Confirmed!");
         } catch (err) {}
     };
@@ -704,6 +714,18 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
             text, sender: 'admin',
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
         });
+        
+        // Notify user about official support response
+        if (!activeSupportUser.isGuest) {
+            await firebase.firestore().collection('notifications').add({
+                userId: activeSupportUser.userId,
+                title: "New Support Message",
+                message: "An admin has responded to your support request.",
+                type: 'message',
+                read: false,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+        }
     };
 
     const approveOffer = async (offer: any) => {
@@ -722,12 +744,17 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
                 });
                 transaction.delete(db.collection('donations').doc(offer.id));
             });
+
+            // Notify donor about approval
             await db.collection('notifications').add({
                 userId: offer.userId,
                 title: `Offer Approved: ${offer.itemName}`,
                 message: `Your donation was verified. You earned ${pointsToEarn} points!`,
-                type: 'status', read: false, createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                type: 'status',
+                read: false,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
             });
+
             alert("Approved!");
             setSelectedOffer(null);
         } catch (err) {}
