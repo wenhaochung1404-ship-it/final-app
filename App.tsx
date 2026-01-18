@@ -28,6 +28,133 @@ const AdminInput: React.FC<{label: string, value: any, onChange?: (v: any) => vo
     </div>
 );
 
+const HomePage: React.FC<{ t: any, user: any }> = ({ t, user }) => {
+    const [donations, setDonations] = useState<any[]>([]);
+    const [announcement, setAnnouncement] = useState<{text: string}>({text: ''});
+    const [isEditing, setIsEditing] = useState(false);
+    const [editValue, setEditValue] = useState('');
+
+    const isAdmin = user?.isAdmin || user?.email === 'admin@gmail.com';
+    
+    useEffect(() => {
+        if (typeof firebase === 'undefined' || !firebase.firestore) return;
+        const db = firebase.firestore();
+        
+        const unsubDonations = db.collection('donations').onSnapshot((snap: any) => {
+            const data = snap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+            data.sort((a: any, b: any) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+            setDonations(data);
+        });
+
+        const unsubAnnounce = db.collection('settings').doc('announcement').onSnapshot((doc: any) => {
+            if (doc.exists) {
+                const data = doc.data();
+                setAnnouncement(data);
+                setEditValue(data.text || '');
+            }
+        });
+
+        return () => { unsubDonations(); unsubAnnounce(); };
+    }, []);
+
+    const saveAnnouncement = async () => {
+        if (typeof firebase === 'undefined' || !firebase.firestore) return;
+        await firebase.firestore().collection('settings').doc('announcement').set({
+            text: editValue,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        setIsEditing(false);
+    };
+
+    return (
+        <div className="space-y-8 py-4 sm:py-8 max-w-6xl mx-auto">
+            {/* 1st Image Style: Show Hero only if NOT logged in */}
+            {!user && (
+                <div className="bg-[#2c3e50] text-white rounded-[2.5rem] p-8 sm:p-16 text-center shadow-2xl relative overflow-hidden border-b-[10px] border-[#3498db] animate-in fade-in zoom-in duration-500">
+                    <h1 className="text-4xl sm:text-7xl font-black italic uppercase tracking-tighter leading-tight mb-4">
+                        CONNECTING MIRI CITIZENS IN NEED
+                    </h1>
+                    <p className="text-gray-400 font-bold uppercase text-sm sm:text-lg tracking-widest">
+                        SHARE YOUR EXTRA ITEMS WITH OTHERS THAT NEED HELP
+                    </p>
+                </div>
+            )}
+
+            {/* 2nd Image Style: Announcements Section */}
+            <div className="space-y-4 px-2">
+                <div className="flex justify-between items-end">
+                    <h3 className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em] ml-2">ANNOUNCEMENTS</h3>
+                    {isAdmin && (
+                        <button 
+                            onClick={() => isEditing ? saveAnnouncement() : setIsEditing(true)}
+                            className="text-[10px] font-black uppercase text-[#3498db] tracking-widest hover:underline px-2"
+                        >
+                            {isEditing ? 'PUBLISH' : 'UPDATE'}
+                        </button>
+                    )}
+                </div>
+                
+                <div className="bg-white rounded-[2.5rem] border border-gray-100 p-8 sm:p-12 shadow-sm relative transition-all">
+                    {isEditing ? (
+                        <div className="space-y-4">
+                            <textarea 
+                                value={editValue}
+                                onChange={(e) => setEditValue(e.target.value)}
+                                className="w-full min-h-[200px] p-4 bg-gray-50 border-2 border-dashed border-gray-200 rounded-2xl font-bold text-[#2c3e50] text-sm outline-none focus:border-[#3498db] transition-all"
+                                placeholder="Type announcement here..."
+                            />
+                            <button onClick={() => setIsEditing(false)} className="text-[10px] font-black uppercase text-gray-400 mr-4">CANCEL</button>
+                        </div>
+                    ) : (
+                        <div className="flex gap-4 sm:gap-6">
+                            <div className="w-10 h-10 flex-shrink-0 bg-blue-50 rounded-full flex items-center justify-center text-[#3498db]">
+                                <i className="fas fa-bullhorn"></i>
+                            </div>
+                            <div className="whitespace-pre-wrap font-bold text-[#2c3e50] text-sm leading-relaxed pt-1">
+                                {announcement.text || 'No announcements yet.'}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            <section className="space-y-6 px-2">
+                <h2 className="text-xl font-black text-[#2c3e50] uppercase italic tracking-tighter border-l-4 border-[#3498db] pl-4">{t('offer_help')}</h2>
+                {donations.length === 0 ? (
+                    <div className="bg-white p-12 rounded-[2.5rem] border-4 border-dashed border-gray-100 text-center">
+                        <p className="text-gray-400 font-black uppercase italic text-xs">{t('empty_offers_msg')}</p>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {donations.map(item => (
+                            <div key={item.id} className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 hover:shadow-md transition-all">
+                                <div className="flex justify-between items-start mb-4">
+                                    <h3 className="font-black text-[#2c3e50] uppercase truncate mr-2">{item.itemName}</h3>
+                                    <span className="bg-blue-50 text-[#3498db] text-[9px] font-black px-2 py-1 rounded-full uppercase flex-shrink-0">{item.qty} qty</span>
+                                </div>
+                                <div className="text-[10px] text-gray-400 font-bold uppercase space-y-1">
+                                    <p><i className="fas fa-tag mr-2 text-[#3498db]"></i>{item.category}</p>
+                                    <p><i className="fas fa-user mr-2 text-[#3498db]"></i>{item.donorName}</p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </section>
+        </div>
+    );
+};
+
+const FeatureCard: React.FC<{ icon: string, title: string, desc: string, color: string }> = ({ icon, title, desc, color }) => (
+    <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-gray-50 hover:-translate-y-2 transition-transform duration-300 group">
+        <div className={`w-16 h-16 ${color} text-white rounded-2xl flex items-center justify-center text-2xl mb-8 shadow-lg group-hover:rotate-6 transition-transform`}>
+            <i className={`fas fa-${icon}`}></i>
+        </div>
+        <h3 className="text-xl font-black uppercase italic text-[#2c3e50] mb-3 tracking-tighter">{title}</h3>
+        <p className="text-gray-400 font-bold text-xs leading-relaxed uppercase">{desc}</p>
+    </div>
+);
+
 export const App: React.FC = () => {
     const [lang, setLang] = useState<Language>(Language.EN);
     const [user, setUser] = useState<any | null>(null);
@@ -91,7 +218,6 @@ export const App: React.FC = () => {
                         
                         db.collection('users').doc(authUser.uid).onSnapshot((doc: any) => {
                             if (doc.exists) {
-                                // Explicitly extract data to avoid circular structures
                                 const data = doc.data();
                                 setUser({ ...data, uid: authUser.uid });
                             } else {
@@ -269,7 +395,7 @@ export const App: React.FC = () => {
                     </div>
                 </div>
 
-                <main className={`flex-1 overflow-y-auto transition-all duration-300 ${isAdmin && showAdminPanel ? 'lg:mr-96' : ''}`}>
+                <main className={`flex-1 overflow-y-auto transition-all duration-300 ${isAdmin && showAdminPanel ? 'lg:mr-80' : ''}`}>
                     <div className="container mx-auto px-4 py-8 max-w-6xl">
                         {page === 'home' && <HomePage t={t} user={user} />}
                         {page === 'profile' && <ProfilePage user={user} t={t} onAuth={() => setIsAuthModalOpen(true)} onNavigate={() => {}} />}
@@ -280,7 +406,7 @@ export const App: React.FC = () => {
                 </main>
 
                 {isAdmin && (
-                    <aside className={`fixed top-16 sm:top-20 right-0 bottom-0 w-80 sm:w-96 bg-white border-l border-gray-100 shadow-2xl z-[100] transition-transform duration-300 transform ${showAdminPanel ? 'translate-x-0' : 'translate-x-full'}`}>
+                    <aside className={`fixed top-16 sm:top-20 right-4 bottom-[120px] w-72 sm:w-80 bg-white border border-gray-100 rounded-[2.5rem] shadow-2xl z-[100] transition-transform duration-300 transform overflow-hidden ${showAdminPanel ? 'translate-x-0' : 'translate-x-[120%]'}`}>
                         <AdminPanelContent t={t} user={user} />
                     </aside>
                 )}
@@ -373,12 +499,17 @@ export const App: React.FC = () => {
                                 if (userDoc.data().points < itemToRedeem.cost) throw new Error("Not enough points");
                                 transaction.update(userRef, { points: userDoc.data().points - itemToRedeem.cost });
                                 transaction.set(db.collection('redeem_history').doc(), {
-                                    userId: user!.uid, fullName, userClass, itemName: itemToRedeem.name, 
-                                    itemPoints: itemToRedeem.cost, redeemedAt: firebase.firestore.FieldValue.serverTimestamp()
+                                    userId: user!.uid, 
+                                    fullName, 
+                                    userClass, 
+                                    itemName: itemToRedeem.name, 
+                                    itemPoints: itemToRedeem.cost, 
+                                    redeemedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                                    status: 'pending'
                                 });
                             });
                             setItemToRedeem(null);
-                            alert(t('voucher_redeemed_alert') || "Voucher redeemed!");
+                            alert("Voucher requested! Please wait for admin approval.");
                         } catch (e: any) { alert("Failed: " + e.message); }
                     }} 
                 />
@@ -488,7 +619,6 @@ const ProfilePage: React.FC<{user: any | null, t: any, onAuth: () => void, onNav
         if (!editData || !user || typeof firebase === 'undefined' || !firebase.firestore) return;
         setSaving(true);
         try {
-            // Pick only necessary serializable fields to avoid circular structure errors
             const updatePayload = {
                 displayName: editData.displayName,
                 userClass: editData.userClass,
@@ -647,48 +777,191 @@ const ProfilePage: React.FC<{user: any | null, t: any, onAuth: () => void, onNav
 };
 
 const ShopPage: React.FC<{user: any, t: any, onAuth: () => void, onRedeemConfirm: (item: any) => void}> = ({user, t, onAuth, onRedeemConfirm}) => {
-    const rewards = [
-        { id: 1, name: 'T-Shirt', cost: 100, color: '#3498db' },
-        { id: 2, name: 'Water Bottle', cost: 50, color: '#2ecc71' },
-        { id: 3, name: 'Notebook', cost: 30, color: '#f39c12' }
-    ];
+    const [rewards, setRewards] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [showAddForm, setShowAddForm] = useState(false);
+    const [newItem, setNewItem] = useState({ name: '', cost: 0, color: '#3498db' });
+
+    useEffect(() => {
+        if (typeof firebase === 'undefined' || !firebase.firestore) return;
+        const db = firebase.firestore();
+        const unsub = db.collection('shop_items').onSnapshot((snap: any) => {
+            const data = snap.docs.map((d: any) => ({ ...d.data(), id: d.id }));
+            data.sort((a: any, b: any) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+            setRewards(data);
+            setLoading(false);
+        }, (err: any) => {
+            setLoading(false);
+        });
+        return unsub;
+    }, []);
+
+    const isAdmin = user?.isAdmin || user?.email === 'admin@gmail.com';
+
+    const handleAddItem = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (typeof firebase === 'undefined' || !firebase.firestore) return;
+        await firebase.firestore().collection('shop_items').add({
+            ...newItem,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        setNewItem({ name: '', cost: 0, color: '#3498db' });
+        setShowAddForm(false);
+        alert("Reward Added!");
+    };
+
+    if (loading) return <div className="text-center py-20 font-black uppercase text-gray-300">Checking Inventory...</div>;
+
     return (
         <div className="space-y-8">
-            <h2 className="text-3xl font-black italic uppercase text-[#2c3e50] tracking-tighter">{t('points_shop')}</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {rewards.map(item => (
-                    <div key={item.id} className="bg-white p-8 rounded-[2.5rem] shadow-lg border-b-8 transition-transform hover:-translate-y-2" style={{ borderColor: item.color }}>
-                        <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-white text-2xl mb-6 shadow-lg" style={{ backgroundColor: item.color }}>
-                            <i className="fas fa-gift"></i>
-                        </div>
-                        <h3 className="text-xl font-black text-[#2c3e50] uppercase mb-2">{item.name}</h3>
-                        <p className="text-[#f39c12] font-black text-lg mb-6">{item.cost} <span className="text-xs uppercase">{t('points')}</span></p>
-                        <button 
-                            onClick={() => user ? onRedeemConfirm(item) : onAuth()}
-                            className="w-full py-4 rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg transition-all active:scale-95 text-white"
-                            style={{ backgroundColor: item.color }}
-                        >
-                            {t('redeem_now')}
-                        </button>
-                    </div>
-                ))}
+            <div className="flex justify-between items-center">
+                <h2 className="text-3xl font-black italic uppercase text-[#2c3e50] tracking-tighter">{t('points_shop')}</h2>
+                {isAdmin && (
+                    <button onClick={() => setShowAddForm(!showAddForm)} className="bg-[#2c3e50] text-white px-6 py-2 rounded-full font-black text-[10px] uppercase shadow-lg transition-all active:scale-95">
+                        <i className={`fas fa-${showAddForm ? 'times' : 'plus'} mr-2`}></i>
+                        {showAddForm ? t('cancel') : t('add_reward')}
+                    </button>
+                )}
             </div>
+
+            {showAddForm && (
+                <form onSubmit={handleAddItem} className="bg-white p-8 rounded-[2.5rem] shadow-xl border-4 border-dashed border-gray-100 max-w-xl mx-auto space-y-4 animate-in zoom-in">
+                    <AdminInput label={t('product_name')} value={newItem.name} onChange={v => setNewItem({...newItem, name: v})} placeholder="e.g. Special Voucher" />
+                    <AdminInput label={t('point_cost')} type="number" value={newItem.cost} onChange={v => setNewItem({...newItem, cost: v})} />
+                    <AdminInput label={t('color_code')} type="color" value={newItem.color} onChange={v => setNewItem({...newItem, color: v})} />
+                    <button type="submit" className="w-full bg-[#3498db] text-white py-4 rounded-2xl font-black uppercase shadow-xl">{t('save')}</button>
+                </form>
+            )}
+
+            {rewards.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-24 bg-white rounded-[3rem] border-4 border-dashed border-gray-100">
+                    <i className="fas fa-rocket text-6xl text-gray-200 mb-6 animate-bounce"></i>
+                    <h2 className="text-4xl font-black text-[#2c3e50] uppercase italic tracking-tighter">Coming Soon</h2>
+                    <p className="text-gray-400 font-bold uppercase text-xs mt-2">Our store is currently being restocked with kindness rewards.</p>
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {rewards.map(item => (
+                        <div key={item.id} className="bg-white p-8 rounded-[2.5rem] shadow-lg border-b-8 transition-transform hover:-translate-y-2 relative group" style={{ borderColor: item.color || '#3498db' }}>
+                            {isAdmin && (
+                                <button onClick={() => firebase.firestore().collection('shop_items').doc(item.id).delete()} className="absolute top-4 right-4 text-gray-200 hover:text-red-500 transition-colors">
+                                    <i className="fas fa-trash-alt"></i>
+                                </button>
+                            )}
+                            <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-white text-2xl mb-6 shadow-lg" style={{ backgroundColor: item.color || '#3498db' }}>
+                                <i className="fas fa-gift"></i>
+                            </div>
+                            <h3 className="text-xl font-black text-[#2c3e50] uppercase mb-2">{item.name}</h3>
+                            <p className="text-[#f39c12] font-black text-lg mb-6">{item.cost} <span className="text-xs uppercase">{t('points')}</span></p>
+                            <button 
+                                onClick={() => user ? onRedeemConfirm(item) : onAuth()}
+                                className="w-full py-4 rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg transition-all active:scale-95 text-white"
+                                style={{ backgroundColor: item.color || '#3498db' }}
+                            >
+                                {t('redeem_now')}
+                            </button>
+                        </div>
+                    ))}
+                </div>
+            )}
         </div>
     );
 };
 
 const HistoryPage: React.FC<{user: any, t: any, onAuth: () => void}> = ({user, t, onAuth}) => {
+    const [redeems, setRedeems] = useState<any[]>([]);
+    const [myOffers, setMyOffers] = useState<any[]>([]);
+    const [activeTab, setActiveTab] = useState<'offers' | 'rewards'>('offers');
+    
+    useEffect(() => {
+        if (!user || typeof firebase === 'undefined' || !firebase.firestore) return;
+        const db = firebase.firestore();
+        
+        const unsubRedeems = db.collection('redeem_history')
+            .where('userId', '==', user.uid)
+            .onSnapshot((snap: any) => {
+                const data = snap.docs.map((d: any) => ({...d.data(), id: d.id}));
+                data.sort((a: any, b: any) => (b.redeemedAt?.toMillis?.() || 0) - (a.redeemedAt?.toMillis?.() || 0));
+                setRedeems(data);
+            });
+
+        const unsubOffers = db.collection('donations')
+            .where('userId', '==', user.uid)
+            .onSnapshot((snap: any) => {
+                const data = snap.docs.map((d: any) => ({...d.data(), id: d.id, active: true}));
+                db.collection('completed_donations').where('userId', '==', user.uid).get().then((cSnap: any) => {
+                    const cData = cSnap.docs.map((d: any) => ({...d.data(), id: d.id, active: false}));
+                    const combined = [...data, ...cData];
+                    combined.sort((a: any, b: any) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+                    setMyOffers(combined);
+                });
+            });
+
+        return () => { unsubRedeems(); unsubOffers(); };
+    }, [user]);
+
     if (!user) return <div className="py-20 text-center"><button onClick={onAuth} className="bg-[#3498db] text-white px-8 py-4 rounded-2xl font-black uppercase shadow-xl">{t('login')}</button></div>;
+    
     return (
         <div className="space-y-8">
             <h2 className="text-3xl font-black italic uppercase text-[#2c3e50] tracking-tighter">{t('history')}</h2>
-            <div className="bg-white rounded-[2.5rem] p-10 shadow-xl border border-gray-100 text-center py-24">
-                <i className="fas fa-history text-5xl text-gray-200 mb-6"></i>
-                <p className="text-gray-400 font-black uppercase italic text-xs tracking-widest">{t('nothing_here')}</p>
+            
+            <div className="flex gap-2 p-1 bg-gray-100 rounded-2xl max-w-md">
+                <button onClick={() => setActiveTab('offers')} className={`flex-1 py-3 rounded-xl font-black uppercase text-[10px] transition-all ${activeTab === 'offers' ? 'bg-white text-[#2c3e50] shadow-sm' : 'text-gray-400'}`}>{t('contributions')}</button>
+                <button onClick={() => setActiveTab('rewards')} className={`flex-1 py-3 rounded-xl font-black uppercase text-[10px] transition-all ${activeTab === 'rewards' ? 'bg-white text-[#2c3e50] shadow-sm' : 'text-gray-400'}`}>{t('rewards')}</button>
+            </div>
+
+            <div className="space-y-4">
+                {activeTab === 'offers' ? (
+                    myOffers.length === 0 ? (
+                        <EmptyHistory t={t} />
+                    ) : (
+                        myOffers.map(o => (
+                            <div key={o.id} className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex justify-between items-center animate-in slide-in-from-bottom-2">
+                                <div>
+                                    <h4 className="font-black text-[#2c3e50] uppercase italic">{o.itemName}</h4>
+                                    <p className="text-[10px] text-gray-400 font-bold uppercase">{o.category} • Qty: {o.qty}</p>
+                                </div>
+                                <div className="flex flex-col items-end gap-1">
+                                    <span className={`text-[8px] font-black uppercase px-3 py-1 rounded-full ${o.active ? 'bg-amber-100 text-amber-600' : 'bg-green-100 text-green-600'}`}>
+                                        {o.active ? t('pending_approval') : t('verified')}
+                                    </span>
+                                    {!o.active && <span className="font-black text-green-500 text-[10px]">+{o.earnedPoints || 5} {t('points')}</span>}
+                                </div>
+                            </div>
+                        ))
+                    )
+                ) : (
+                    redeems.length === 0 ? (
+                        <EmptyHistory t={t} />
+                    ) : (
+                        redeems.map(r => (
+                            <div key={r.id} className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex justify-between items-center animate-in slide-in-from-bottom-2">
+                                <div>
+                                    <h4 className="font-black text-[#2c3e50] uppercase italic">{r.itemName}</h4>
+                                    <p className="text-[10px] text-gray-400 font-bold">{r.redeemedAt?.toDate()?.toLocaleDateString()}</p>
+                                </div>
+                                <div className="flex flex-col items-end gap-1">
+                                    <span className={`text-[8px] font-black uppercase px-3 py-1 rounded-full ${r.status === 'confirmed' ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'}`}>
+                                        {r.status || 'pending'}
+                                    </span>
+                                    <span className="font-black text-red-500">-{r.itemPoints} {t('points')}</span>
+                                </div>
+                            </div>
+                        ))
+                    )
+                )}
             </div>
         </div>
     );
 };
+
+const EmptyHistory: React.FC<{t: any}> = ({t}) => (
+    <div className="bg-white rounded-[2.5rem] p-10 shadow-xl border border-gray-100 text-center py-24">
+        <i className="fas fa-history text-5xl text-gray-200 mb-6"></i>
+        <p className="text-gray-400 font-black uppercase italic text-xs tracking-widest">{t('nothing_here')}</p>
+    </div>
+);
 
 const RedeemConfirmModal: React.FC<{item: any, user: any, t: any, onCancel: () => void, onConfirm: (name: string, cls: string) => void}> = ({item, user, t, onCancel, onConfirm}) => {
     const [name, setName] = useState(user.displayName || '');
@@ -716,8 +989,11 @@ const AdminChatLogWindow: React.FC<{userId: string}> = ({userId}) => {
         if (typeof firebase === 'undefined' || !firebase.firestore) return;
         return firebase.firestore().collection('support_chats')
             .where('userId', '==', userId)
-            .orderBy('createdAt', 'asc')
-            .onSnapshot((snap: any) => setLogs(snap.docs.map((d: any) => d.data())), (err: any) => {});
+            .onSnapshot((snap: any) => {
+                const data = snap.docs.map((d: any) => d.data());
+                data.sort((a: any, b: any) => (a.createdAt?.toMillis?.() || 0) - (b.createdAt?.toMillis?.() || 0));
+                setLogs(data);
+            }, (err: any) => {});
     }, [userId]);
     return (
         <div className="space-y-2">
@@ -842,7 +1118,7 @@ const QuickOfferModalContent: React.FC<{user: any, t: any, onComplete: () => voi
                 });
             });
 
-            alert(t('offer_posted_alert') || "Offer Posted Successfully!");
+            alert("Offer Posted Successfully!");
             onComplete();
         } catch (err) { 
             alert("Failed to post offer."); 
@@ -936,176 +1212,6 @@ const SupportChatBody: React.FC<{userId: string, userName: string, t: any, isGue
     );
 };
 
-const HomePage: React.FC<{t: any, user: any | null}> = ({t, user}) => {
-    const [donations, setDonations] = useState<any[]>([]);
-    const [announcement, setAnnouncement] = useState<{text: string, updatedAt: any}>({text: '', updatedAt: null});
-    const [isEditingAnnounce, setIsEditingAnnounce] = useState(false);
-    const [announceInput, setAnnounceInput] = useState('');
-
-    useEffect(() => {
-        if (typeof firebase === 'undefined' || !firebase.firestore) return;
-        const db = firebase.firestore();
-        const unsubDonations = db.collection('donations').orderBy('createdAt', 'desc').onSnapshot((snap: any) => {
-            setDonations(snap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
-        }, (err: any) => {});
-        const unsubAnnounce = db.collection('settings').doc('announcement').onSnapshot((doc: any) => {
-            if (doc.exists) {
-                const data = doc.data();
-                setAnnouncement(data);
-                setAnnounceInput(data.text);
-            }
-        }, (err: any) => {});
-        return () => { unsubDonations(); unsubAnnounce(); };
-    }, []);
-
-    const saveAnnouncement = async () => {
-        if (typeof firebase === 'undefined' || !firebase.firestore) return;
-        await firebase.firestore().collection('settings').doc('announcement').set({
-            text: announceInput, updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
-        setIsEditingAnnounce(false);
-    };
-
-    const handleConfirmReceived = async (donation: any) => {
-        if (!user || (!user.isAdmin && user.email !== 'admin@gmail.com') || typeof firebase === 'undefined' || !firebase.firestore) return;
-        const itemQty = donation.qty || 1;
-        const pointsToEarn = itemQty * 5;
-        const confirmResult = window.confirm(`${t('confirm')}? ${t('points_earned')}: ${pointsToEarn}`);
-        if (!confirmResult) return;
-        const db = firebase.firestore();
-        try {
-            const donorRef = db.collection('users').doc(donation.userId);
-            await db.runTransaction(async (transaction: any) => {
-                const donorDoc = await transaction.get(donorRef);
-                const currentPoints = donorDoc.exists ? (donorDoc.data().points || 0) : 0;
-                transaction.update(donorRef, { points: currentPoints + pointsToEarn });
-                transaction.set(db.collection('completed_donations').doc(donation.id), {
-                    ...donation, completedAt: firebase.firestore.FieldValue.serverTimestamp(), confirmedBy: user.uid, earnedPoints: pointsToEarn
-                });
-                transaction.delete(db.collection('donations').doc(donation.id));
-            });
-
-            await db.collection('notifications').add({
-                userId: donation.userId,
-                title: t('points_earned_notif'),
-                message: `${t('quantity')}: ${itemQty} ${donation.itemName}.`,
-                type: 'status',
-                read: false,
-                createdAt: firebase.firestore.FieldValue.serverTimestamp()
-            });
-
-            alert(t('confirm') + "!");
-        } catch (err: any) {}
-    };
-
-    const handleDeclineOffer = async (donation: any) => {
-        if (!user || (!user.isAdmin && user.email !== 'admin@gmail.com') || typeof firebase === 'undefined' || !firebase.firestore) return;
-        const declineReason = window.confirm(`${t('decline')} "${donation.itemName}"?`);
-        if (!declineReason) return;
-        const db = firebase.firestore();
-        try {
-            await db.collection('donations').doc(donation.id).delete();
-            await db.collection('notifications').add({
-                userId: donation.userId,
-                title: t('offer_declined_notif'),
-                message: `${t('decline')}: ${donation.itemName}`,
-                type: 'status',
-                read: false,
-                createdAt: firebase.firestore.FieldValue.serverTimestamp()
-            });
-            alert(t('decline') + "!");
-        } catch (err: any) {}
-    };
-
-    const isAdmin = user?.isAdmin || user?.email === 'admin@gmail.com';
-
-    return (
-        <div className="space-y-12 pb-24">
-            {user === null && (
-                <section className="bg-[#2c3e50] text-white rounded-[2.5rem] p-12 text-center shadow-2xl border-b-8 border-[#3498db]">
-                    <h1 className="text-3xl sm:text-6xl font-black mb-6 italic uppercase tracking-tighter">{t('hero_title')}</h1>
-                    <p className="text-sm sm:text-lg opacity-80 font-bold uppercase">{t('hero_description')}</p>
-                </section>
-            )}
-            <div className="max-w-6xl mx-auto space-y-10">
-                <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                        <h3 className="text-xs font-black uppercase text-gray-400 tracking-widest">{t('announcements')}</h3>
-                        {isAdmin && <button onClick={() => setIsEditingAnnounce(!isEditingAnnounce)} className="text-[10px] font-black uppercase text-[#3498db]">{isEditingAnnounce ? t('cancel') : t('update')}</button>}
-                    </div>
-                    <div className="bg-white rounded-[2rem] border p-6 shadow-sm overflow-hidden">
-                        {isEditingAnnounce ? (
-                            <div className="space-y-4">
-                                <textarea 
-                                    value={announceInput} 
-                                    onChange={e => setAnnounceInput(e.target.value)} 
-                                    className="w-full min-h-[120px] p-4 bg-gray-50 rounded-xl outline-none font-bold text-sm resize-y" 
-                                />
-                                <button onClick={saveAnnouncement} className="bg-[#2c3e50] text-white px-8 py-2 rounded-lg font-black uppercase text-[10px]">{t('publish')}</button>
-                            </div>
-                        ) : (
-                            <div className="flex items-start gap-4">
-                                <i className="fas fa-bullhorn text-[#3498db] mt-1"></i>
-                                <p className="text-sm font-bold text-[#2c3e50] whitespace-pre-wrap flex-1">
-                                    {announcement.text || t('nothing_here')}
-                                </p>
-                            </div>
-                        )}
-                    </div>
-                </div>
-                <div className="space-y-6">
-                    <h2 className="text-lg font-black text-[#2c3e50] uppercase tracking-tight">{t('offer_help')}</h2>
-                    {donations.length === 0 ? (
-                        <div className="bg-white p-12 rounded-3xl border-4 border-dashed border-gray-100 text-center flex flex-col items-center gap-6">
-                            <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center text-[#3498db] text-3xl">
-                                <i className="fas fa-hand-holding-heart"></i>
-                            </div>
-                            <p className="text-[#2c3e50] font-black text-xl italic uppercase tracking-tighter max-w-md mx-auto">
-                                {t('empty_offers_msg')}
-                            </p>
-                        </div>
-                    ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {donations.map(item => (
-                                <div key={item.id} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col group">
-                                    <div className="flex justify-between items-start mb-4">
-                                        <h3 className="text-xl font-black text-[#2c3e50]">{item.itemName}</h3>
-                                        <div className="bg-blue-50 text-[#3498db] px-3 py-1 rounded-full text-[10px] font-black">{t('quantity')}: {item.qty}</div>
-                                    </div>
-                                    <div className="mb-4 flex flex-wrap gap-2">
-                                        <span className="bg-gray-50 text-gray-400 px-3 py-1 rounded-md text-[10px] font-black uppercase">{item.category}</span>
-                                        {item.createdAt && (
-                                            <span className="bg-gray-50 text-gray-400 px-3 py-1 rounded-md text-[10px] font-black uppercase">
-                                                <i className="far fa-calendar-alt mr-1"></i> {item.createdAt.toDate?.() ? 
-                                                    `${item.createdAt.toDate().getDate().toString().padStart(2, '0')}/${(item.createdAt.toDate().getMonth() + 1).toString().padStart(2, '0')}/${item.createdAt.toDate().getFullYear()}` 
-                                                    : 'Today'}
-                                            </span>
-                                        )}
-                                    </div>
-                                    <div className="space-y-2 flex-1 mb-6 text-gray-400 font-bold text-sm">
-                                        <div><i className="far fa-user mr-2"></i>{item.donorName}</div>
-                                        {item.userClass && <div className="text-[10px]"><i className="fas fa-school mr-2"></i>{item.userClass}</div>}
-                                    </div>
-                                    {isAdmin && (
-                                        <div className="flex gap-2">
-                                            <button onClick={() => handleConfirmReceived(item)} className="flex-1 bg-[#2ecc71] hover:bg-[#27ae60] text-white py-3 rounded-xl text-xs font-black uppercase shadow-md transition-all">
-                                                <i className="fas fa-check-circle mr-2"></i> {t('confirm')}
-                                            </button>
-                                            <button onClick={() => handleDeclineOffer(item)} className="bg-red-500 hover:bg-red-600 text-white px-4 py-3 rounded-xl text-xs font-black uppercase shadow-md transition-all">
-                                                {t('decline')}
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-            </div>
-        </div>
-    );
-};
-
 const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
     const [activeTab, setActiveTab] = useState<'users' | 'items' | 'vouchers' | 'chats'>('users');
     const [data, setData] = useState<{users: any[], items: any[], redemptions: any[], completedItems: any[], supportChats: any[]}>({users: [], items: [], redemptions: [], completedItems: [], supportChats: []});
@@ -1119,9 +1225,17 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
         if (typeof firebase === 'undefined' || !firebase.firestore) return;
         const db = firebase.firestore();
         const unsubUsers = db.collection('users').onSnapshot((snap: any) => setData(prev => ({...prev, users: snap.docs.map((d: any) => ({...d.data(), uid: d.id}))})), (err: any) => {});
-        const unsubItems = db.collection('donations').onSnapshot((snap: any) => setData(prev => ({...prev, items: snap.docs.map((d: any) => ({...d.data(), id: d.id}))})), (err: any) => {});
+        const unsubItems = db.collection('donations').onSnapshot((snap: any) => {
+            const items = snap.docs.map((d: any) => ({...d.data(), id: d.id}));
+            items.sort((a: any, b: any) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+            setData(prev => ({...prev, items}));
+        }, (err: any) => {});
         const unsubCompleted = db.collection('completed_donations').onSnapshot((snap: any) => setData(prev => ({...prev, completedItems: snap.docs.map((d: any) => ({...d.data(), id: d.id}))})), (err: any) => {});
-        const unsubRedemptions = db.collection('redeem_history').orderBy('redeemedAt', 'desc').onSnapshot((snap: any) => setData(prev => ({...prev, redemptions: snap.docs.map((d: any) => ({...d.data(), id: d.id}))})), (err: any) => {});
+        const unsubRedemptions = db.collection('redeem_history').onSnapshot((snap: any) => {
+            const redemptions = snap.docs.map((d: any) => ({...d.data(), id: d.id}));
+            redemptions.sort((a: any, b: any) => (b.redeemedAt?.toMillis?.() || 0) - (a.redeemedAt?.toMillis?.() || 0));
+            setData(prev => ({...prev, redemptions}));
+        }, (err: any) => {});
         
         const unsubSupport = db.collection('support_chats').onSnapshot((snap: any) => {
             const rawDocs = snap.docs.map((d: any) => d.data());
@@ -1183,12 +1297,29 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
             await firebase.firestore().collection('notifications').add({
                 userId: activeSupportUser.userId,
                 title: t('support_msg_notif'),
-                message: t('support_msg_notif'),
+                message: text,
                 type: 'message',
                 read: false,
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
             });
         }
+    };
+
+    const handleAcceptRedeem = async (redeem: any) => {
+        if (typeof firebase === 'undefined' || !firebase.firestore) return;
+        const db = firebase.firestore();
+        try {
+            await db.collection('redeem_history').doc(redeem.id).update({ status: 'confirmed' });
+            await db.collection('notifications').add({
+                userId: redeem.userId,
+                title: "Redeem Confirmed",
+                message: `Your redeem for ${redeem.itemName} has been confirmed.`,
+                type: 'status',
+                read: false,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            alert("Redemption Accepted!");
+        } catch (e) {}
     };
 
     const approveOffer = async (offer: any) => {
@@ -1210,7 +1341,7 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
 
             await db.collection('notifications').add({
                 userId: offer.userId,
-                title: t('offer_approved_notif'),
+                title: t('points_earned_notif'),
                 message: `${t('verified')}! ${t('points_earned')}: ${pointsToEarn}`,
                 type: 'status',
                 read: false,
@@ -1224,21 +1355,17 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
 
     return (
         <div className="h-full flex flex-col p-4 sm:p-6 overflow-hidden bg-white">
-            <h2 className="text-xl font-black italic uppercase text-[#2c3e50] mb-6 border-b-4 border-[#3498db] pb-2 inline-block">{t('admin_panel')}</h2>
-            <div className="flex flex-wrap gap-1 mb-6">
+            <h2 className="text-xl font-black italic uppercase text-[#2c3e50] mb-4 border-b-4 border-[#3498db] pb-2 inline-block shrink-0">{t('admin_panel')}</h2>
+            <div className="flex flex-wrap gap-1 mb-4 shrink-0">
                 <button onClick={() => { setActiveTab('users'); setEditingUser(null); setActiveSupportUser(null); setSelectedOffer(null); }} className={`flex-1 min-w-[60px] py-2 rounded-xl text-[7px] font-black uppercase ${activeTab === 'users' ? 'bg-[#2c3e50] text-white' : 'bg-gray-100'}`}>{t('users')}</button>
                 <button onClick={() => { setActiveTab('items'); setEditingUser(null); setActiveSupportUser(null); setSelectedOffer(null); }} className={`flex-1 min-w-[60px] py-2 rounded-xl text-[7px] font-black uppercase ${activeTab === 'items' ? 'bg-[#2c3e50] text-white' : 'bg-gray-100'}`}>{t('offers')}</button>
                 <button onClick={() => { setActiveTab('vouchers'); setEditingUser(null); setActiveSupportUser(null); setSelectedOffer(null); }} className={`flex-1 min-w-[60px] py-2 rounded-xl text-[7px] font-black uppercase ${activeTab === 'vouchers' ? 'bg-[#2c3e50] text-white' : 'bg-gray-100'}`}>{t('vouchers')}</button>
                 <button onClick={() => { setActiveTab('chats'); setEditingUser(null); setActiveSupportUser(null); setSelectedOffer(null); }} className={`flex-1 min-w-[60px] py-2 rounded-xl text-[7px] font-black uppercase ${activeTab === 'chats' ? 'bg-[#2c3e50] text-white' : 'bg-gray-100'}`}>{t('support')}</button>
             </div>
             
-            <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+            <div className="flex-1 overflow-y-auto space-y-4 pr-1 scrollbar-hide">
                 {activeTab === 'users' && (
                     <div className="space-y-4">
-                        <div className="bg-blue-50 p-3 rounded-xl border border-blue-100 mb-4">
-                            <div className="text-[10px] font-black text-blue-400 uppercase tracking-widest text-center">Total Registered Citizens</div>
-                            <div className="text-2xl font-black text-[#2c3e50] text-center">{data.users.length}</div>
-                        </div>
                         {editingUser ? (
                             <form onSubmit={handleUpdateUser} className="bg-gray-50 p-4 rounded-2xl border space-y-3">
                                 <AdminInput label={t('full_name')} value={editingUser.displayName} onChange={v => setEditingUser({...editingUser, displayName: v})} />
@@ -1257,12 +1384,10 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
                                 <input placeholder={t('search_placeholder')} className="w-full bg-gray-50 border p-3 rounded-xl text-xs font-bold outline-none" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
                                 {filteredUsers.map((u, index) => (
                                     <div key={u.uid} className="bg-white p-3 border rounded-xl flex items-center gap-4 group">
-                                        <div className="w-8 h-8 flex items-center justify-center bg-gray-100 rounded-lg text-[10px] font-black text-gray-400 shrink-0">
-                                            #{index + 1}
-                                        </div>
+                                        <div className="w-8 h-8 flex items-center justify-center bg-gray-100 rounded-lg text-[10px] font-black text-gray-400 shrink-0">#{index + 1}</div>
                                         <div className="flex-1 overflow-hidden">
                                             <div className="font-black text-[10px] uppercase truncate">{u.displayName}</div>
-                                            <div className="text-[9px] text-gray-400 truncate">{u.points} {t('points')} • {u.email}</div>
+                                            <div className="text-[9px] text-gray-400 truncate">{u.points} pts • {u.email}</div>
                                         </div>
                                         <button onClick={() => setEditingUser(u)} className="text-[#3498db] opacity-0 group-hover:opacity-100 transition-opacity p-2 hover:bg-blue-50 rounded-lg"><i className="fas fa-edit"></i></button>
                                     </div>
@@ -1294,12 +1419,6 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
                                             <p className="text-[10px] font-bold text-[#3498db] uppercase">{selectedOffer.userClass || 'N/A'}</p>
                                         </div>
                                     </div>
-                                    <div>
-                                        <p className="text-[8px] font-black uppercase text-gray-400 tracking-widest mb-1">{t('status')}</p>
-                                        <p className="text-[10px] font-black uppercase italic text-[#f39c12]">
-                                            {data.completedItems.find(c => c.id === selectedOffer.id) ? t('verified_completed') : t('pending_approval')}
-                                        </p>
-                                    </div>
                                 </div>
                             </div>
                             {!data.completedItems.find(c => c.id === selectedOffer.id) && (
@@ -1315,12 +1434,12 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
                                     <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span> {t('pending_approval')}
                                 </h3>
                                 {data.items.length === 0 ? <p className="text-[10px] text-gray-300 italic px-1">{t('nothing_here')}</p> : data.items.map(i => (
-                                    <div key={i.id} onClick={() => setSelectedOffer(i)} className="bg-white p-4 border border-gray-100 rounded-2xl mb-2 flex justify-between items-center cursor-pointer hover:border-[#3498db] hover:shadow-md transition-all group">
+                                    <div key={i.id} onClick={() => setSelectedOffer(i)} className="bg-white p-4 border border-gray-100 rounded-2xl mb-2 flex justify-between items-center cursor-pointer hover:border-[#3498db] transition-all">
                                         <div className="flex-1">
                                             <div className="font-black text-xs uppercase text-[#2c3e50]">{i.itemName}</div>
-                                            <div className="text-[9px] text-gray-400 font-bold uppercase tracking-tighter">{t('donor_details')}: {i.donorName} ({i.userClass}) • {t('quantity')}: {i.qty}</div>
+                                            <div className="text-[9px] text-gray-400 font-bold uppercase tracking-tighter">{i.donorName} • {i.qty} qty</div>
                                         </div>
-                                        <i className="fas fa-chevron-right text-gray-200 group-hover:text-[#3498db] transition-colors"></i>
+                                        <i className="fas fa-chevron-right text-gray-200"></i>
                                     </div>
                                 ))}
                             </div>
@@ -1328,11 +1447,11 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
                                 <h3 className="text-[10px] font-black uppercase text-gray-400 mb-2 tracking-widest flex items-center gap-2 px-1">
                                     <span className="w-2 h-2 rounded-full bg-green-500"></span> {t('verified')}
                                 </h3>
-                                {data.completedItems.length === 0 ? <p className="text-[10px] text-gray-300 italic px-1">{t('nothing_here')}</p> : data.completedItems.map(i => (
-                                    <div key={i.id} onClick={() => setSelectedOffer(i)} className="bg-white p-4 border border-green-50 rounded-2xl mb-2 flex justify-between items-center opacity-70 cursor-pointer hover:opacity-100 hover:border-green-200 transition-all group">
+                                {data.completedItems.map(i => (
+                                    <div key={i.id} onClick={() => setSelectedOffer(i)} className="bg-white p-4 border border-green-50 rounded-2xl mb-2 flex justify-between items-center opacity-70 cursor-pointer">
                                         <div className="flex-1">
                                             <div className="font-black text-xs uppercase text-[#2c3e50]">{i.itemName}</div>
-                                            <div className="text-[9px] text-gray-400 font-bold uppercase tracking-tighter">{t('donor_details')}: {i.donorName} ({i.userClass})</div>
+                                            <div className="text-[9px] text-gray-400 font-bold uppercase">{i.donorName}</div>
                                         </div>
                                         <div className="text-green-500 font-black text-[9px] uppercase italic">{t('verified')}</div>
                                     </div>
@@ -1342,19 +1461,35 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
                     )
                 )}
 
-                {activeTab === 'vouchers' && data.redemptions.map(r => (
-                    <div key={r.id} className="bg-white p-4 border-2 border-orange-50 rounded-2xl">
-                        <div className="font-black text-[11px] text-[#f39c12] uppercase">{r.itemName}</div>
-                        <div className="text-[10px] font-bold text-gray-700 uppercase">{t('users')}: {r.fullName}</div>
-                        <div className="text-[9px] font-black text-[#3498db] uppercase">{t('class_label')}: {r.userClass}</div>
+                {activeTab === 'vouchers' && (
+                    <div className="space-y-3">
+                        {data.redemptions.map(r => (
+                            <div key={r.id} className="bg-white p-4 border-2 border-orange-50 rounded-2xl">
+                                <div className="flex justify-between items-start mb-2">
+                                    <div className="font-black text-[11px] text-[#f39c12] uppercase">{r.itemName}</div>
+                                    <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full ${r.status === 'confirmed' ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'}`}>
+                                        {r.status || 'pending'}
+                                    </span>
+                                </div>
+                                <div className="text-[10px] font-bold text-gray-700 uppercase">{r.fullName} ({r.userClass})</div>
+                                {r.status !== 'confirmed' && (
+                                    <button 
+                                        onClick={() => handleAcceptRedeem(r)}
+                                        className="w-full mt-3 bg-[#2ecc71] text-white py-2 rounded-xl text-[9px] font-black uppercase shadow-lg hover:bg-[#27ae60] transition-colors"
+                                    >
+                                        Accept Redeem
+                                    </button>
+                                )}
+                            </div>
+                        ))}
                     </div>
-                ))}
+                )}
 
                 {activeTab === 'chats' && (
                     activeSupportUser ? (
                         <div className="flex flex-col h-full space-y-4">
                             <button onClick={() => setActiveSupportUser(null)} className="text-[10px] font-black uppercase text-gray-400 hover:text-[#2c3e50] transition-colors"><i className="fas fa-arrow-left mr-2"></i> {t('back_to_list')}</button>
-                            <div className="flex-1 h-[300px] overflow-y-auto bg-gray-50 rounded-xl p-3 space-y-2">
+                            <div className="flex-1 h-[300px] overflow-y-auto bg-gray-50 rounded-xl p-3 space-y-2 scrollbar-hide">
                                 <AdminChatLogWindow userId={activeSupportUser.userId} />
                             </div>
                             <form onSubmit={sendAdminReply} className="flex gap-2">
@@ -1365,7 +1500,7 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
                     ) : (
                         <div className="space-y-2">
                             {data.supportChats.length === 0 ? <p className="text-[10px] text-gray-300 italic px-1">{t('nothing_here')}</p> : data.supportChats.map(s => (
-                                <div key={s.userId} onClick={() => setActiveSupportUser(s)} className="bg-white p-4 border border-gray-100 rounded-2xl cursor-pointer hover:border-[#3498db] hover:shadow-md transition-all">
+                                <div key={s.userId} onClick={() => setActiveSupportUser(s)} className="bg-white p-4 border border-gray-100 rounded-2xl cursor-pointer hover:border-[#3498db] transition-all">
                                     <div className="font-black text-[11px] uppercase text-[#2c3e50]">{s.userName}</div>
                                     <div className="text-[10px] text-gray-400 truncate italic mt-1 font-medium">"{s.lastMsg}"</div>
                                 </div>
