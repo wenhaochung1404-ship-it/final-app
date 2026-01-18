@@ -61,9 +61,7 @@ const App: React.FC = () => {
         let unsubNotifs: () => void = () => {};
 
         const initFirebase = async () => {
-            // Check if firebase object exists yet
             if (typeof firebase === 'undefined' || !firebase.auth) {
-                console.warn("Firebase not yet loaded, retrying...");
                 setTimeout(initFirebase, 500);
                 return;
             }
@@ -94,7 +92,7 @@ const App: React.FC = () => {
                             } else {
                                 setUser({ uid: authUser.uid, email: authUser.email, points: 5 } as any);
                             }
-                        }, (err: any) => console.error("Firestore user snapshot error:", err));
+                        }, (err: any) => {});
 
                         unsubNotifs = db.collection('notifications')
                             .where('userId', '==', authUser.uid)
@@ -102,7 +100,7 @@ const App: React.FC = () => {
                                 const notifs = snap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
                                 notifs.sort((a: any, b: any) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
                                 setNotifications(notifs);
-                            }, (err: any) => console.error("Firestore notif snapshot error:", err));
+                            }, (err: any) => {});
                     } else { 
                         setUser(null); 
                         setNotifications([]);
@@ -111,11 +109,9 @@ const App: React.FC = () => {
                     }
                     setLoading(false);
                 }, (err: any) => {
-                    console.error("Auth state change error:", err);
                     setLoading(false);
                 });
             } catch (err) {
-                console.error("Firebase init catch error:", err);
                 setLoading(false);
             }
         };
@@ -133,7 +129,7 @@ const App: React.FC = () => {
         if (typeof firebase === 'undefined' || !firebase.firestore) return;
         try {
             await firebase.firestore().collection('notifications').doc(notification.id).update({ read: true });
-        } catch (e) { console.error("Error marking read", e); }
+        } catch (e) {}
     };
 
     const resendVerification = async () => {
@@ -458,7 +454,7 @@ const SupportChatBody: React.FC<{userId: string, userName: string, t: any, isGue
                 const data = snap.docs.map((d: any) => d.data());
                 data.sort((a: any, b: any) => (a.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
                 setMsgs(data);
-            }, (err: any) => console.error(err));
+            }, (err: any) => {});
         return unsub;
     }, [userId]);
 
@@ -507,14 +503,14 @@ const HomePage: React.FC<{t: any, user: any | null}> = ({t, user}) => {
         const db = firebase.firestore();
         const unsubDonations = db.collection('donations').orderBy('createdAt', 'desc').onSnapshot((snap: any) => {
             setDonations(snap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
-        }, (err: any) => console.error(err));
+        }, (err: any) => {});
         const unsubAnnounce = db.collection('settings').doc('announcement').onSnapshot((doc: any) => {
             if (doc.exists) {
                 const data = doc.data();
                 setAnnouncement(data);
                 setAnnounceInput(data.text);
             }
-        }, (err: any) => console.error(err));
+        }, (err: any) => {});
         return () => { unsubDonations(); unsubAnnounce(); };
     }, []);
 
@@ -551,7 +547,7 @@ const HomePage: React.FC<{t: any, user: any | null}> = ({t, user}) => {
                 type: 'status', read: false, createdAt: firebase.firestore.FieldValue.serverTimestamp()
             });
             alert("Confirmed!");
-        } catch (err) { alert("Failed."); }
+        } catch (err) {}
     };
 
     const isAdmin = user?.isAdmin || user?.email === 'admin@gmail.com';
@@ -648,10 +644,10 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
     useEffect(() => {
         if (typeof firebase === 'undefined' || !firebase.firestore) return;
         const db = firebase.firestore();
-        const unsubUsers = db.collection('users').onSnapshot((snap: any) => setData(prev => ({...prev, users: snap.docs.map((d: any) => ({...d.data(), uid: d.id}))})), (err: any) => console.error(err));
-        const unsubItems = db.collection('donations').onSnapshot((snap: any) => setData(prev => ({...prev, items: snap.docs.map((d: any) => ({...d.data(), id: d.id}))})), (err: any) => console.error(err));
-        const unsubCompleted = db.collection('completed_donations').onSnapshot((snap: any) => setData(prev => ({...prev, completedItems: snap.docs.map((d: any) => ({...d.data(), id: d.id}))})), (err: any) => console.error(err));
-        const unsubRedemptions = db.collection('redeem_history').orderBy('redeemedAt', 'desc').onSnapshot((snap: any) => setData(prev => ({...prev, redemptions: snap.docs.map((d: any) => ({...d.data(), id: d.id}))})), (err: any) => console.error(err));
+        const unsubUsers = db.collection('users').onSnapshot((snap: any) => setData(prev => ({...prev, users: snap.docs.map((d: any) => ({...d.data(), uid: d.id}))})), (err: any) => {});
+        const unsubItems = db.collection('donations').onSnapshot((snap: any) => setData(prev => ({...prev, items: snap.docs.map((d: any) => ({...d.data(), id: d.id}))})), (err: any) => {});
+        const unsubCompleted = db.collection('completed_donations').onSnapshot((snap: any) => setData(prev => ({...prev, completedItems: snap.docs.map((d: any) => ({...d.data(), id: d.id}))})), (err: any) => {});
+        const unsubRedemptions = db.collection('redeem_history').orderBy('redeemedAt', 'desc').onSnapshot((snap: any) => setData(prev => ({...prev, redemptions: snap.docs.map((d: any) => ({...d.data(), id: d.id}))})), (err: any) => {});
         
         const unsubSupport = db.collection('support_chats').onSnapshot((snap: any) => {
             const rawDocs = snap.docs.map((d: any) => d.data());
@@ -665,7 +661,7 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
                 }
             });
             setData(prev => ({...prev, supportChats: grouped}));
-        }, (err: any) => console.error(err));
+        }, (err: any) => {});
 
         return () => { unsubUsers(); unsubItems(); unsubCompleted(); unsubRedemptions(); unsubSupport(); };
     }, []);
@@ -694,7 +690,7 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
             });
             alert("User updated successfully");
             setEditingUser(null);
-        } catch (err) { alert("Failed to update user"); }
+        } catch (err) {}
     };
 
     const sendAdminReply = async (e: React.FormEvent) => {
@@ -734,7 +730,7 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
             });
             alert("Approved!");
             setSelectedOffer(null);
-        } catch (err) { alert("Approval failed."); }
+        } catch (err) {}
     };
 
     return (
@@ -894,7 +890,7 @@ const AdminChatLogWindow: React.FC<{userId: string}> = ({userId}) => {
             const data = snap.docs.map((d: any) => d.data());
             data.sort((a: any, b: any) => (a.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
             setMsgs(data);
-        }, (err: any) => console.error(err));
+        }, (err: any) => {});
         return unsub;
     }, [userId]);
 
@@ -922,7 +918,7 @@ const ShopPage: React.FC<{user: any | null, t: any, onAuth: any, onRedeemConfirm
         const db = firebase.firestore();
         const unsub = db.collection('shop_items').orderBy('createdAt', 'desc').onSnapshot((snap: any) => {
             setShopItems(snap.docs.map((d: any) => ({ ...d.data(), id: d.id })));
-        }, (err: any) => console.error(err));
+        }, (err: any) => {});
         return unsub;
     }, []);
 
@@ -943,7 +939,7 @@ const ShopPage: React.FC<{user: any | null, t: any, onAuth: any, onRedeemConfirm
             }
             setIsAdding(false);
             setNewProduct({ name: '', cost: 20, color: '#3498db', id: '' });
-        } catch (e) { alert("Failed to save product."); }
+        } catch (e) {}
     };
 
     const handleDeleteProduct = async (id: string) => {
@@ -951,7 +947,7 @@ const ShopPage: React.FC<{user: any | null, t: any, onAuth: any, onRedeemConfirm
         try {
             await firebase.firestore().collection('shop_items').doc(id).delete();
             alert("Reward deleted!");
-        } catch (e) { alert("Failed to delete."); }
+        } catch (e) {}
     };
 
     return (
@@ -1037,15 +1033,15 @@ const HistoryPage: React.FC<{user: any | null, t: any, onAuth: any}> = ({user, t
                 combined.sort((a, b) => ((b.createdAt || b.completedAt)?.toMillis?.() || 0) - ((a.createdAt || a.completedAt)?.toMillis?.() || 0));
                 setOffers(combined);
                 setLoading(false);
-            }, (err: any) => console.error(err));
+            }, (err: any) => {});
             return unsubCompleted;
-        }, (err: any) => console.error(err));
+        }, (err: any) => {});
 
         const unsubRedeem = db.collection('redeem_history').where('userId', '==', user.uid).onSnapshot((snap: any) => {
             const data = snap.docs.map((d: any) => ({ ...d.data(), type: 'redeem', id: d.id }));
             data.sort((a: any, b: any) => (b.redeemedAt?.toMillis?.() || 0) - (a.redeemedAt?.toMillis?.() || 0));
             setRedeems(data);
-        }, (err: any) => console.error(err));
+        }, (err: any) => {});
 
         return () => { unsubOffers(); unsubRedeem(); };
     }, [user]);
@@ -1056,7 +1052,7 @@ const HistoryPage: React.FC<{user: any | null, t: any, onAuth: any}> = ({user, t
         try {
             await firebase.firestore().collection('donations').doc(id).delete();
             alert("Deleted successfully.");
-        } catch (e) { alert("Failed to delete."); }
+        } catch (e) {}
     };
 
     const updateOffer = async (e: React.FormEvent) => {
@@ -1070,7 +1066,7 @@ const HistoryPage: React.FC<{user: any | null, t: any, onAuth: any}> = ({user, t
             });
             setIsEditingOffer(null);
             alert("Updated successfully.");
-        } catch (e) { alert("Update failed."); }
+        } catch (e) {}
     };
     
     if (!user) return <div className="text-center py-20 font-black uppercase text-gray-300">{t('login_register')}</div>;
@@ -1220,7 +1216,6 @@ const AuthModal: React.FC<{onClose: () => void, t: any, lang: Language}> = ({onC
                 }
                 const {user} = await firebase.auth().createUserWithEmailAndPassword(data.email, data.password);
                 
-                // Send email verification
                 if (user) {
                     await user.sendEmailVerification();
                     
@@ -1229,7 +1224,7 @@ const AuthModal: React.FC<{onClose: () => void, t: any, lang: Language}> = ({onC
                         phone: data.phone, address: data.address, userClass: data.userClass, 
                         isAdmin: data.email === 'admin@gmail.com'
                     });
-                    alert("Account created! A verification link has been sent to your email. Please verify to access all features.");
+                    alert("Account created! A verification link has been sent to your email.");
                 }
                 onClose();
             }
@@ -1315,7 +1310,6 @@ const ProfilePage: React.FC<{user: any | null, t: any, onAuth: any, onNavigate: 
             setIsEditing(false);
             alert("Profile updated successfully!");
         } catch (err) {
-            alert("Failed to update profile.");
         } finally {
             setSaving(false);
         }
