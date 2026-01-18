@@ -28,7 +28,7 @@ const AdminInput: React.FC<{label: string, value: any, onChange?: (v: any) => vo
     </div>
 );
 
-const App: React.FC = () => {
+export const App: React.FC = () => {
     const [lang, setLang] = useState<Language>(Language.EN);
     const [user, setUser] = useState<any | null>(null);
     const [page, setPage] = useState<string>('home');
@@ -86,13 +86,14 @@ const App: React.FC = () => {
                 unsubscribeAuth = firebase.auth().onAuthStateChanged(async (authUser: any) => {
                     if (authUser) {
                         const isHardcodedAdmin = authUser.email === 'admin@gmail.com';
-                        // Re-fetch user to check verification status more reliably
                         await authUser.reload();
                         setEmailVerified(!!authUser.emailVerified || isHardcodedAdmin);
                         
                         db.collection('users').doc(authUser.uid).onSnapshot((doc: any) => {
                             if (doc.exists) {
-                                setUser({ ...doc.data(), uid: authUser.uid });
+                                // Explicitly extract data to avoid circular structures
+                                const data = doc.data();
+                                setUser({ ...data, uid: authUser.uid });
                             } else {
                                 setUser({ uid: authUser.uid, email: authUser.email, points: 5, isAdmin: isHardcodedAdmin } as any);
                             }
@@ -271,7 +272,7 @@ const App: React.FC = () => {
                 <main className={`flex-1 overflow-y-auto transition-all duration-300 ${isAdmin && showAdminPanel ? 'lg:mr-96' : ''}`}>
                     <div className="container mx-auto px-4 py-8 max-w-6xl">
                         {page === 'home' && <HomePage t={t} user={user} />}
-                        {page === 'profile' && <ProfilePage user={user} t={t} onAuth={() => setIsAuthModalOpen(true)} onNavigate={setPage} />}
+                        {page === 'profile' && <ProfilePage user={user} t={t} onAuth={() => setIsAuthModalOpen(true)} onNavigate={() => {}} />}
                         {page === 'shop' && <ShopPage user={user} t={t} onAuth={() => setIsAuthModalOpen(true)} onRedeemConfirm={setItemToRedeem} />}
                         {page === 'history' && <HistoryPage user={user} t={t} onAuth={() => setIsAuthModalOpen(true)} />}
                         {page === 'guide' && <UserGuidePage t={t} isAdmin={isAdmin} />}
@@ -386,6 +387,351 @@ const App: React.FC = () => {
     );
 };
 
+const AuthModal: React.FC<{onClose: () => void, t: any, lang: Language}> = ({onClose, t, lang}) => {
+    const [mode, setMode] = useState<'login' | 'register'>('login');
+    const [data, setData] = useState({ email: '', password: '', name: '', birthdate: '', phone: '', address: '', userClass: '' });
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [showPassword, setShowPassword] = useState(false);
+
+    const submit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (typeof firebase === 'undefined' || !firebase.auth) return;
+        setLoading(true); setError(null);
+        try {
+            if (mode === 'login') {
+                const { user } = await firebase.auth().signInWithEmailAndPassword(data.email, data.password);
+                const isHardcodedAdmin = data.email === 'admin@gmail.com';
+                if (!user.emailVerified && !isHardcodedAdmin) {
+                    await firebase.auth().signOut();
+                    throw new Error(translations[lang]['check_email_verify']);
+                }
+                onClose();
+            } else if (mode === 'register') {
+                if (!data.email.toLowerCase().endsWith("@moe-dl.edu.my") && data.email !== 'admin@gmail.com') {
+                    throw new Error(t('moe_email_required'));
+                }
+                const {user} = await firebase.auth().createUserWithEmailAndPassword(data.email, data.password);
+                
+                if (user) {
+                    await user.sendEmailVerification();
+                    await firebase.firestore().collection('users').doc(user.uid).set({ 
+                        email: data.email, displayName: data.name, points: 5, birthdate: data.birthdate, 
+                        phone: data.phone, address: data.address, userClass: data.userClass, 
+                        isAdmin: data.email === 'admin@gmail.com'
+                    });
+                    await firebase.auth().signOut();
+                    alert(t('check_email_verify'));
+                    setMode('login');
+                }
+            }
+        } catch (err: any) { setError(err.message); } finally { setLoading(false); }
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/80 z-[400] flex items-center justify-center p-4 backdrop-blur-md" onClick={onClose}>
+            <div className="bg-white w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl relative animate-in zoom-in overflow-y-auto max-h-[95vh]" onClick={e => e.stopPropagation()}>
+                <button onClick={onClose} className="absolute top-6 right-6 bg-gray-100 w-10 h-10 rounded-full flex items-center justify-center transition-all"><i className="fas fa-times text-gray-400"></i></button>
+                <h2 className="text-2xl font-black text-center uppercase italic text-[#2c3e50] mb-8">
+                    {mode === 'login' ? t('login') : t('register')}
+                </h2>
+                {error && <div className="mb-6 bg-amber-50 p-4 rounded-xl text-amber-800 text-[11px] font-black uppercase tracking-wider border-2 border-amber-200">{error}</div>}
+                <form onSubmit={submit} className="space-y-4">
+                    {mode === 'register' && (
+                        <>
+                            <input placeholder={t('full_name')} value={data.name} onChange={e => setData({...data, name: e.target.value})} className="w-full bg-gray-50 border-2 p-4 rounded-2xl outline-none font-bold text-sm" required />
+                            <input placeholder={t('class_label')} value={data.userClass} onChange={e => setData({...data, userClass: e.target.value})} className="w-full bg-gray-50 border-2 p-4 rounded-2xl outline-none font-bold text-sm" required />
+                            <input type="date" value={data.birthdate} onChange={e => setData({...data, birthdate: e.target.value})} className="w-full bg-gray-50 border-2 p-4 rounded-2xl outline-none font-bold text-sm" required />
+                            <input type="tel" placeholder={t('phone_number')} value={data.phone} onChange={e => setData({...data, phone: e.target.value})} className="w-full bg-gray-50 border-2 p-4 rounded-2xl outline-none font-bold text-sm" required />
+                            <input placeholder={t('home_address')} value={data.address} onChange={e => setData({...data, address: e.target.value})} className="w-full bg-gray-50 border-2 p-4 rounded-2xl outline-none font-bold text-sm" required />
+                        </>
+                    )}
+                    <input type="email" placeholder="m-xxxxxxxx@moe-dl.edu.my" value={data.email} onChange={e => setData({...data, email: e.target.value})} className="w-full bg-gray-50 border-2 p-4 rounded-2xl outline-none font-bold text-sm placeholder:text-gray-300" required />
+                    
+                    <div className="relative">
+                        <input type={showPassword ? "text" : "password"} placeholder={t('password')} value={data.password} onChange={e => setData({...data, password: e.target.value})} className="w-full bg-gray-50 border-2 p-4 rounded-2xl outline-none font-bold text-sm" required />
+                        <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-300"><i className={`fas fa-${showPassword ? 'eye-slash' : 'eye'}`}></i></button>
+                    </div>
+                    
+                    <button disabled={loading} className="w-full bg-[#3498db] text-white py-6 rounded-full font-black text-xl shadow-xl hover:scale-105 transition-all mt-6 uppercase tracking-widest">{loading ? '...' : (mode === 'login' ? t('login') : t('register'))}</button>
+                </form>
+                <div className="mt-6 flex flex-col items-center gap-3">
+                    <button onClick={() => setMode(mode === 'login' ? 'register' : 'login')} className="text-xs font-black uppercase text-[#3498db] hover:underline">{mode === 'login' ? t('register') : t('login')}</button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const ProfilePage: React.FC<{user: any | null, t: any, onAuth: () => void, onNavigate: (p: string) => void}> = ({user, t, onAuth}) => {
+    const [isEditing, setIsEditing] = useState(false);
+    const [editData, setEditData] = useState<any>(null);
+    const [saving, setSaving] = useState(false);
+
+    const isAdmin = user?.isAdmin || user?.email === 'admin@gmail.com';
+
+    useEffect(() => {
+        if (user) {
+            setEditData({
+                displayName: user.displayName || '',
+                userClass: user.userClass || '',
+                phone: user.phone || '',
+                birthdate: user.birthdate || '',
+                address: user.address || ''
+            });
+        }
+    }, [user, isEditing]);
+
+    if (!user) return <div className="py-20 text-center"><button onClick={onAuth} className="bg-[#3498db] text-white px-8 py-4 rounded-2xl font-black uppercase shadow-xl">{t('login')}</button></div>;
+
+    const handleSave = async () => {
+        if (!editData || !user || typeof firebase === 'undefined' || !firebase.firestore) return;
+        setSaving(true);
+        try {
+            // Pick only necessary serializable fields to avoid circular structure errors
+            const updatePayload = {
+                displayName: editData.displayName,
+                userClass: editData.userClass,
+                phone: editData.phone,
+                birthdate: editData.birthdate,
+                address: editData.address
+            };
+            await firebase.firestore().collection('users').doc(user.uid).update(updatePayload);
+            setIsEditing(false);
+            alert(t('save') + "!");
+        } catch (err: any) {
+            alert("Error: " + err.message);
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleDeleteAccount = async () => {
+        if (isAdmin) return;
+        if (window.confirm(t('delete_confirm'))) {
+            if (window.confirm("FINAL WARNING: All points and data will be lost. Proceed?")) {
+                try {
+                    const currentUser = firebase.auth().currentUser;
+                    const uid = currentUser.uid;
+                    await firebase.firestore().collection('users').doc(uid).delete();
+                    await currentUser.delete();
+                    alert("Account deleted.");
+                } catch (err: any) {
+                    alert("Authentication required. Please logout and login again before deleting your account.");
+                }
+            }
+        }
+    };
+
+    return (
+        <div className="max-w-2xl mx-auto space-y-8 pb-20">
+            <div className="bg-[#2c3e50] p-12 rounded-[2rem] shadow-xl text-white text-center border-b-8 border-[#f39c12] relative overflow-hidden">
+                <div className="w-20 h-20 bg-[#3498db] rounded-full flex items-center justify-center text-3xl font-black mx-auto mb-6 uppercase border-4 border-white/20 shadow-inner">
+                    {user.displayName?.[0] || '?'}
+                </div>
+                {isEditing ? (
+                    <div className="space-y-4 max-w-xs mx-auto">
+                        <input 
+                            value={editData.displayName} 
+                            onChange={e => setEditData({...editData, displayName: e.target.value})}
+                            placeholder={t('full_name')}
+                            className="w-full bg-white/10 border-2 border-white/20 rounded-xl p-3 text-white font-black uppercase text-center placeholder:text-white/40 outline-none focus:border-[#3498db] transition-all"
+                        />
+                        <input 
+                            value={editData.userClass} 
+                            onChange={e => setEditData({...editData, userClass: e.target.value})}
+                            placeholder={t('class_label')}
+                            className="w-full bg-white/10 border-2 border-white/20 rounded-xl p-3 text-white font-black uppercase text-center placeholder:text-white/40 outline-none focus:border-[#3498db] transition-all"
+                        />
+                    </div>
+                ) : (
+                    <>
+                        <h1 className="text-2xl font-black uppercase italic mb-2 tracking-tighter">{user.displayName || 'Guest'}</h1>
+                        <p className="text-[#f39c12] font-black text-xl flex items-center justify-center gap-2">
+                            <i className="fas fa-star"></i> {user.points} {t('points')}
+                        </p>
+                        {user.userClass && <p className="text-xs font-bold uppercase tracking-widest text-white/60 mt-2">{user.userClass}</p>}
+                    </>
+                )}
+                
+                <button 
+                    onClick={() => isEditing ? handleSave() : setIsEditing(true)} 
+                    disabled={saving}
+                    className="absolute top-6 right-6 w-12 h-12 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center transition-all border border-white/10 group"
+                >
+                    <i className={`fas fa-${isEditing ? (saving ? 'spinner fa-spin' : 'check') : 'pen'} text-xs text-white`}></i>
+                </button>
+                {isEditing && (
+                    <button 
+                        onClick={() => setIsEditing(false)} 
+                        className="absolute top-6 left-6 w-12 h-12 bg-red-500/20 hover:bg-red-500/40 rounded-full flex items-center justify-center transition-all border border-red-500/20"
+                    >
+                        <i className="fas fa-times text-xs text-white"></i>
+                    </button>
+                )}
+            </div>
+
+            <div className="bg-white p-8 rounded-[2rem] border shadow-sm space-y-6 relative group border-gray-100">
+                <h3 className="text-[10px] font-black uppercase text-gray-400 tracking-widest border-b border-gray-50 pb-3">{t('personal_info')}</h3>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <div className="space-y-1">
+                        <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest ml-1">{t('phone_number')}</label>
+                        {isEditing ? (
+                            <input 
+                                value={editData.phone} 
+                                onChange={e => setEditData({...editData, phone: e.target.value})}
+                                className="w-full p-3 bg-gray-50 border-2 border-gray-100 rounded-xl font-bold text-xs outline-none focus:border-[#3498db]"
+                            />
+                        ) : (
+                            <p className="font-bold text-[#2c3e50] bg-gray-50/50 p-3 rounded-xl border border-transparent">{user.phone || 'Not Set'}</p>
+                        )}
+                    </div>
+                    
+                    <div className="space-y-1">
+                        <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest ml-1">{t('birthdate')}</label>
+                        {isEditing ? (
+                            <input 
+                                type="date"
+                                value={editData.birthdate} 
+                                onChange={e => setEditData({...editData, birthdate: e.target.value})}
+                                className="w-full p-3 bg-gray-50 border-2 border-gray-100 rounded-xl font-bold text-xs outline-none focus:border-[#3498db]"
+                            />
+                        ) : (
+                            <p className="font-bold text-[#2c3e50] bg-gray-50/50 p-3 rounded-xl border border-transparent">{user.birthdate || 'Not Set'}</p>
+                        )}
+                    </div>
+
+                    <div className="col-span-1 sm:col-span-2 space-y-1">
+                        <label className="text-[8px] font-black uppercase text-gray-400 tracking-widest ml-1">{t('home_address')}</label>
+                        {isEditing ? (
+                            <textarea 
+                                value={editData.address} 
+                                onChange={e => setEditData({...editData, address: e.target.value})}
+                                className="w-full p-3 bg-gray-50 border-2 border-gray-100 rounded-xl font-bold text-xs outline-none focus:border-[#3498db] min-h-[80px]"
+                            />
+                        ) : (
+                            <p className="font-bold text-[#2c3e50] bg-gray-50/50 p-3 rounded-xl border border-transparent">{user.address || 'Not Set'}</p>
+                        )}
+                    </div>
+                </div>
+
+                <div className="pt-6 space-y-4">
+                    {isEditing ? (
+                        <button 
+                            onClick={handleSave} 
+                            disabled={saving}
+                            className="w-full bg-[#3498db] text-white py-4 rounded-2xl font-black uppercase text-xs shadow-xl shadow-blue-100 transition-all hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2"
+                        >
+                            {saving ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-save"></i>}
+                            {t('save_profile')}
+                        </button>
+                    ) : (
+                        <>
+                            <button onClick={() => firebase.auth().signOut()} className="w-full bg-[#2c3e50] text-white py-4 rounded-2xl font-black uppercase text-xs shadow-xl transition-all hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2">
+                                <i className="fas fa-sign-out-alt"></i>
+                                {t('logout')}
+                            </button>
+                            {!isAdmin && (
+                                <button onClick={handleDeleteAccount} className="w-full border-2 border-red-100 text-red-500 py-4 rounded-2xl font-black uppercase text-[10px] transition-all hover:bg-red-50 flex items-center justify-center gap-2">
+                                    <i className="fas fa-trash"></i>
+                                    {t('delete_account')}
+                                </button>
+                            )}
+                        </>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const ShopPage: React.FC<{user: any, t: any, onAuth: () => void, onRedeemConfirm: (item: any) => void}> = ({user, t, onAuth, onRedeemConfirm}) => {
+    const rewards = [
+        { id: 1, name: 'T-Shirt', cost: 100, color: '#3498db' },
+        { id: 2, name: 'Water Bottle', cost: 50, color: '#2ecc71' },
+        { id: 3, name: 'Notebook', cost: 30, color: '#f39c12' }
+    ];
+    return (
+        <div className="space-y-8">
+            <h2 className="text-3xl font-black italic uppercase text-[#2c3e50] tracking-tighter">{t('points_shop')}</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {rewards.map(item => (
+                    <div key={item.id} className="bg-white p-8 rounded-[2.5rem] shadow-lg border-b-8 transition-transform hover:-translate-y-2" style={{ borderColor: item.color }}>
+                        <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-white text-2xl mb-6 shadow-lg" style={{ backgroundColor: item.color }}>
+                            <i className="fas fa-gift"></i>
+                        </div>
+                        <h3 className="text-xl font-black text-[#2c3e50] uppercase mb-2">{item.name}</h3>
+                        <p className="text-[#f39c12] font-black text-lg mb-6">{item.cost} <span className="text-xs uppercase">{t('points')}</span></p>
+                        <button 
+                            onClick={() => user ? onRedeemConfirm(item) : onAuth()}
+                            className="w-full py-4 rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg transition-all active:scale-95 text-white"
+                            style={{ backgroundColor: item.color }}
+                        >
+                            {t('redeem_now')}
+                        </button>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
+
+const HistoryPage: React.FC<{user: any, t: any, onAuth: () => void}> = ({user, t, onAuth}) => {
+    if (!user) return <div className="py-20 text-center"><button onClick={onAuth} className="bg-[#3498db] text-white px-8 py-4 rounded-2xl font-black uppercase shadow-xl">{t('login')}</button></div>;
+    return (
+        <div className="space-y-8">
+            <h2 className="text-3xl font-black italic uppercase text-[#2c3e50] tracking-tighter">{t('history')}</h2>
+            <div className="bg-white rounded-[2.5rem] p-10 shadow-xl border border-gray-100 text-center py-24">
+                <i className="fas fa-history text-5xl text-gray-200 mb-6"></i>
+                <p className="text-gray-400 font-black uppercase italic text-xs tracking-widest">{t('nothing_here')}</p>
+            </div>
+        </div>
+    );
+};
+
+const RedeemConfirmModal: React.FC<{item: any, user: any, t: any, onCancel: () => void, onConfirm: (name: string, cls: string) => void}> = ({item, user, t, onCancel, onConfirm}) => {
+    const [name, setName] = useState(user.displayName || '');
+    const [cls, setCls] = useState(user.userClass || '');
+    return (
+        <div className="fixed inset-0 bg-black/80 z-[700] flex items-center justify-center p-4 backdrop-blur-md">
+            <div className="bg-white w-full max-w-md rounded-[3rem] p-10 shadow-2xl">
+                <h3 className="text-2xl font-black uppercase italic text-[#2c3e50] mb-6">{t('confirm')} {item.name}?</h3>
+                <div className="space-y-4 mb-8">
+                    <AdminInput label={t('full_name')} value={name} onChange={setName} />
+                    <AdminInput label={t('class_label')} value={cls} onChange={setCls} />
+                </div>
+                <div className="flex gap-4">
+                    <button onClick={() => onConfirm(name, cls)} className="flex-1 bg-[#2ecc71] text-white py-4 rounded-2xl font-black uppercase shadow-lg active:scale-95">{t('confirm')}</button>
+                    <button onClick={onCancel} className="flex-1 bg-gray-100 text-gray-500 py-4 rounded-2xl font-black uppercase active:scale-95">{t('cancel')}</button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const AdminChatLogWindow: React.FC<{userId: string}> = ({userId}) => {
+    const [logs, setLogs] = useState<any[]>([]);
+    useEffect(() => {
+        if (typeof firebase === 'undefined' || !firebase.firestore) return;
+        return firebase.firestore().collection('support_chats')
+            .where('userId', '==', userId)
+            .orderBy('createdAt', 'asc')
+            .onSnapshot((snap: any) => setLogs(snap.docs.map((d: any) => d.data())), (err: any) => {});
+    }, [userId]);
+    return (
+        <div className="space-y-2">
+            {logs.map((m, i) => (
+                <div key={i} className={`flex flex-col ${m.sender === 'user' ? 'items-start' : 'items-end'}`}>
+                    <div className={`p-2 rounded-xl text-[10px] font-bold ${m.sender === 'user' ? 'bg-white border text-gray-800' : 'bg-[#2c3e50] text-white'}`}>
+                        {m.text}
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+};
+
 const UserGuidePage: React.FC<{t: any, isAdmin: boolean}> = ({t, isAdmin}) => {
     const [guideContent, setGuideContent] = useState('');
     const [isEditing, setIsEditing] = useState(false);
@@ -414,7 +760,7 @@ const UserGuidePage: React.FC<{t: any, isAdmin: boolean}> = ({t, isAdmin}) => {
             });
             setIsEditing(false);
             alert(t('save') + "!");
-        } catch (e) {
+        } catch (e: any) {
             alert("Error saving: " + e.message);
         }
     };
@@ -550,7 +896,7 @@ const SupportChatBody: React.FC<{userId: string, userName: string, t: any, isGue
             .where('userId', '==', userId)
             .onSnapshot((snap: any) => {
                 const data = snap.docs.map((d: any) => d.data());
-                data.sort((a: any, b: any) => (a.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+                data.sort((a: any, b: any) => (a.createdAt?.toMillis?.() || 0) - (b.createdAt?.toMillis?.() || 0));
                 setMsgs(data);
             }, (err: any) => {});
         return unsub;
@@ -567,7 +913,7 @@ const SupportChatBody: React.FC<{userId: string, userName: string, t: any, isGue
         setInput('');
         await firebase.firestore().collection('support_chats').add({
             userId, userName: userName || 'Guest', text: msgText, sender: 'user', isGuest,
-            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            createdAt: firebase.firestore.Timestamp.now()
         });
     };
 
@@ -649,7 +995,7 @@ const HomePage: React.FC<{t: any, user: any | null}> = ({t, user}) => {
             });
 
             alert(t('confirm') + "!");
-        } catch (err) {}
+        } catch (err: any) {}
     };
 
     const handleDeclineOffer = async (donation: any) => {
@@ -668,7 +1014,7 @@ const HomePage: React.FC<{t: any, user: any | null}> = ({t, user}) => {
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
             });
             alert(t('decline') + "!");
-        } catch (err) {}
+        } catch (err: any) {}
     };
 
     const isAdmin = user?.isAdmin || user?.email === 'admin@gmail.com';
@@ -818,7 +1164,7 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
             });
             alert(t('save') + "!");
             setEditingUser(null);
-        } catch (err) {}
+        } catch (err: any) {}
     };
 
     const sendAdminReply = async (e: React.FormEvent) => {
@@ -873,7 +1219,7 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
 
             alert(t('verified') + "!");
             setSelectedOffer(null);
-        } catch (err) {}
+        } catch (err: any) {}
     };
 
     return (
@@ -889,6 +1235,10 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
             <div className="flex-1 overflow-y-auto space-y-4 pr-1">
                 {activeTab === 'users' && (
                     <div className="space-y-4">
+                        <div className="bg-blue-50 p-3 rounded-xl border border-blue-100 mb-4">
+                            <div className="text-[10px] font-black text-blue-400 uppercase tracking-widest text-center">Total Registered Citizens</div>
+                            <div className="text-2xl font-black text-[#2c3e50] text-center">{data.users.length}</div>
+                        </div>
                         {editingUser ? (
                             <form onSubmit={handleUpdateUser} className="bg-gray-50 p-4 rounded-2xl border space-y-3">
                                 <AdminInput label={t('full_name')} value={editingUser.displayName} onChange={v => setEditingUser({...editingUser, displayName: v})} />
@@ -905,13 +1255,16 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
                         ) : (
                             <>
                                 <input placeholder={t('search_placeholder')} className="w-full bg-gray-50 border p-3 rounded-xl text-xs font-bold outline-none" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
-                                {filteredUsers.map(u => (
-                                    <div key={u.uid} className="bg-white p-3 border rounded-xl flex justify-between items-center group">
-                                        <div>
-                                            <div className="font-black text-[10px] uppercase">{u.displayName}</div>
-                                            <div className="text-[9px] text-gray-400">{u.points} {t('points')} • {u.email}</div>
+                                {filteredUsers.map((u, index) => (
+                                    <div key={u.uid} className="bg-white p-3 border rounded-xl flex items-center gap-4 group">
+                                        <div className="w-8 h-8 flex items-center justify-center bg-gray-100 rounded-lg text-[10px] font-black text-gray-400 shrink-0">
+                                            #{index + 1}
                                         </div>
-                                        <button onClick={() => setEditingUser(u)} className="text-[#3498db] opacity-0 group-hover:opacity-100 transition-opacity"><i className="fas fa-edit"></i></button>
+                                        <div className="flex-1 overflow-hidden">
+                                            <div className="font-black text-[10px] uppercase truncate">{u.displayName}</div>
+                                            <div className="text-[9px] text-gray-400 truncate">{u.points} {t('points')} • {u.email}</div>
+                                        </div>
+                                        <button onClick={() => setEditingUser(u)} className="text-[#3498db] opacity-0 group-hover:opacity-100 transition-opacity p-2 hover:bg-blue-50 rounded-lg"><i className="fas fa-edit"></i></button>
                                     </div>
                                 ))}
                             </>
@@ -1024,595 +1377,3 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
         </div>
     );
 };
-
-const AdminChatLogWindow: React.FC<{userId: string}> = ({userId}) => {
-    const [msgs, setMsgs] = useState<any[]>([]);
-    useEffect(() => {
-        if (!userId || typeof firebase === 'undefined' || !firebase.firestore) return;
-        const unsub = firebase.firestore().collection('support_chats').where('userId', '==', userId).onSnapshot((snap: any) => {
-            const data = snap.docs.map((d: any) => d.data());
-            data.sort((a: any, b: any) => (a.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
-            setMsgs(data);
-        }, (err: any) => {});
-        return unsub;
-    }, [userId]);
-
-    return (
-        <>
-            {msgs.map((m, i) => (
-                <div key={i} className={`flex flex-col ${m.sender === 'user' ? 'items-start' : 'items-end'}`}>
-                    <div className={`max-w-[90%] p-2 rounded-xl text-[10px] font-bold ${m.sender === 'user' ? 'bg-white text-[#2c3e50] border shadow-sm' : 'bg-[#2c3e50] text-white'}`}>
-                        {m.text}
-                    </div>
-                </div>
-            ))}
-        </>
-    );
-};
-
-const ShopPage: React.FC<{user: any | null, t: any, onAuth: any, onRedeemConfirm: (i: any) => void}> = ({user, t, onAuth, onRedeemConfirm}) => {
-    const [shopItems, setShopItems] = useState<any[]>([]);
-    const [isAdding, setIsAdding] = useState(false);
-    const [newProduct, setNewProduct] = useState({ name: '', cost: 20, color: '#3498db', id: '' });
-    const isAdmin = user?.isAdmin || user?.email === 'admin@gmail.com';
-
-    useEffect(() => {
-        if (typeof firebase === 'undefined' || !firebase.firestore) return;
-        const db = firebase.firestore();
-        const unsub = db.collection('shop_items').orderBy('createdAt', 'desc').onSnapshot((snap: any) => {
-            setShopItems(snap.docs.map((d: any) => ({ ...d.data(), id: d.id })));
-        }, (err: any) => {});
-        return unsub;
-    }, []);
-
-    const handleAddOrUpdateProduct = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (typeof firebase === 'undefined' || !firebase.firestore) return;
-        try {
-            const db = firebase.firestore();
-            if (newProduct.id) {
-                await db.collection('shop_items').doc(newProduct.id).update({
-                    name: newProduct.name, cost: newProduct.cost, color: newProduct.color
-                });
-            } else {
-                await db.collection('shop_items').add({
-                    name: newProduct.name, cost: newProduct.cost, color: newProduct.color,
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                });
-            }
-            setIsAdding(false);
-            setNewProduct({ name: '', cost: 20, color: '#3498db', id: '' });
-        } catch (e) {}
-    };
-
-    const handleDeleteProduct = async (id: string) => {
-        if (!window.confirm(t('delete') + "?")) return;
-        try {
-            await firebase.firestore().collection('shop_items').doc(id).delete();
-            alert(t('delete') + "!");
-        } catch (e) {}
-    };
-
-    return (
-        <div className="space-y-12 py-12">
-            <div className="flex justify-between items-center">
-                <h1 className="text-3xl font-black italic uppercase text-[#2c3e50] tracking-tighter">{t('points_shop')}</h1>
-                {isAdmin && (
-                    <button onClick={() => { setNewProduct({ name: '', cost: 20, color: '#3498db', id: '' }); setIsAdding(true); }} className="bg-[#2ecc71] text-white px-6 py-2 rounded-full font-black text-[10px] uppercase shadow-lg hover:scale-105 transition-all">
-                        <i className="fas fa-plus mr-2"></i> {t('add_reward')}
-                    </button>
-                )}
-            </div>
-
-            {isAdding && (
-                <div className="fixed inset-0 bg-black/80 z-[600] flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setIsAdding(false)}>
-                    <div className="bg-white w-full max-w-md rounded-[2rem] p-8 shadow-2xl animate-in zoom-in" onClick={e => e.stopPropagation()}>
-                        <h2 className="text-xl font-black uppercase italic mb-6">{newProduct.id ? t('edit_content') : t('add_reward')}</h2>
-                        <form onSubmit={handleAddOrUpdateProduct} className="space-y-4">
-                            <AdminInput label={t('product_name')} value={newProduct.name} onChange={v => setNewProduct({...newProduct, name: v})} placeholder="e.g. Free Coffee" />
-                            <AdminInput label={t('point_cost')} type="number" value={newProduct.cost} onChange={v => setNewProduct({...newProduct, cost: v})} />
-                            <AdminInput label={t('color_code')} value={newProduct.color} onChange={v => setNewProduct({...newProduct, color: v})} placeholder="#3498db" />
-                            <div className="flex gap-2 pt-4">
-                                <button type="submit" className="flex-1 bg-[#3498db] text-white py-3 rounded-xl font-black uppercase text-xs">{t('save')}</button>
-                                <button type="button" onClick={() => setIsAdding(false)} className="flex-1 bg-gray-100 text-gray-500 py-3 rounded-xl font-black uppercase text-xs">{t('cancel')}</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            {shopItems.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                    {shopItems.map(item => (
-                        <div key={item.id} className="bg-white rounded-[2.5rem] border overflow-hidden shadow-xl text-center flex flex-col hover:scale-105 transition-transform">
-                            <div className="p-8 flex-1">
-                                <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-6 text-2xl text-[#f39c12]"><i className="fas fa-gift"></i></div>
-                                <h3 className="font-black text-lg mb-2 uppercase italic text-[#2c3e50]">{item.name}</h3>
-                                <div className="text-2xl font-black text-[#f39c12]">{item.cost} {t('points')}</div>
-                            </div>
-                            {isAdmin ? (
-                                <div className="flex w-full bg-gray-700">
-                                    <button onClick={() => { setNewProduct(item); setIsAdding(true); }} className="flex-1 py-6 font-black uppercase text-white tracking-widest text-[11px] hover:bg-gray-800 transition-colors border-r border-white/10">
-                                        <i className="fas fa-edit mr-2"></i> {t('edit_content')}
-                                    </button>
-                                    <button onClick={() => handleDeleteProduct(item.id)} className="px-6 py-6 font-black uppercase text-red-400 tracking-widest text-[11px] hover:bg-red-900/20 transition-colors">
-                                        <i className="fas fa-trash"></i> {t('delete')}
-                                    </button>
-                                </div>
-                            ) : (
-                                <button onClick={() => user ? onRedeemConfirm(item) : onAuth()} className="w-full py-6 font-black uppercase text-white tracking-widest text-[11px]" style={{backgroundColor: item.color}}>{t('redeem_now')}</button>
-                            )}
-                        </div>
-                    ))}
-                </div>
-            ) : (
-                <div className="py-24 text-center border-4 border-dashed border-gray-100 rounded-[3rem]">
-                    <i className="fas fa-hourglass-half text-6xl text-gray-100 mb-6"></i>
-                    <h2 className="text-4xl font-black text-gray-200 uppercase italic tracking-tighter">{t('nothing_here')}</h2>
-                    <p className="text-gray-300 font-bold uppercase text-xs mt-2">{t('empty_offers_msg')}</p>
-                </div>
-            )}
-        </div>
-    );
-};
-
-const HistoryPage: React.FC<{user: any | null, t: any, onAuth: any}> = ({user, t, onAuth}) => {
-    const [activeHistoryTab, setActiveHistoryTab] = useState<'offers' | 'redeems'>('offers');
-    const [offers, setOffers] = useState<any[]>([]);
-    const [redeems, setRedeems] = useState<any[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [isEditingOffer, setIsEditingOffer] = useState<any>(null);
-
-    useEffect(() => {
-        if (!user || typeof firebase === 'undefined' || !firebase.firestore) return;
-        const db = firebase.firestore();
-        
-        const unsubOffers = db.collection('donations').where('userId', '==', user.uid).onSnapshot((snapOffer: any) => {
-            const pending = snapOffer.docs.map((d: any) => ({ ...d.data(), type: 'offer_pending', id: d.id }));
-            
-            const unsubCompleted = db.collection('completed_donations').where('userId', '==', user.uid).onSnapshot((snapComp: any) => {
-                const completed = snapComp.docs.map((d: any) => ({ ...d.data(), type: 'offer_completed', id: d.id }));
-                const combined = [...pending, ...completed];
-                combined.sort((a, b) => ((b.createdAt || b.completedAt)?.toMillis?.() || 0) - ((a.createdAt || a.completedAt)?.toMillis?.() || 0));
-                setOffers(combined);
-                setLoading(false);
-            }, (err: any) => {});
-            return unsubCompleted;
-        }, (err: any) => {});
-
-        const unsubRedeem = db.collection('redeem_history').where('userId', '==', user.uid).onSnapshot((snap: any) => {
-            const data = snap.docs.map((d: any) => ({ ...d.data(), type: 'redeem', id: d.id }));
-            data.sort((a: any, b: any) => (b.redeemedAt?.toMillis?.() || 0) - (a.redeemedAt?.toMillis?.() || 0));
-            setRedeems(data);
-        }, (err: any) => {});
-
-        return () => { unsubOffers(); unsubRedeem(); };
-    }, [user]);
-
-    const deleteOffer = async (id: string) => {
-        if (typeof firebase === 'undefined' || !firebase.firestore) return;
-        if (!window.confirm(t('delete') + "?")) return;
-        try {
-            await firebase.firestore().collection('donations').doc(id).delete();
-            alert(t('delete') + "!");
-        } catch (e) {}
-    };
-
-    const updateOffer = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (typeof firebase === 'undefined' || !firebase.firestore) return;
-        try {
-            await firebase.firestore().collection('donations').doc(isEditingOffer.id).update({
-                itemName: isEditingOffer.itemName,
-                qty: Number(isEditingOffer.qty),
-                category: isEditingOffer.category
-            });
-            setIsEditingOffer(null);
-            alert(t('update') + "!");
-        } catch (e) {}
-    };
-    
-    if (!user) return <div className="text-center py-20 font-black uppercase text-gray-300">{t('login_register')}</div>;
-
-    return (
-        <div className="max-w-4xl mx-auto space-y-10 py-12">
-            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6">
-                <h1 className="text-4xl font-black italic uppercase text-[#2c3e50] tracking-tighter">{t('my_activity')}</h1>
-                <div className="flex bg-white p-1 rounded-2xl shadow-sm border border-gray-100">
-                    <button 
-                        onClick={() => setActiveHistoryTab('offers')}
-                        className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase transition-all flex items-center gap-2 ${activeHistoryTab === 'offers' ? 'bg-[#3498db] text-white shadow-lg' : 'text-gray-400 hover:text-[#2c3e50]'}`}
-                    >
-                        <i className="fas fa-hand-holding-heart"></i> {t('contributions')}
-                    </button>
-                    <button 
-                        onClick={() => setActiveHistoryTab('redeems')}
-                        className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase transition-all flex items-center gap-2 ${activeHistoryTab === 'redeems' ? 'bg-[#3498db] text-white shadow-lg' : 'text-gray-400 hover:text-[#2c3e50]'}`}
-                    >
-                        <i className="fas fa-gift"></i> {t('rewards')}
-                    </button>
-                </div>
-            </div>
-
-            {isEditingOffer && (
-                <div className="fixed inset-0 bg-black/80 z-[600] flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setIsEditingOffer(null)}>
-                    <div className="bg-white w-full max-w-md rounded-[2rem] p-8 shadow-2xl" onClick={e => e.stopPropagation()}>
-                        <h2 className="text-xl font-black uppercase mb-6">{t('edit_content')}</h2>
-                        <form onSubmit={updateOffer} className="space-y-4">
-                            <AdminInput label={t('item_name')} value={isEditingOffer.itemName} onChange={v => setIsEditingOffer({...isEditingOffer, itemName: v})} />
-                            <AdminInput label={t('quantity')} type="number" value={isEditingOffer.qty} onChange={v => setIsEditingOffer({...isEditingOffer, qty: v})} />
-                            <div className="space-y-1">
-                                <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest">{t('status')}</label>
-                                <select value={isEditingOffer.category} onChange={e => setIsEditingOffer({...isEditingOffer, category: e.target.value})} className="w-full p-3 bg-white border-2 border-gray-100 rounded-xl font-bold text-sm outline-none">
-                                    <option>{t('category_food')}</option>
-                                    <option>{t('category_clothing')}</option>
-                                    <option>{t('category_books')}</option>
-                                    <option>{t('category_furniture')}</option>
-                                    <option>{t('category_toiletries')}</option>
-                                    <option>{t('category_others')}</option>
-                                </select>
-                            </div>
-                            <div className="flex gap-2 pt-4">
-                                <button type="submit" className="flex-1 bg-[#3498db] text-white py-3 rounded-xl font-black uppercase text-xs">{t('update')}</button>
-                                <button type="button" onClick={() => setIsEditingOffer(null)} className="flex-1 bg-gray-100 text-gray-500 py-3 rounded-xl font-black uppercase text-xs">{t('cancel')}</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                {activeHistoryTab === 'offers' ? (
-                    offers.length > 0 ? (
-                        offers.map((h) => (
-                            <div key={h.id} className="bg-white p-6 rounded-[2rem] border border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between shadow-sm hover:shadow-md transition-shadow group gap-4">
-                                <div className="flex items-center gap-6">
-                                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-xl shadow-inner ${h.type === 'offer_pending' ? 'bg-amber-50 text-amber-500' : 'bg-green-50 text-green-500'}`}>
-                                        <i className={`fas fa-${h.type === 'offer_pending' ? 'hourglass-half' : 'check-double'}`}></i>
-                                    </div>
-                                    <div>
-                                        <div className="font-black uppercase italic text-[#2c3e50] text-lg leading-tight">{h.itemName} <span className="text-xs opacity-40 ml-1">x{h.qty}</span></div>
-                                        <div className="flex items-center gap-3 mt-1">
-                                            <span className="text-[8px] font-black text-gray-300 uppercase tracking-widest">
-                                                {h.createdAt?.toDate?.() ? 
-                                                    `${h.createdAt.toDate().getDate().toString().padStart(2, '0')}/${(h.createdAt.toDate().getMonth() + 1).toString().padStart(2, '0')}/${h.createdAt.toDate().getFullYear()}` 
-                                                    : (h.completedAt?.toDate?.() ? 
-                                                        `${h.completedAt.toDate().getDate().toString().padStart(2, '0')}/${(h.completedAt.toDate().getMonth() + 1).toString().padStart(2, '0')}/${h.completedAt.toDate().getFullYear()}` 
-                                                        : 'Recent')}
-                                            </span>
-                                            <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full ${h.type === 'offer_pending' ? 'bg-amber-100 text-amber-600' : 'bg-green-100 text-green-600'}`}>
-                                                {h.type === 'offer_pending' ? t('pending_approval') : t('verified')}
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                <div className="flex items-center gap-6 justify-between sm:justify-end">
-                                    {h.type === 'offer_pending' && (
-                                        <div className="flex gap-2">
-                                            <button onClick={() => setIsEditingOffer(h)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"><i className="fas fa-edit"></i></button>
-                                            <button onClick={() => deleteOffer(h.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"><i className="fas fa-trash"></i></button>
-                                        </div>
-                                    )}
-                                    <div className="text-right flex flex-col items-end min-w-[100px]">
-                                        <div className="text-[10px] font-black uppercase text-gray-400 tracking-tighter">{t('points_earned')}</div>
-                                        <div className={`font-black text-2xl ${h.type === 'offer_pending' ? 'text-gray-300' : 'text-green-500'}`}>
-                                            {h.type === 'offer_pending' ? '--' : `+${h.earnedPoints || '??'}`}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        ))
-                    ) : (
-                        <div className="py-24 text-center bg-white rounded-[3rem] border border-dashed border-gray-200">
-                            <i className="fas fa-seedling text-4xl text-gray-100 mb-4"></i>
-                            <p className="font-black uppercase text-xs text-gray-300">{t('nothing_here')}</p>
-                        </div>
-                    )
-                ) : (
-                    redeems.length > 0 ? (
-                        redeems.map((h) => (
-                            <div key={h.id} className="bg-white p-6 rounded-[2rem] border border-gray-100 flex items-center justify-between shadow-sm hover:shadow-md transition-shadow group border-l-8 border-l-[#f39c12]">
-                                <div className="flex items-center gap-6">
-                                    <div className={`w-14 h-14 bg-orange-50 text-orange-500 rounded-2xl flex items-center justify-center text-xl shadow-inner`}>
-                                        <i className="fas fa-ticket-alt"></i>
-                                    </div>
-                                    <div>
-                                        <div className="font-black uppercase italic text-[#2c3e50] text-lg leading-tight">{h.itemName}</div>
-                                        <div className="text-[8px] font-black text-gray-300 uppercase tracking-widest mt-1">
-                                            {h.redeemedAt?.toDate?.() ? h.redeemedAt.toDate().toLocaleString() : 'Recent'}
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="text-right">
-                                    <div className="text-[10px] font-black uppercase text-gray-400 tracking-tighter">{t('points_spent')}</div>
-                                    <div className={`font-black text-2xl text-red-500`}>-{h.itemPoints}</div>
-                                </div>
-                            </div>
-                        ))
-                    ) : (
-                        <div className="py-24 text-center bg-white rounded-[3rem] border border-dashed border-gray-200">
-                            <i className="fas fa-shopping-basket text-4xl text-gray-100 mb-4"></i>
-                            <p className="font-black uppercase text-xs text-gray-300">{t('nothing_here')}</p>
-                        </div>
-                    )
-                )}
-            </div>
-        </div>
-    );
-};
-
-const AuthModal: React.FC<{onClose: () => void, t: any, lang: Language}> = ({onClose, t, lang}) => {
-    const [mode, setMode] = useState<'login' | 'register'>('login');
-    const [data, setData] = useState({ email: '', password: '', name: '', birthdate: '', phone: '', address: '', userClass: '' });
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-    const [showPassword, setShowPassword] = useState(false);
-
-    const submit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (typeof firebase === 'undefined' || !firebase.auth) return;
-        setLoading(true); setError(null);
-        try {
-            if (mode === 'login') {
-                const { user } = await firebase.auth().signInWithEmailAndPassword(data.email, data.password);
-                const isHardcodedAdmin = data.email === 'admin@gmail.com';
-                if (!user.emailVerified && !isHardcodedAdmin) {
-                    await firebase.auth().signOut();
-                    throw new Error(translations[lang]['check_email_verify']);
-                }
-                onClose();
-            } else if (mode === 'register') {
-                if (!data.email.toLowerCase().endsWith("@moe-dl.edu.my") && data.email !== 'admin@gmail.com') {
-                    throw new Error(t('moe_email_required'));
-                }
-                const {user} = await firebase.auth().createUserWithEmailAndPassword(data.email, data.password);
-                
-                if (user) {
-                    await user.sendEmailVerification();
-                    await firebase.firestore().collection('users').doc(user.uid).set({ 
-                        email: data.email, displayName: data.name, points: 5, birthdate: data.birthdate, 
-                        phone: data.phone, address: data.address, userClass: data.userClass, 
-                        isAdmin: data.email === 'admin@gmail.com'
-                    });
-                    // Immediately sign out after registration to force verification flow
-                    await firebase.auth().signOut();
-                    alert(t('check_email_verify'));
-                    setMode('login');
-                }
-            }
-        } catch (err: any) { setError(err.message); } finally { setLoading(false); }
-    };
-
-    return (
-        <div className="fixed inset-0 bg-black/80 z-[400] flex items-center justify-center p-4 backdrop-blur-md" onClick={onClose}>
-            <div className="bg-white w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl relative animate-in zoom-in overflow-y-auto max-h-[95vh]" onClick={e => e.stopPropagation()}>
-                <button onClick={onClose} className="absolute top-6 right-6 bg-gray-100 w-10 h-10 rounded-full flex items-center justify-center transition-all"><i className="fas fa-times text-gray-400"></i></button>
-                <h2 className="text-2xl font-black text-center uppercase italic text-[#2c3e50] mb-8">
-                    {mode === 'login' ? t('login') : t('register')}
-                </h2>
-                {error && <div className="mb-6 bg-amber-50 p-4 rounded-xl text-amber-800 text-[11px] font-black uppercase tracking-wider border-2 border-amber-200">{error}</div>}
-                <form onSubmit={submit} className="space-y-4">
-                    {mode === 'register' && (
-                        <>
-                            <input placeholder={t('full_name')} value={data.name} onChange={e => setData({...data, name: e.target.value})} className="w-full bg-gray-50 border-2 p-4 rounded-2xl outline-none font-bold text-sm" required />
-                            <input placeholder={t('class_label')} value={data.userClass} onChange={e => setData({...data, userClass: e.target.value})} className="w-full bg-gray-50 border-2 p-4 rounded-2xl outline-none font-bold text-sm" required />
-                            <input type="date" value={data.birthdate} onChange={e => setData({...data, birthdate: e.target.value})} className="w-full bg-gray-50 border-2 p-4 rounded-2xl outline-none font-bold text-sm" required />
-                            <input type="tel" placeholder={t('phone_number')} value={data.phone} onChange={e => setData({...data, phone: e.target.value})} className="w-full bg-gray-50 border-2 p-4 rounded-2xl outline-none font-bold text-sm" required />
-                            <input placeholder={t('home_address')} value={data.address} onChange={e => setData({...data, address: e.target.value})} className="w-full bg-gray-50 border-2 p-4 rounded-2xl outline-none font-bold text-sm" required />
-                        </>
-                    )}
-                    <input type="email" placeholder="m-xxxxxxxx@moe-dl.edu.my" value={data.email} onChange={e => setData({...data, email: e.target.value})} className="w-full bg-gray-50 border-2 p-4 rounded-2xl outline-none font-bold text-sm placeholder:text-gray-300" required />
-                    
-                    <div className="relative">
-                        <input type={showPassword ? "text" : "password"} placeholder={t('password')} value={data.password} onChange={e => setData({...data, password: e.target.value})} className="w-full bg-gray-50 border-2 p-4 rounded-2xl outline-none font-bold text-sm" required />
-                        <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-300"><i className={`fas fa-${showPassword ? 'eye-slash' : 'eye'}`}></i></button>
-                    </div>
-                    
-                    <button disabled={loading} className="w-full bg-[#3498db] text-white py-6 rounded-full font-black text-xl shadow-xl hover:scale-105 transition-all mt-6 uppercase tracking-widest">{loading ? '...' : (mode === 'login' ? t('login') : t('register'))}</button>
-                </form>
-                <div className="mt-6 flex flex-col items-center gap-3">
-                    <button onClick={() => setMode(mode === 'login' ? 'register' : 'login')} className="text-xs font-black uppercase text-[#3498db] hover:underline">{mode === 'login' ? t('register') : t('login')}</button>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-const RedeemConfirmModal: React.FC<{item: any, user: any, t: any, onCancel: () => void, onConfirm: (f: string, c: string) => void}> = ({item, user, t, onCancel, onConfirm}) => {
-    const [f, setF] = useState(user?.displayName || '');
-    const [c, setC] = useState(user?.userClass || '');
-    return (
-        <div className="fixed inset-0 bg-black/90 z-[500] flex items-center justify-center p-4 backdrop-blur-xl" onClick={onCancel}>
-            <div className="bg-white w-full max-w-md rounded-[2rem] p-10 shadow-2xl animate-in zoom-in" onClick={e => e.stopPropagation()}>
-                <h2 className="text-xl font-black mb-8 italic uppercase text-[#2c3e50] text-center">{t('confirm')}</h2>
-                <form onSubmit={e => { e.preventDefault(); onConfirm(f, c); }} className="space-y-6">
-                    <input value={f} onChange={e => setF(e.target.value)} placeholder={t('full_name')} className="w-full bg-gray-50 border-2 p-5 rounded-2xl font-bold text-sm" required />
-                    <input value={c} onChange={e => setC(e.target.value)} placeholder={t('class_label')} className="w-full bg-gray-50 border-2 p-5 rounded-2xl font-bold text-sm" required />
-                    <button type="submit" className="w-full bg-[#3498db] text-white py-6 rounded-full font-black uppercase shadow-xl tracking-widest mt-4">{t('confirm')}</button>
-                </form>
-            </div>
-        </div>
-    );
-};
-
-const ProfilePage: React.FC<{user: any | null, t: any, onAuth: any, onNavigate?: any}> = ({user, t, onAuth}) => {
-    const [isEditing, setIsEditing] = useState(false);
-    const [editData, setEditData] = useState<any>(null);
-    const [saving, setSaving] = useState(false);
-
-    const isAdmin = user?.isAdmin || user?.email === 'admin@gmail.com';
-
-    useEffect(() => {
-        if (user) {
-            setEditData({
-                displayName: user.displayName || '',
-                userClass: user.userClass || '',
-                phone: user.phone || '',
-                birthdate: user.birthdate || '',
-                address: user.address || ''
-            });
-        }
-    }, [user, isEditing]);
-
-    if (!user) return <div className="text-center py-20"><button onClick={onAuth} className="bg-[#3498db] text-white px-12 py-4 rounded-full font-black uppercase shadow-xl">{t('login')}</button></div>;
-
-    const handleSave = async () => {
-        if (!editData || !user || typeof firebase === 'undefined' || !firebase.firestore) return;
-        setSaving(true);
-        try {
-            await firebase.firestore().collection('users').doc(user.uid).set({
-                ...user,
-                ...editData
-            });
-            setIsEditing(false);
-            alert(t('save') + "!");
-        } catch (err: any) {
-            alert("Error: " + err.message);
-        } finally {
-            setSaving(false);
-        }
-    };
-
-    const handleDeleteAccount = async () => {
-        if (isAdmin) return; // Fail-safe for admin
-        
-        if (window.confirm(t('delete_confirm'))) {
-            if (window.confirm("FINAL WARNING: All points and data will be lost. Proceed?")) {
-                try {
-                    const currentUser = firebase.auth().currentUser;
-                    const uid = currentUser.uid;
-                    await firebase.firestore().collection('users').doc(uid).delete();
-                    await currentUser.delete();
-                    alert("Account deleted.");
-                } catch (err: any) {
-                    alert("Authentication required. Please logout and login again before deleting your account.");
-                }
-            }
-        }
-    };
-
-    return (
-        <div className="max-w-2xl mx-auto space-y-8 pb-20">
-            <div className="bg-[#2c3e50] p-12 rounded-[2rem] shadow-xl text-white text-center border-b-8 border-[#f39c12] relative overflow-hidden">
-                <div className="w-20 h-20 bg-[#3498db] rounded-full flex items-center justify-center text-3xl font-black mx-auto mb-6 uppercase border-4 border-white/20 shadow-inner">
-                    {user.displayName?.[0] || '?'}
-                </div>
-                {isEditing ? (
-                    <div className="space-y-4 max-w-xs mx-auto">
-                        <input 
-                            value={editData.displayName} 
-                            onChange={e => setEditData({...editData, displayName: e.target.value})}
-                            placeholder={t('full_name')}
-                            className="w-full bg-white/10 border-2 border-white/20 rounded-xl p-3 text-white font-black uppercase text-center placeholder:text-white/40 outline-none focus:border-[#3498db] transition-all"
-                        />
-                        <input 
-                            value={editData.userClass} 
-                            onChange={e => setEditData({...editData, userClass: e.target.value})}
-                            placeholder={t('class_label')}
-                            className="w-full bg-white/10 border-2 border-white/20 rounded-xl p-3 text-white font-black uppercase text-center placeholder:text-white/40 outline-none focus:border-[#3498db] transition-all"
-                        />
-                    </div>
-                ) : (
-                    <>
-                        <h1 className="text-2xl font-black uppercase italic mb-2 tracking-tighter">{user.displayName || 'Guest'}</h1>
-                        <p className="text-[#f39c12] font-black text-xl flex items-center justify-center gap-2">
-                            <i className="fas fa-star"></i> {user.points} {t('points')}
-                        </p>
-                        {user.userClass && <p className="text-xs font-bold uppercase tracking-widest text-white/60 mt-2">{user.userClass}</p>}
-                    </>
-                )}
-                
-                <button 
-                    onClick={() => isEditing ? handleSave() : setIsEditing(true)} 
-                    disabled={saving}
-                    className="absolute top-6 right-6 w-12 h-12 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center transition-all border border-white/10 group"
-                >
-                    <i className={`fas fa-${isEditing ? (saving ? 'spinner fa-spin' : 'check') : 'pen'} text-xs text-white`}></i>
-                </button>
-                {isEditing && (
-                    <button 
-                        onClick={() => setIsEditing(false)} 
-                        className="absolute top-6 left-6 w-12 h-12 bg-red-500/20 hover:bg-red-500/40 rounded-full flex items-center justify-center transition-all border border-red-500/20"
-                    >
-                        <i className="fas fa-times text-xs text-white"></i>
-                    </button>
-                )}
-            </div>
-
-            <div className="bg-white p-8 rounded-[2rem] border shadow-sm space-y-6 relative group border-gray-100">
-                <h3 className="text-[10px] font-black uppercase text-gray-400 tracking-widest border-b border-gray-50 pb-3">{t('personal_info')}</h3>
-                
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                    <div className="space-y-1">
-                        <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest ml-1">{t('phone_number')}</label>
-                        {isEditing ? (
-                            <input 
-                                value={editData.phone} 
-                                onChange={e => setEditData({...editData, phone: e.target.value})}
-                                className="w-full p-3 bg-gray-50 border-2 border-gray-100 rounded-xl font-bold text-xs outline-none focus:border-[#3498db]"
-                            />
-                        ) : (
-                            <p className="font-bold text-[#2c3e50] bg-gray-50/50 p-3 rounded-xl border border-transparent">{user.phone || 'Not Set'}</p>
-                        )}
-                    </div>
-                    
-                    <div className="space-y-1">
-                        <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest ml-1">{t('birthdate')}</label>
-                        {isEditing ? (
-                            <input 
-                                type="date"
-                                value={editData.birthdate} 
-                                onChange={e => setEditData({...editData, birthdate: e.target.value})}
-                                className="w-full p-3 bg-gray-50 border-2 border-gray-100 rounded-xl font-bold text-xs outline-none focus:border-[#3498db]"
-                            />
-                        ) : (
-                            <p className="font-bold text-[#2c3e50] bg-gray-50/50 p-3 rounded-xl border border-transparent">{user.birthdate || 'Not Set'}</p>
-                        )}
-                    </div>
-
-                    <div className="col-span-1 sm:col-span-2 space-y-1">
-                        <label className="text-[8px] font-black uppercase text-gray-400 tracking-widest ml-1">{t('home_address')}</label>
-                        {isEditing ? (
-                            <textarea 
-                                value={editData.address} 
-                                onChange={e => setEditData({...editData, address: e.target.value})}
-                                className="w-full p-3 bg-gray-50 border-2 border-gray-100 rounded-xl font-bold text-xs outline-none focus:border-[#3498db] min-h-[80px]"
-                            />
-                        ) : (
-                            <p className="font-bold text-[#2c3e50] bg-gray-50/50 p-3 rounded-xl border border-transparent">{user.address || 'Not Set'}</p>
-                        )}
-                    </div>
-                </div>
-
-                <div className="pt-6 space-y-4">
-                    {isEditing ? (
-                        <button 
-                            onClick={handleSave} 
-                            disabled={saving}
-                            className="w-full bg-[#3498db] text-white py-4 rounded-2xl font-black uppercase text-xs shadow-xl shadow-blue-100 transition-all hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2"
-                        >
-                            {saving ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-save"></i>}
-                            {t('save_profile')}
-                        </button>
-                    ) : (
-                        <>
-                            <button onClick={() => firebase.auth().signOut()} className="w-full bg-[#2c3e50] text-white py-4 rounded-2xl font-black uppercase text-xs shadow-xl transition-all hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2">
-                                <i className="fas fa-sign-out-alt"></i>
-                                {t('logout')}
-                            </button>
-                            {!isAdmin && (
-                                <button onClick={handleDeleteAccount} className="w-full border-2 border-red-100 text-red-500 py-4 rounded-2xl font-black uppercase text-[10px] transition-all hover:bg-red-50 flex items-center justify-center gap-2">
-                                    <i className="fas fa-trash"></i>
-                                    {t('delete_account')}
-                                </button>
-                            )}
-                        </>
-                    )}
-                </div>
-            </div>
-        </div>
-    );
-};
-
-export default App;
