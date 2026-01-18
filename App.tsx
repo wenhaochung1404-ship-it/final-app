@@ -43,8 +43,7 @@ const App: React.FC = () => {
     const [guestId, setGuestId] = useState<string>('');
     const [isLangOpen, setIsLangOpen] = useState(false);
     const [isQuickOfferOpen, setIsQuickOfferOpen] = useState(false);
-    const [isVerifyingPhone, setIsVerifyingPhone] = useState(false);
-    const [tempAuthUser, setTempAuthUser] = useState<any>(null);
+    const [emailVerified, setEmailVerified] = useState(true);
     
     const t = useCallback((key: string) => translations[lang][key] || key, [lang]);
 
@@ -86,17 +85,10 @@ const App: React.FC = () => {
 
                 unsubscribeAuth = firebase.auth().onAuthStateChanged(async (authUser: any) => {
                     if (authUser) {
+                        setEmailVerified(authUser.emailVerified);
                         db.collection('users').doc(authUser.uid).onSnapshot((doc: any) => {
                             if (doc.exists) {
-                                const data = doc.data();
-                                if (!data.phoneVerified && data.email !== 'admin@gmail.com') {
-                                    setTempAuthUser(authUser);
-                                    setIsVerifyingPhone(true);
-                                    setUser(null);
-                                } else {
-                                    setUser({ ...data, uid: authUser.uid });
-                                    setIsVerifyingPhone(false);
-                                }
+                                setUser({ ...doc.data(), uid: authUser.uid });
                             } else {
                                 setUser({ uid: authUser.uid, email: authUser.email, points: 5 } as any);
                             }
@@ -112,7 +104,7 @@ const App: React.FC = () => {
                     } else { 
                         setUser(null); 
                         setNotifications([]);
-                        setIsVerifyingPhone(false);
+                        setEmailVerified(true);
                         if (unsubNotifs) unsubNotifs();
                     }
                     setLoading(false);
@@ -137,6 +129,15 @@ const App: React.FC = () => {
         try {
             await firebase.firestore().collection('notifications').doc(notification.id).update({ read: true });
         } catch (e) { console.error("Error marking read", e); }
+    };
+
+    const resendVerification = async () => {
+        try {
+            await firebase.auth().currentUser.sendEmailVerification();
+            alert("Verification email sent! Please check your inbox.");
+        } catch (e: any) {
+            alert(e.message);
+        }
     };
 
     if (loading) return (
@@ -179,6 +180,13 @@ const App: React.FC = () => {
                     </div>
                 </div>
             </header>
+
+            {!emailVerified && user && (
+                <div className="bg-amber-500 text-white p-2 text-center text-[10px] font-black uppercase tracking-widest animate-pulse">
+                    Please verify your email address to access all features. 
+                    <button onClick={resendVerification} className="ml-4 underline hover:text-black">Resend Link</button>
+                </div>
+            )}
 
             <div className="flex flex-1 overflow-hidden relative">
                 {isAdmin && (
@@ -332,12 +340,6 @@ const App: React.FC = () => {
                 </div>
             )}
 
-            {isVerifyingPhone && tempAuthUser && (
-                <div className="fixed inset-0 bg-black/90 z-[700] flex items-center justify-center p-4 backdrop-blur-md">
-                     <PhoneVerificationModal user={tempAuthUser} t={t} onVerified={() => { setIsVerifyingPhone(false); setTempAuthUser(null); }} />
-                </div>
-            )}
-
             {itemToRedeem && (
                 <RedeemConfirmModal 
                     item={itemToRedeem} user={user!} t={t} onCancel={() => setItemToRedeem(null)} 
@@ -366,17 +368,21 @@ const App: React.FC = () => {
 };
 
 const QuickOfferModalContent: React.FC<{user: any, t: any, onComplete: () => void}> = ({user, t, onComplete}) => {
-    const [item, setItem] = useState({ itemName: '', category: translations[Language.EN]['category_food'], qty: 1, donorName: user?.displayName || '' });
+    const [item, setItem] = useState({ itemName: '', category: translations[Language.EN]['category_food'], qty: 1 });
     const [posting, setPosting] = useState(false);
 
     const handlePost = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (typeof firebase === 'undefined' || !firebase.firestore) return;
+        if (typeof firebase === 'undefined' || !firebase.firestore || !user) return;
         setPosting(true);
         try {
             const db = firebase.firestore();
             await db.collection('donations').add({
-                ...item, createdAt: firebase.firestore.FieldValue.serverTimestamp(), userId: user.uid, donorName: user.displayName
+                ...item, 
+                createdAt: firebase.firestore.FieldValue.serverTimestamp(), 
+                userId: user.uid, 
+                donorName: user.displayName || 'Donor',
+                userClass: user.userClass || 'N/A'
             });
 
             const adminQuery = await db.collection('users').where('isAdmin', '==', true).get();
@@ -427,56 +433,6 @@ const QuickOfferModalContent: React.FC<{user: any, t: any, onComplete: () => voi
                     {posting ? '...' : t('post_offer')}
                 </button>
             </form>
-        </div>
-    );
-};
-
-const PhoneVerificationModal: React.FC<{user: any, t: any, onVerified: () => void}> = ({user, t, onVerified}) => {
-    const [code, setCode] = useState('');
-    const [sentCode, setSentCode] = useState('123456'); // Mock SMS for demo
-    const [error, setError] = useState('');
-    const [phone, setPhone] = useState('');
-    const [isChangingPhone, setIsChangingPhone] = useState(false);
-
-    useEffect(() => {
-        firebase.firestore().collection('users').doc(user.uid).get().then((doc: any) => {
-            if(doc.exists) setPhone(doc.data().phone);
-        });
-    }, [user.uid]);
-
-    const handleVerify = async () => {
-        if (code === sentCode) {
-            await firebase.firestore().collection('users').doc(user.uid).update({ phoneVerified: true, phone });
-            onVerified();
-        } else {
-            setError(t('wrong_code'));
-        }
-    };
-
-    const handleUpdatePhone = async () => {
-        setIsChangingPhone(false);
-        setError('');
-        // Logic to resend mock code
-    };
-
-    return (
-        <div className="bg-white w-full max-w-md rounded-[2.5rem] p-10 text-center animate-in zoom-in shadow-2xl">
-            <h2 className="text-2xl font-black uppercase italic mb-4">{t('verify_phone')}</h2>
-            <p className="text-gray-500 text-xs mb-8">{t('sms_sent')} <b>{phone}</b></p>
-            {error && <p className="text-red-500 text-[10px] font-black uppercase mb-4">{error}</p>}
-            
-            {isChangingPhone ? (
-                <div className="space-y-4">
-                    <input value={phone} onChange={e => setPhone(e.target.value)} className="w-full bg-gray-50 border-2 p-4 rounded-2xl outline-none font-bold text-center" placeholder={t('phone_number')} />
-                    <button onClick={handleUpdatePhone} className="w-full bg-[#3498db] text-white py-4 rounded-xl font-black uppercase text-xs">{t('save')}</button>
-                </div>
-            ) : (
-                <div className="space-y-6">
-                    <input value={code} onChange={e => setCode(e.target.value)} maxLength={6} className="w-full bg-gray-50 border-2 p-4 rounded-2xl outline-none font-bold text-center text-2xl tracking-[0.5em]" placeholder="000000" />
-                    <button onClick={handleVerify} className="w-full bg-[#2ecc71] text-white py-6 rounded-2xl font-black uppercase text-lg shadow-xl shadow-green-100">{t('verify')}</button>
-                    <button onClick={() => setIsChangingPhone(true)} className="text-[#3498db] text-[10px] font-black uppercase hover:underline">{t('change_phone')}</button>
-                </div>
-            )}
         </div>
     );
 };
@@ -656,6 +612,7 @@ const HomePage: React.FC<{t: any, user: any | null}> = ({t, user}) => {
                                     </div>
                                     <div className="space-y-2 flex-1 mb-6 text-gray-400 font-bold text-sm">
                                         <div><i className="far fa-user mr-2"></i>{item.donorName}</div>
+                                        {item.userClass && <div className="text-[10px]"><i className="fas fa-school mr-2"></i>{item.userClass}</div>}
                                     </div>
                                     {isAdmin && (
                                         <button onClick={() => handleConfirmReceived(item)} className="w-full bg-[#2ecc71] hover:bg-[#27ae60] text-white py-3 rounded-xl text-xs font-black uppercase shadow-md transition-all">
@@ -862,7 +819,7 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
                                     <div key={i.id} onClick={() => setSelectedOffer(i)} className="bg-white p-4 border border-gray-100 rounded-2xl mb-2 flex justify-between items-center cursor-pointer hover:border-[#3498db] hover:shadow-md transition-all group">
                                         <div className="flex-1">
                                             <div className="font-black text-xs uppercase text-[#2c3e50]">{i.itemName}</div>
-                                            <div className="text-[9px] text-gray-400 font-bold uppercase tracking-tighter">Donor: {i.donorName} • Qty: {i.qty}</div>
+                                            <div className="text-[9px] text-gray-400 font-bold uppercase tracking-tighter">Donor: {i.donorName} ({i.userClass}) • Qty: {i.qty}</div>
                                         </div>
                                         <i className="fas fa-chevron-right text-gray-200 group-hover:text-[#3498db] transition-colors"></i>
                                     </div>
@@ -876,7 +833,7 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
                                     <div key={i.id} onClick={() => setSelectedOffer(i)} className="bg-white p-4 border border-green-50 rounded-2xl mb-2 flex justify-between items-center opacity-70 cursor-pointer hover:opacity-100 hover:border-green-200 transition-all group">
                                         <div className="flex-1">
                                             <div className="font-black text-xs uppercase text-[#2c3e50]">{i.itemName}</div>
-                                            <div className="text-[9px] text-gray-400 font-bold uppercase tracking-tighter">Donor: {i.donorName}</div>
+                                            <div className="text-[9px] text-gray-400 font-bold uppercase tracking-tighter">Donor: {i.donorName} ({i.userClass})</div>
                                         </div>
                                         <div className="text-green-500 font-black text-[9px] uppercase italic">{t('verified')}</div>
                                     </div>
@@ -1207,7 +1164,7 @@ const HistoryPage: React.FC<{user: any | null, t: any, onAuth: any}> = ({user, t
                         redeems.map((h) => (
                             <div key={h.id} className="bg-white p-6 rounded-[2rem] border border-gray-100 flex items-center justify-between shadow-sm hover:shadow-md transition-shadow group border-l-8 border-l-[#f39c12]">
                                 <div className="flex items-center gap-6">
-                                    <div className="w-14 h-14 bg-orange-50 text-orange-500 rounded-2xl flex items-center justify-center text-xl shadow-inner">
+                                    <div className={`w-14 h-14 bg-orange-50 text-orange-500 rounded-2xl flex items-center justify-center text-xl shadow-inner`}>
                                         <i className="fas fa-ticket-alt"></i>
                                     </div>
                                     <div>
@@ -1255,11 +1212,16 @@ const AuthModal: React.FC<{onClose: () => void, t: any, lang: Language}> = ({onC
                     throw new Error(lang === Language.BC ? "需要教育邮箱" : "MOE Email Required");
                 }
                 const {user} = await firebase.auth().createUserWithEmailAndPassword(data.email, data.password);
+                
+                // Send email verification
+                await user.sendEmailVerification();
+                
                 await firebase.firestore().collection('users').doc(user.uid).set({ 
                     email: data.email, displayName: data.name, points: 5, birthdate: data.birthdate, 
                     phone: data.phone, address: data.address, userClass: data.userClass, 
-                    isAdmin: data.email === 'admin@gmail.com', phoneVerified: false
+                    isAdmin: data.email === 'admin@gmail.com'
                 });
+                alert("Account created! A verification link has been sent to your email. Please verify to access all features.");
                 onClose();
             }
         } catch (err: any) { setError(err.message); } finally { setLoading(false); }
