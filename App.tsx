@@ -119,35 +119,40 @@ const HomePage: React.FC<{ t: any, user: any }> = ({ t, user }) => {
                 </div>
             </div>
 
-            <section className="space-y-6 px-2">
-                <h2 className="text-xl font-black text-[#2c3e50] uppercase italic tracking-tighter border-l-4 border-[#3498db] pl-4">{t('offer_help')}</h2>
-                {donations.length === 0 ? (
-                    <div className="bg-white p-12 rounded-[2.5rem] border-4 border-dashed border-gray-100 text-center">
-                        <p className="text-gray-400 font-black uppercase italic text-xs">{t('empty_offers_msg')}</p>
-                    </div>
-                ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {donations.map(item => {
-                            const date = item.createdAt?.toDate ? item.createdAt.toDate() : new Date();
-                            const formattedDate = `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
-                            return (
-                                <div key={item.id} className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 hover:shadow-md transition-all">
-                                    <div className="flex justify-between items-start mb-4">
-                                        <h3 className="font-black text-[#2c3e50] uppercase truncate mr-2">{item.itemName}</h3>
-                                        <span className="bg-blue-50 text-[#3498db] text-[9px] font-black px-2 py-1 rounded-full uppercase flex-shrink-0">{item.qty} qty</span>
+            {user && (
+                <section className="space-y-6 px-2">
+                    <h2 className="text-xl font-black text-[#2c3e50] uppercase italic tracking-tighter border-l-4 border-[#3498db] pl-4">{t('offer_help')}</h2>
+                    {donations.length === 0 ? (
+                        <div className="bg-white p-12 rounded-[2.5rem] border-4 border-dashed border-gray-100 text-center">
+                            <p className="text-gray-400 font-black uppercase italic text-xs">{t('empty_offers_msg')}</p>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {donations.map(item => {
+                                const dateObj = item.createdAt?.toDate ? item.createdAt.toDate() : new Date();
+                                const formattedDate = `${String(dateObj.getDate()).padStart(2, '0')}/${String(dateObj.getMonth() + 1).padStart(2, '0')}/${dateObj.getFullYear()}`;
+                                const formattedTime = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+                                const displayCategory = item.category?.startsWith('category_') ? t(item.category) : item.category;
+                                
+                                return (
+                                    <div key={item.id} className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 hover:shadow-md transition-all">
+                                        <div className="flex justify-between items-start mb-4">
+                                            <h3 className="font-black text-[#2c3e50] uppercase truncate mr-2">{item.itemName}</h3>
+                                            <span className="bg-blue-50 text-[#3498db] text-[9px] font-black px-2 py-1 rounded-full uppercase flex-shrink-0">{item.qty} qty</span>
+                                        </div>
+                                        <div className="text-[10px] text-gray-400 font-bold uppercase space-y-1">
+                                            <p><i className="fas fa-tag mr-2 text-[#3498db] w-4"></i>{displayCategory}</p>
+                                            <p><i className="fas fa-user mr-2 text-[#3498db] w-4"></i>{item.donorName}</p>
+                                            <p><i className="fas fa-school mr-2 text-[#3498db] w-4"></i>{item.userClass || 'N/A'}</p>
+                                            <p><i className="fas fa-calendar mr-2 text-[#3498db] w-4"></i>{formattedDate} • {formattedTime}</p>
+                                        </div>
                                     </div>
-                                    <div className="text-[10px] text-gray-400 font-bold uppercase space-y-1">
-                                        <p><i className="fas fa-tag mr-2 text-[#3498db] w-4"></i>{item.category}</p>
-                                        <p><i className="fas fa-user mr-2 text-[#3498db] w-4"></i>{item.donorName}</p>
-                                        <p><i className="fas fa-school mr-2 text-[#3498db] w-4"></i>{item.userClass || 'N/A'}</p>
-                                        <p><i className="fas fa-calendar mr-2 text-[#3498db] w-4"></i>{formattedDate}</p>
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                )}
-            </section>
+                                );
+                            })}
+                        </div>
+                    )}
+                </section>
+            )}
         </div>
     );
 };
@@ -304,7 +309,15 @@ export const App: React.FC = () => {
                                 </button>
                             </div>
                         )}
-                        {user && <div className="flex items-center bg-[#f39c12] px-2 sm:px-4 py-1 rounded-full text-[8px] sm:text-xs font-black shadow-lg whitespace-nowrap"><i className="fas fa-star mr-1 sm:mr-2"></i> {user.points} <span className="ml-0.5">{t('points')}</span></div>}
+                        {user && (
+                            <button 
+                                onClick={() => setPage('shop')}
+                                className="flex items-center bg-[#f39c12] hover:bg-[#e67e22] transition-colors px-2 sm:px-4 py-1 rounded-full text-[8px] sm:text-xs font-black shadow-lg whitespace-nowrap"
+                            >
+                                <i className="fas fa-star mr-1 sm:mr-2"></i> 
+                                {user.points} <span className="ml-0.5">{t('points')}</span>
+                            </button>
+                        )}
                         {!user && (
                             <button onClick={(e) => { e.stopPropagation(); setIsAuthModalOpen(true); }} className="bg-[#3498db] hover:bg-blue-600 px-3 py-1.5 rounded-full text-[8px] sm:text-[10px] font-black uppercase shadow-lg">{t('login')}</button>
                         )}
@@ -320,15 +333,8 @@ export const App: React.FC = () => {
             )}
 
             <div className="flex flex-1 overflow-hidden relative">
-                {isAdmin && (
-                    <button onClick={() => setShowAdminPanel(!showAdminPanel)} className="fixed right-4 top-1/4 z-[110] bg-[#2c3e50] text-white w-12 h-12 sm:w-14 sm:h-14 rounded-full shadow-2xl flex flex-col items-center justify-center hover:scale-110 active:scale-95 transition-all group border-4 border-white">
-                        <i className={`fas fa-${showAdminPanel ? 'times' : 'user-shield'} text-lg sm:text-xl`}></i>
-                        <span className="text-[6px] sm:text-[7px] font-black uppercase mt-1">{t('admin_panel')}</span>
-                    </button>
-                )}
-
                 <div className="fixed right-6 bottom-6 z-[200] flex flex-col items-end gap-3 sm:gap-4">
-                    {showSupportChat && (
+                    {showSupportChat && !isAdmin && (
                         <div className="w-[85vw] sm:w-80 h-[450px] bg-white rounded-3xl shadow-2xl border border-gray-100 flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 mb-2 origin-bottom-right" onClick={(e) => e.stopPropagation()}>
                             <div className="bg-[#3498db] p-4 text-white flex justify-between items-center">
                                 <div className="font-black uppercase text-xs flex items-center gap-2">
@@ -344,19 +350,19 @@ export const App: React.FC = () => {
                     )}
                     
                     <div className="flex items-center gap-3">
-                        <button 
-                            onClick={(e) => { 
-                                e.stopPropagation(); 
-                                if(user) {
+                        {user && (
+                            <button 
+                                onClick={(e) => { 
+                                    e.stopPropagation(); 
                                     if(emailVerified) setIsQuickOfferOpen(true);
                                     else alert(t('check_email_verify'));
-                                } else setIsAuthModalOpen(true); 
-                            }}
-                            className="bg-[#2ecc71] text-white w-12 h-12 sm:w-14 sm:h-14 rounded-full shadow-xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all border-4 border-gray-50"
-                            title={t('quick_offer')}
-                        >
-                            <i className="fas fa-plus text-xl sm:text-2xl"></i>
-                        </button>
+                                }}
+                                className="bg-[#2ecc71] text-white w-12 h-12 sm:w-14 sm:h-14 rounded-full shadow-xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all border-4 border-gray-50"
+                                title={t('quick_offer')}
+                            >
+                                <i className="fas fa-plus text-xl sm:text-2xl"></i>
+                            </button>
+                        )}
 
                         <div className="relative">
                             <button 
@@ -383,12 +389,24 @@ export const App: React.FC = () => {
                             )}
                         </div>
 
-                        <button 
-                            onClick={(e) => { e.stopPropagation(); setShowSupportChat(!showSupportChat); }}
-                            className="bg-[#3498db] text-white w-16 h-16 rounded-full shadow-[0_8px_32px_rgba(52,152,219,0.3)] flex items-center justify-center hover:scale-110 active:scale-95 transition-all border-4 border-white z-[201]"
-                        >
-                            <i className="fas fa-comment-dots text-3xl"></i>
-                        </button>
+                        {user && (
+                            isAdmin ? (
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); setShowAdminPanel(!showAdminPanel); }}
+                                    className="bg-[#2c3e50] text-white w-16 h-16 rounded-full shadow-2xl flex flex-col items-center justify-center hover:scale-110 active:scale-95 transition-all border-4 border-white z-[201]"
+                                >
+                                    <i className={`fas fa-${showAdminPanel ? 'times' : 'user-shield'} text-2xl`}></i>
+                                    <span className="text-[7px] font-black uppercase mt-1">Admin</span>
+                                </button>
+                            ) : (
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); setShowSupportChat(!showSupportChat); }}
+                                    className="bg-[#3498db] text-white w-16 h-16 rounded-full shadow-[0_8px_32px_rgba(52,152,219,0.3)] flex items-center justify-center hover:scale-110 active:scale-95 transition-all border-4 border-white z-[201]"
+                                >
+                                    <i className="fas fa-comment-dots text-3xl"></i>
+                                </button>
+                            )
+                        )}
                     </div>
                 </div>
 
@@ -826,20 +844,26 @@ const ShopPage: React.FC<{user: any, t: any, onAuth: () => void, onRedeemConfirm
             <div className="flex justify-between items-center">
                 <h2 className="text-3xl font-black italic uppercase text-[#2c3e50] tracking-tighter">{t('points_shop')}</h2>
                 {isAdmin && (
-                    <button onClick={() => { setShowAddForm(!showAddForm); setEditingItem(null); setNewItem({name: '', cost: 0, color: '#3498db'}); }} className="bg-[#2c3e50] text-white px-6 py-2 rounded-full font-black text-[10px] uppercase shadow-lg transition-all active:scale-95">
-                        <i className={`fas fa-${showAddForm ? 'times' : 'plus'} mr-2`}></i>
-                        {showAddForm ? t('cancel') : t('add_reward')}
+                    <button onClick={() => { setShowAddForm(true); setEditingItem(null); setNewItem({name: '', cost: 0, color: '#3498db'}); }} className="bg-[#2c3e50] text-white px-6 py-2 rounded-full font-black text-[10px] uppercase shadow-lg transition-all active:scale-95">
+                        <i className="fas fa-plus mr-2"></i>
+                        {t('add_reward')}
                     </button>
                 )}
             </div>
 
             {showAddForm && (
-                <form onSubmit={handleAddItem} className="bg-white p-8 rounded-[2.5rem] shadow-xl border-4 border-dashed border-gray-100 max-w-xl mx-auto space-y-4 animate-in zoom-in">
-                    <AdminInput label={t('product_name')} value={editingItem ? newItem.name : newItem.name} onChange={v => setNewItem({...newItem, name: v})} placeholder="e.g. Special Voucher" />
-                    <AdminInput label={t('point_cost')} type="number" value={newItem.cost} onChange={v => setNewItem({...newItem, cost: v})} />
-                    <AdminInput label={t('color_code')} type="color" value={newItem.color} onChange={v => setNewItem({...newItem, color: v})} />
-                    <button type="submit" className="w-full bg-[#3498db] text-white py-4 rounded-2xl font-black uppercase shadow-xl">{editingItem ? 'Save Updates' : t('save')}</button>
-                </form>
+                <div className="fixed inset-0 bg-black/80 z-[1000] flex items-center justify-center p-4 backdrop-blur-sm">
+                    <form onSubmit={handleAddItem} className="bg-white p-8 rounded-[2.5rem] shadow-2xl max-w-xl w-full space-y-4 animate-in zoom-in">
+                        <h3 className="text-xl font-black uppercase italic mb-4">{editingItem ? 'Edit Reward' : t('add_reward')}</h3>
+                        <AdminInput label={t('product_name')} value={newItem.name} onChange={v => setNewItem({...newItem, name: v})} placeholder="e.g. Special Voucher" />
+                        <AdminInput label={t('point_cost')} type="number" value={newItem.cost} onChange={v => setNewItem({...newItem, cost: v})} />
+                        <AdminInput label={t('color_code')} type="color" value={newItem.color} onChange={v => setNewItem({...newItem, color: v})} />
+                        <div className="flex gap-4 pt-4">
+                            <button type="submit" className="flex-1 bg-[#3498db] text-white py-4 rounded-2xl font-black uppercase shadow-xl">{editingItem ? t('save') : t('confirm')}</button>
+                            <button type="button" onClick={() => setShowAddForm(false)} className="flex-1 bg-gray-100 text-gray-500 py-4 rounded-2xl font-black uppercase">{t('cancel')}</button>
+                        </div>
+                    </form>
+                </div>
             )}
 
             {rewards.length === 0 ? (
@@ -965,7 +989,21 @@ const HistoryPage: React.FC<{user: any, t: any, onAuth: () => void}> = ({user, t
                                 <form onSubmit={handleUpdateOffer} className="bg-white w-full max-w-md p-8 rounded-[2.5rem] shadow-2xl space-y-4 animate-in zoom-in">
                                     <h3 className="text-xl font-black uppercase italic mb-4">Edit Offer</h3>
                                     <AdminInput label="Item Name" value={editingOffer.itemName} onChange={v => setEditingOffer({...editingOffer, itemName: v})} />
-                                    <AdminInput label="Category" value={editingOffer.category} onChange={v => setEditingOffer({...editingOffer, category: v})} />
+                                    <div className="space-y-2">
+                                        <label className="text-[8px] font-black uppercase text-gray-400 tracking-[0.2em] ml-1">{t('status')}</label>
+                                        <select 
+                                            value={editingOffer.category} 
+                                            onChange={e => setEditingOffer({...editingOffer, category: e.target.value})} 
+                                            className="w-full p-3 bg-white border-2 border-gray-100 rounded-xl font-bold transition-all text-sm outline-none focus:border-[#3498db] text-[#2c3e50]"
+                                        >
+                                            <option value="category_food">{t('category_food')}</option>
+                                            <option value="category_clothing">{t('category_clothing')}</option>
+                                            <option value="category_books">{t('category_books')}</option>
+                                            <option value="category_furniture">{t('category_furniture')}</option>
+                                            <option value="category_toiletries">{t('category_toiletries')}</option>
+                                            <option value="category_others">{t('category_others')}</option>
+                                        </select>
+                                    </div>
                                     <AdminInput label="Qty" type="number" value={editingOffer.qty} onChange={v => setEditingOffer({...editingOffer, qty: v})} />
                                     <div className="flex gap-2 pt-4">
                                         <button type="submit" className="flex-1 bg-[#3498db] text-white py-3 rounded-xl font-black uppercase text-xs">Save</button>
@@ -977,32 +1015,42 @@ const HistoryPage: React.FC<{user: any, t: any, onAuth: () => void}> = ({user, t
                         {myOffers.length === 0 ? (
                             <EmptyHistory t={t} />
                         ) : (
-                            myOffers.map(o => (
-                                <div key={o.id} className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex flex-col gap-4 animate-in slide-in-from-bottom-2">
-                                    <div className="flex justify-between items-center">
-                                        <div>
-                                            <h4 className="font-black text-[#2c3e50] uppercase italic">{o.itemName}</h4>
-                                            <p className="text-[10px] text-gray-400 font-bold uppercase">{o.category} • Qty: {o.qty}</p>
+                            myOffers.map(o => {
+                                const displayCategory = o.category?.startsWith('category_') ? t(o.category) : o.category;
+                                return (
+                                    <div key={o.id} className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex flex-col gap-4 animate-in slide-in-from-bottom-2">
+                                        <div className="flex justify-between items-center">
+                                            <div>
+                                                <h4 className="font-black text-[#2c3e50] uppercase italic">{o.itemName}</h4>
+                                                <p className="text-[10px] text-gray-400 font-bold uppercase">{displayCategory} • Qty: {o.qty}</p>
+                                            </div>
+                                            <div className="flex flex-col items-end gap-1">
+                                                <span className={`text-[8px] font-black uppercase px-3 py-1 rounded-full ${o.active ? 'bg-amber-100 text-amber-600' : 'bg-green-100 text-green-600'}`}>
+                                                    {o.active ? t('pending_approval') : t('verified')}
+                                                </span>
+                                                {!o.active && <span className="font-black text-green-500 text-[10px]">+{o.earnedPoints || 5} {t('points')}</span>}
+                                            </div>
                                         </div>
-                                        <div className="flex flex-col items-end gap-1">
-                                            <span className={`text-[8px] font-black uppercase px-3 py-1 rounded-full ${o.active ? 'bg-amber-100 text-amber-600' : 'bg-green-100 text-green-600'}`}>
-                                                {o.active ? t('pending_approval') : t('verified')}
-                                            </span>
-                                            {!o.active && <span className="font-black text-green-500 text-[10px]">+{o.earnedPoints || 5} {t('points')}</span>}
-                                        </div>
-                                    </div>
-                                    <div className="flex gap-4 pt-2 border-t border-gray-50">
-                                        {o.active && (
-                                            <button onClick={() => setEditingOffer(o)} className="text-[9px] font-black uppercase text-[#3498db] hover:underline flex items-center gap-1">
-                                                <i className="fas fa-edit"></i> Edit
-                                            </button>
+                                        {o.active ? (
+                                            <div className="flex gap-4 pt-2 border-t border-gray-50">
+                                                <button onClick={() => setEditingOffer(o)} className="text-[9px] font-black uppercase text-[#3498db] hover:underline flex items-center gap-1">
+                                                    <i className="fas fa-edit"></i> Edit
+                                                </button>
+                                                <button onClick={() => handleDeleteOffer(o)} className="text-[9px] font-black uppercase text-red-500 hover:underline flex items-center gap-1">
+                                                    <i className="fas fa-trash"></i> Delete
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div className="pt-2 border-t border-gray-50 flex justify-end">
+                                                 <div className="flex items-center bg-green-50 text-green-600 px-3 py-1 rounded-full text-[9px] font-black gap-2">
+                                                     <i className="fas fa-check-double"></i>
+                                                     {t('verified_completed')}
+                                                 </div>
+                                            </div>
                                         )}
-                                        <button onClick={() => handleDeleteOffer(o)} className="text-[9px] font-black uppercase text-red-500 hover:underline flex items-center gap-1">
-                                            <i className="fas fa-trash"></i> Delete
-                                        </button>
                                     </div>
-                                </div>
-                            ))
+                                );
+                            })
                         )}
                     </>
                 ) : (
@@ -1065,7 +1113,7 @@ const AdminChatLogWindow: React.FC<{userId: string}> = ({userId}) => {
             .where('userId', '==', userId)
             .onSnapshot((snap: any) => {
                 const data = snap.docs.map((d: any) => d.data());
-                data.sort((a: any, b: any) => (a.createdAt?.toMillis?.() || 0) - (b.createdAt?.toMillis?.() || 0));
+                data.sort((a: any, b: any) => (a.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
                 setLogs(data);
             }, (err: any) => {});
     }, [userId]);
@@ -1163,7 +1211,7 @@ const UserGuidePage: React.FC<{t: any, isAdmin: boolean}> = ({t, isAdmin}) => {
 };
 
 const QuickOfferModalContent: React.FC<{user: any, t: any, onComplete: () => void}> = ({user, t, onComplete}) => {
-    const [item, setItem] = useState({ itemName: '', category: translations[Language.EN]['category_food'], qty: 1 });
+    const [item, setItem] = useState({ itemName: '', category: 'category_food', qty: 1 });
     const [posting, setPosting] = useState(false);
 
     const handlePost = async (e: React.FormEvent) => {
@@ -1212,13 +1260,17 @@ const QuickOfferModalContent: React.FC<{user: any, t: any, onComplete: () => voi
                 <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1">
                         <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">{t('status')}</label>
-                        <select value={item.category} onChange={e => setItem({...item, category: e.target.value})} className="w-full p-4 rounded-2xl border-2 outline-none font-bold">
-                            <option>{t('category_food')}</option>
-                            <option>{t('category_clothing')}</option>
-                            <option>{t('category_books')}</option>
-                            <option>{t('category_furniture')}</option>
-                            <option>{t('category_toiletries')}</option>
-                            <option>{t('category_others')}</option>
+                        <select 
+                            value={item.category} 
+                            onChange={e => setItem({...item, category: e.target.value})} 
+                            className="w-full p-4 rounded-2xl border-2 outline-none font-bold bg-white"
+                        >
+                            <option value="category_food">{t('category_food')}</option>
+                            <option value="category_clothing">{t('category_clothing')}</option>
+                            <option value="category_books">{t('category_books')}</option>
+                            <option value="category_furniture">{t('category_furniture')}</option>
+                            <option value="category_toiletries">{t('category_toiletries')}</option>
+                            <option value="category_others">{t('category_others')}</option>
                         </select>
                     </div>
                     <div className="space-y-1">
@@ -1294,6 +1346,8 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
     const [activeSupportUser, setActiveSupportUser] = useState<any>(null);
     const [adminReply, setAdminReply] = useState('');
     const [selectedOffer, setSelectedOffer] = useState<any>(null);
+    const [declineReason, setDeclineReason] = useState('');
+    const [showDeclineModal, setShowDeclineModal] = useState(false);
 
     useEffect(() => {
         if (typeof firebase === 'undefined' || !firebase.firestore) return;
@@ -1427,13 +1481,29 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
         } catch (err: any) {}
     };
 
-    const deleteOffer = async (offer: any) => {
-        if (!window.confirm("Directly delete this offer?")) return;
+    const declineOffer = async () => {
+        if (!declineReason.trim()) {
+            alert("Please provide a reason.");
+            return;
+        }
+        if (typeof firebase === 'undefined' || !firebase.firestore) return;
         const db = firebase.firestore();
-        const collection = data.completedItems.find(c => c.id === offer.id) ? 'completed_donations' : 'donations';
-        await db.collection(collection).doc(offer.id).delete();
-        alert("Deleted.");
-        setSelectedOffer(null);
+        try {
+            const offer = selectedOffer;
+            await db.collection('notifications').add({
+                userId: offer.userId,
+                title: "Offer Declined",
+                message: `Your offer for ${offer.itemName} was declined. Reason: ${declineReason}`,
+                type: 'message',
+                read: false,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            await db.collection('donations').doc(offer.id).delete();
+            alert("Offer Declined and removed.");
+            setShowDeclineModal(false);
+            setDeclineReason('');
+            setSelectedOffer(null);
+        } catch (err) {}
     };
 
     return (
@@ -1449,6 +1519,10 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
             <div className="flex-1 overflow-y-auto space-y-4 pr-1 scrollbar-hide">
                 {activeTab === 'users' && (
                     <div className="space-y-4">
+                        <div className="bg-[#2c3e50] text-white p-4 rounded-2xl shadow-inner flex justify-between items-center">
+                            <span className="text-[10px] font-black uppercase tracking-widest">Total Citizens</span>
+                            <span className="text-xl font-black text-[#f39c12]">{data.users.length}</span>
+                        </div>
                         {editingUser ? (
                             <form onSubmit={handleUpdateUser} className="bg-gray-50 p-4 rounded-2xl border space-y-3">
                                 <AdminInput label={t('full_name')} value={editingUser.displayName} onChange={v => setEditingUser({...editingUser, displayName: v})} />
@@ -1482,7 +1556,22 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
 
                 {activeTab === 'items' && (
                     selectedOffer ? (
-                        <div className="bg-gray-50 p-5 rounded-3xl border border-gray-100 space-y-5 animate-in slide-in-from-right-2">
+                        <div className="bg-gray-50 p-5 rounded-3xl border border-gray-100 space-y-5 animate-in slide-in-from-right-2 relative">
+                            {showDeclineModal && (
+                                <div className="absolute inset-0 z-50 bg-white/95 rounded-3xl p-6 flex flex-col justify-center animate-in fade-in">
+                                    <h4 className="text-[10px] font-black uppercase text-red-500 mb-4 tracking-widest">Reason for declining</h4>
+                                    <textarea 
+                                        value={declineReason} 
+                                        onChange={e => setDeclineReason(e.target.value)} 
+                                        className="flex-1 p-3 bg-gray-50 border-2 rounded-2xl outline-none text-xs font-bold mb-4"
+                                        placeholder="Type here..."
+                                    />
+                                    <div className="flex gap-2">
+                                        <button onClick={declineOffer} className="flex-1 bg-red-500 text-white py-3 rounded-xl font-black uppercase text-[9px]">Confirm Decline</button>
+                                        <button onClick={() => setShowDeclineModal(false)} className="bg-gray-200 px-4 py-3 rounded-xl font-black uppercase text-[9px]">Cancel</button>
+                                    </div>
+                                </div>
+                            )}
                             <button onClick={() => setSelectedOffer(null)} className="text-[10px] font-black uppercase text-gray-400 hover:text-[#2c3e50] transition-colors flex items-center gap-2">
                                 <i className="fas fa-arrow-left"></i> {t('back_to_list')}
                             </button>
@@ -1491,7 +1580,9 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
                                     <h3 className="text-xl font-black uppercase italic text-[#2c3e50] leading-tight">{selectedOffer.itemName}</h3>
                                     <div className="flex items-center gap-2 mt-2">
                                         <span className="bg-[#3498db] text-white px-3 py-1 rounded-full text-[10px] font-black uppercase">{t('quantity')}: {selectedOffer.qty}</span>
-                                        <span className="bg-gray-100 text-gray-500 px-3 py-1 rounded-full text-[10px] font-black uppercase">{selectedOffer.category}</span>
+                                        <span className="bg-gray-100 text-gray-500 px-3 py-1 rounded-full text-[10px] font-black uppercase">
+                                            {selectedOffer.category?.startsWith('category_') ? t(selectedOffer.category) : selectedOffer.category}
+                                        </span>
                                     </div>
                                 </div>
                                 <div className="space-y-4 pt-4 border-t border-gray-200">
@@ -1506,13 +1597,15 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
                             </div>
                             <div className="flex gap-2">
                                 {!data.completedItems.find(c => c.id === selectedOffer.id) && (
-                                    <button onClick={() => approveOffer(selectedOffer)} className="flex-[2] bg-[#2ecc71] hover:bg-[#27ae60] text-white py-4 rounded-2xl font-black uppercase text-xs shadow-xl shadow-green-100 transition-all active:scale-95">
-                                        <i className="fas fa-check-circle mr-2"></i> {t('approve_award')}
-                                    </button>
+                                    <>
+                                        <button onClick={() => approveOffer(selectedOffer)} className="flex-[2] bg-[#2ecc71] hover:bg-[#27ae60] text-white py-4 rounded-2xl font-black uppercase text-xs shadow-xl shadow-green-100 transition-all active:scale-95">
+                                            <i className="fas fa-check-circle mr-2"></i> {t('confirm')}
+                                        </button>
+                                        <button onClick={() => setShowDeclineModal(true)} className="flex-1 bg-red-50 text-red-500 py-4 rounded-2xl font-black uppercase text-[10px] hover:bg-red-100 transition-colors active:scale-95">
+                                            <i className="fas fa-times-circle mr-2"></i> Decline
+                                        </button>
+                                    </>
                                 )}
-                                <button onClick={() => deleteOffer(selectedOffer)} className="flex-1 bg-red-50 text-red-500 py-4 rounded-2xl font-black uppercase text-[10px] hover:bg-red-100 transition-colors active:scale-95">
-                                    <i className="fas fa-trash-alt mr-2"></i> {t('delete')}
-                                </button>
                             </div>
                         </div>
                     ) : (
