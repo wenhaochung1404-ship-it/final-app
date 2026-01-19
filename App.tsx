@@ -1598,10 +1598,10 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
                             <div className="flex gap-2">
                                 {!data.completedItems.find(c => c.id === selectedOffer.id) && (
                                     <>
-                                        <button onClick={() => approveOffer(selectedOffer)} className="flex-[2] bg-[#2ecc71] hover:bg-[#27ae60] text-white py-4 rounded-2xl font-black uppercase text-xs shadow-xl shadow-green-100 transition-all active:scale-95">
+                                        <button onClick={() => approveOffer(selectedOffer)} className="flex-1 bg-[#2ecc71] hover:bg-[#27ae60] text-white py-4 rounded-2xl font-black uppercase text-xs shadow-xl shadow-green-100 transition-all active:scale-95">
                                             <i className="fas fa-check-circle mr-2"></i> {t('confirm')}
                                         </button>
-                                        <button onClick={() => setShowDeclineModal(true)} className="flex-1 bg-red-50 text-red-500 py-4 rounded-2xl font-black uppercase text-[10px] hover:bg-red-100 transition-colors active:scale-95">
+                                        <button onClick={() => setShowDeclineModal(true)} className="flex-1 bg-red-50 text-red-500 py-4 rounded-2xl font-black uppercase text-xs hover:bg-red-100 transition-colors active:scale-95 shadow-xl shadow-red-100">
                                             <i className="fas fa-times-circle mr-2"></i> Decline
                                         </button>
                                     </>
