@@ -176,6 +176,7 @@ export const App: React.FC = () => {
     const [isLangOpen, setIsLangOpen] = useState(false);
     const [isQuickOfferOpen, setIsQuickOfferOpen] = useState(false);
     const [emailVerified, setEmailVerified] = useState(true);
+    const [redeemSuccessCode, setRedeemSuccessCode] = useState<string | null>(null);
     
     const t = useCallback((key: string) => translations[lang][key] || key, [lang]);
 
@@ -506,6 +507,32 @@ export const App: React.FC = () => {
                 </div>
             )}
 
+            {redeemSuccessCode && (
+                <div className="fixed inset-0 bg-black/80 z-[1100] flex items-center justify-center p-4 backdrop-blur-md">
+                    <div className="bg-white w-full max-w-md rounded-[3rem] p-10 shadow-2xl animate-in zoom-in text-center relative">
+                        <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center text-3xl mx-auto mb-6">
+                            <i className="fas fa-check"></i>
+                        </div>
+                        <h3 className="text-2xl font-black uppercase italic text-[#2c3e50] mb-2">{t('redeem_success_msg')}</h3>
+                        <div className="bg-[#2c3e50] text-[#f39c12] text-4xl font-black p-6 rounded-3xl mb-6 tracking-widest shadow-xl">
+                            {redeemSuccessCode}
+                        </div>
+                        <p className="text-gray-500 font-bold text-sm leading-relaxed mb-8">
+                            {t('redeem_remember_code')}
+                        </p>
+                        <button 
+                            onClick={() => {
+                                setRedeemSuccessCode(null);
+                                setPage('history');
+                            }} 
+                            className="w-full bg-[#3498db] text-white py-5 rounded-2xl font-black uppercase shadow-lg active:scale-95"
+                        >
+                            {t('confirm')}
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {itemToRedeem && (
                 <RedeemConfirmModal 
                     item={itemToRedeem} user={user!} t={t} onCancel={() => setItemToRedeem(null)} 
@@ -516,6 +543,7 @@ export const App: React.FC = () => {
                             const userRef = db.collection('users').doc(user!.uid);
                             const counterRef = db.collection('counters').doc('redemptions');
                             
+                            let rdCode = '';
                             await db.runTransaction(async (transaction: any) => {
                                 const userDoc = await transaction.get(userRef);
                                 if (userDoc.data().points < itemToRedeem.cost) throw new Error("Not enough points");
@@ -529,7 +557,7 @@ export const App: React.FC = () => {
                                 transaction.set(counterRef, { count: currentCount }, { merge: true });
                                 
                                 // Format RDXXXX code
-                                const rdCode = `RD${String(currentCount).padStart(4, '0')}`;
+                                rdCode = `RD${String(currentCount).padStart(4, '0')}`;
                                 
                                 transaction.update(userRef, { points: userDoc.data().points - itemToRedeem.cost });
                                 transaction.set(db.collection('redeem_history').doc(), {
@@ -544,7 +572,7 @@ export const App: React.FC = () => {
                                 });
                             });
                             setItemToRedeem(null);
-                            alert("Voucher requested! Please wait for admin approval.");
+                            setRedeemSuccessCode(rdCode);
                         } catch (e: any) { alert("Failed: " + e.message); }
                     }} 
                 />
@@ -1348,7 +1376,7 @@ const SupportChatBody: React.FC<{userId: string, userName: string, t: any, isGue
 
     const send = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!input.trim() || !userId || typeof firebase === 'undefined' || !firebase.firestore) return;
+        if (input.trim() === '' || !userId || typeof firebase === 'undefined' || !firebase.firestore) return;
         const msgText = input;
         setInput('');
         await firebase.firestore().collection('support_chats').add({
@@ -1413,7 +1441,7 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
                 const rawDocs = snap.docs.map((d: any) => d.data());
                 const grouped: any[] = [];
                 const seen = new Set();
-                rawDocs.sort((a: any, b: any) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+                rawDocs.sort((a: any, b: any) => (a.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
                 rawDocs.forEach((doc: any) => {
                     if (!seen.has(doc.userId)) {
                         grouped.push({ userId: doc.userId, userName: doc.userName, lastMsg: doc.text, isGuest: doc.isGuest });
@@ -1462,7 +1490,7 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
 
     const sendAdminReply = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!adminReply.trim() || !activeSupportUser || typeof firebase === 'undefined' || !firebase.firestore) return;
+        if (adminReply.trim() === '' || !activeSupportUser || typeof firebase === 'undefined' || !firebase.firestore) return;
         const text = adminReply;
         setAdminReply('');
         await firebase.firestore().collection('support_chats').add({

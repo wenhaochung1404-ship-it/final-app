@@ -106,7 +106,9 @@ export const translations: Record<Language, Record<string, string>> = {
         "moe_email_required": "MOE Email Required (@moe-dl.edu.my)",
         "check_email_verify": "Please check your email for verification. It might be in the spam folder.",
         "delete_confirm": "Are you sure you want to PERMANENTLY delete your account? This cannot be undone.",
-        "verification_sent": "Verification email sent!"
+        "verification_sent": "Verification email sent!",
+        "redeem_success_msg": "Redeem Success! Your code is: ",
+        "redeem_remember_code": "Please remember your code and redeem your items with this code. You can always check your code in History > Rewards page."
     },
     [Language.BM]: {
         "menu": "Menu",
@@ -212,7 +214,9 @@ export const translations: Record<Language, Record<string, string>> = {
         "moe_email_required": "Emel MOE Diperlukan (@moe-dl.edu.my)",
         "check_email_verify": "Sila semak emel anda untuk pengesahan. Ia mungkin berada di dalam folder spam.",
         "delete_confirm": "Adakah anda pasti mahu memadam akaun anda secara KEKAL? Ini tidak boleh dibatalkan.",
-        "verification_sent": "Emel pengesahan telah dihantar!"
+        "verification_sent": "Emel pengesahan telah dihantar!",
+        "redeem_success_msg": "Penebusan Berjaya! Kod anda ialah: ",
+        "redeem_remember_code": "Sila ingat kod anda dan tebus barangan anda dengan kod ini. Anda boleh menyemak kod anda di halaman Sejarah > Ganjaran."
     },
     [Language.BC]: {
         "menu": "菜单",
@@ -318,7 +322,9 @@ export const translations: Record<Language, Record<string, string>> = {
         "moe_email_required": "需要 MOE 电子邮件 (@moe-dl.edu.my)",
         "check_email_verify": "请检查您的电子邮箱进行验证。它可能在垃圾邮件文件夹中。",
         "delete_confirm": "您确定要永久删除您的帐户吗？此操作无法撤销。",
-        "verification_sent": "验证邮件已发送！"
+        "verification_sent": "验证邮件已发送！",
+        "redeem_success_msg": "兑换成功！您的代码是：",
+        "redeem_remember_code": "请记住您的代码并凭此代码领取物品。您随时可以在“历史记录 > 兑换奖励”页面查看您的代码。"
     },
     [Language.BI]: {
         "menu": "Menu",
@@ -424,6 +430,8 @@ export const translations: Record<Language, Record<string, string>> = {
         "moe_email_required": "Guna Emel MOE (@moe-dl.edu.my)",
         "check_email_verify": "Sila periksa emel nuan ungkup pengesahan. Engka iya bisi dalam folder spam.",
         "delete_confirm": "Nuan amat deka muai akaun nuan belama iya? Tu enda ulih diubah baru.",
-        "verification_sent": "Emel pengesahan udah dikirim!"
+        "verification_sent": "Emel pengesahan udah dikirim!",
+        "redeem_success_msg": "Mujur Tebus! Kod nuan nya: ",
+        "redeem_remember_code": "Tolong kingat ka kod nuan lalu tebus utai nuan ngena kod tu. Nuan ulih semampai meriksa kod nuan ba baris Sejarah > Upah."
     }
 };
