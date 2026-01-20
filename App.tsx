@@ -142,6 +142,9 @@ const HomePage: React.FC<{ t: any, user: any }> = ({ t, user }) => {
                                         </div>
                                         <div className="text-[10px] text-gray-400 font-bold uppercase space-y-1">
                                             <p><i className="fas fa-tag mr-2 text-[#3498db] w-4"></i>{displayCategory}</p>
+                                            {item.expiryDate && (
+                                                <p className="text-red-500"><i className="fas fa-hourglass-end mr-2 text-red-500 w-4"></i>Exp: {item.expiryDate}</p>
+                                            )}
                                             <p><i className="fas fa-user mr-2 text-[#3498db] w-4"></i>{item.donorName}</p>
                                             <p><i className="fas fa-school mr-2 text-[#3498db] w-4"></i>{item.userClass || 'N/A'}</p>
                                             <p><i className="fas fa-calendar mr-2 text-[#3498db] w-4"></i>{formattedDate} • {formattedTime}</p>
@@ -964,7 +967,8 @@ const HistoryPage: React.FC<{user: any, t: any, onAuth: () => void}> = ({user, t
         await db.collection('donations').doc(editingOffer.id).update({
             itemName: editingOffer.itemName,
             category: editingOffer.category,
-            qty: Number(editingOffer.qty)
+            qty: Number(editingOffer.qty),
+            expiryDate: editingOffer.category === 'category_food' ? (editingOffer.expiryDate || null) : null
         });
         setEditingOffer(null);
         alert("Updated successfully.");
@@ -1004,6 +1008,9 @@ const HistoryPage: React.FC<{user: any, t: any, onAuth: () => void}> = ({user, t
                                             <option value="category_others">{t('category_others')}</option>
                                         </select>
                                     </div>
+                                    {editingOffer.category === 'category_food' && (
+                                        <AdminInput label="Expiry Date" type="date" value={editingOffer.expiryDate || ''} onChange={v => setEditingOffer({...editingOffer, expiryDate: v})} />
+                                    )}
                                     <AdminInput label="Qty" type="number" value={editingOffer.qty} onChange={v => setEditingOffer({...editingOffer, qty: v})} />
                                     <div className="flex gap-2 pt-4">
                                         <button type="submit" className="flex-1 bg-[#3498db] text-white py-3 rounded-xl font-black uppercase text-xs">Save</button>
@@ -1023,6 +1030,7 @@ const HistoryPage: React.FC<{user: any, t: any, onAuth: () => void}> = ({user, t
                                             <div>
                                                 <h4 className="font-black text-[#2c3e50] uppercase italic">{o.itemName}</h4>
                                                 <p className="text-[10px] text-gray-400 font-bold uppercase">{displayCategory} • Qty: {o.qty}</p>
+                                                {o.expiryDate && <p className="text-[9px] font-black text-red-500 uppercase">Exp: {o.expiryDate}</p>}
                                             </div>
                                             <div className="flex flex-col items-end gap-1">
                                                 <span className={`text-[8px] font-black uppercase px-3 py-1 rounded-full ${o.active ? 'bg-amber-100 text-amber-600' : 'bg-green-100 text-green-600'}`}>
@@ -1211,7 +1219,7 @@ const UserGuidePage: React.FC<{t: any, isAdmin: boolean}> = ({t, isAdmin}) => {
 };
 
 const QuickOfferModalContent: React.FC<{user: any, t: any, onComplete: () => void}> = ({user, t, onComplete}) => {
-    const [item, setItem] = useState({ itemName: '', category: 'category_food', qty: 1 });
+    const [item, setItem] = useState({ itemName: '', category: 'category_food', qty: 1, expiryDate: '' });
     const [posting, setPosting] = useState(false);
 
     const handlePost = async (e: React.FormEvent) => {
@@ -1278,6 +1286,12 @@ const QuickOfferModalContent: React.FC<{user: any, t: any, onComplete: () => voi
                         <input type="number" value={item.qty} min="1" onChange={e => setItem({...item, qty: Number(e.target.value)})} className="w-full p-4 rounded-2xl border-2 outline-none font-bold" required />
                     </div>
                 </div>
+                {item.category === 'category_food' && (
+                    <div className="space-y-1 animate-in slide-in-from-top-2">
+                        <label className="text-[10px] font-black text-red-500 uppercase tracking-widest ml-2">Expiry Date (Food Only)</label>
+                        <input type="date" value={item.expiryDate} onChange={e => setItem({...item, expiryDate: e.target.value})} className="w-full p-4 rounded-2xl border-2 outline-none font-bold border-red-100 focus:border-red-400" required={item.category === 'category_food'} />
+                    </div>
+                )}
                 <button type="submit" disabled={posting} className="w-full bg-[#3498db] text-white py-5 rounded-2xl font-black text-xl shadow-xl uppercase transition-transform active:scale-95">
                     {posting ? '...' : t('post_offer')}
                 </button>
@@ -1584,6 +1598,9 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
                                             {selectedOffer.category?.startsWith('category_') ? t(selectedOffer.category) : selectedOffer.category}
                                         </span>
                                     </div>
+                                    {selectedOffer.expiryDate && (
+                                        <p className="mt-2 text-[10px] font-black text-red-500 uppercase tracking-widest">Expiry Date: {selectedOffer.expiryDate}</p>
+                                    )}
                                 </div>
                                 <div className="space-y-4 pt-4 border-t border-gray-200">
                                     <div>
