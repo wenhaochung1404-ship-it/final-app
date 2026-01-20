@@ -1585,9 +1585,25 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
         } catch (err) {}
     };
 
+    const handleResetRD = async () => {
+        if (!window.confirm("Are you sure you want to reset the redemption code to RD0001? New redemptions will start from 0001 again.")) return;
+        if (typeof firebase === 'undefined' || !firebase.firestore) return;
+        try {
+            await firebase.firestore().collection('counters').doc('redemptions').set({ count: 0 });
+            alert("Redemption counter reset to RD0000. Next code will be RD0001.");
+        } catch (e) {
+            alert("Failed to reset counter.");
+        }
+    };
+
     return (
         <div className="h-full flex flex-col p-4 sm:p-6 overflow-hidden bg-white">
-            <h2 className="text-xl font-black italic uppercase text-[#2c3e50] mb-4 border-b-4 border-[#3498db] pb-2 inline-block shrink-0">{isAdmin ? t('admin_panel') : 'Koperasi Panel'}</h2>
+            <div className="flex justify-between items-start mb-4 shrink-0">
+                <h2 className="text-xl font-black italic uppercase text-[#2c3e50] border-b-4 border-[#3498db] pb-2 inline-block">{isAdmin ? t('admin_panel') : 'Koperasi Panel'}</h2>
+                {isAdmin && activeTab === 'vouchers' && (
+                    <button onClick={handleResetRD} className="text-[8px] font-black uppercase bg-red-100 text-red-500 px-2 py-1 rounded-md hover:bg-red-200 transition-colors">Reset Codes</button>
+                )}
+            </div>
             <div className="flex flex-wrap gap-1 mb-4 shrink-0">
                 {isAdmin && (
                     <>
