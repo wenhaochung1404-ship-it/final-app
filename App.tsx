@@ -514,9 +514,23 @@ export const App: React.FC = () => {
                         const db = firebase.firestore();
                         try {
                             const userRef = db.collection('users').doc(user!.uid);
+                            const counterRef = db.collection('counters').doc('redemptions');
+                            
                             await db.runTransaction(async (transaction: any) => {
                                 const userDoc = await transaction.get(userRef);
                                 if (userDoc.data().points < itemToRedeem.cost) throw new Error("Not enough points");
+                                
+                                // Get and increment global redemption counter
+                                const counterDoc = await transaction.get(counterRef);
+                                let currentCount = 1;
+                                if (counterDoc.exists) {
+                                    currentCount = (counterDoc.data().count || 0) + 1;
+                                }
+                                transaction.set(counterRef, { count: currentCount }, { merge: true });
+                                
+                                // Format RDXXXX code
+                                const rdCode = `RD${String(currentCount).padStart(4, '0')}`;
+                                
                                 transaction.update(userRef, { points: userDoc.data().points - itemToRedeem.cost });
                                 transaction.set(db.collection('redeem_history').doc(), {
                                     userId: user!.uid, 
@@ -524,6 +538,7 @@ export const App: React.FC = () => {
                                     userClass, 
                                     itemName: itemToRedeem.name, 
                                     itemPoints: itemToRedeem.cost, 
+                                    rdCode: rdCode,
                                     redeemedAt: firebase.firestore.FieldValue.serverTimestamp(),
                                     status: 'pending'
                                 });
@@ -994,7 +1009,7 @@ const HistoryPage: React.FC<{user: any, t: any, onAuth: () => void}> = ({user, t
                     <>
                         {editingOffer && (
                             <div className="fixed inset-0 bg-black/80 z-[800] flex items-center justify-center p-4 backdrop-blur-md">
-                                <form onSubmit={handleUpdateOffer} className="bg-white w-full max-w-md p-8 rounded-[2.5rem] shadow-2xl space-y-4 animate-in zoom-in">
+                                <form onSubmit={handleUpdateOffer} className="bg-white w-full max-md p-8 rounded-[2.5rem] shadow-2xl space-y-4 animate-in zoom-in">
                                     <h3 className="text-xl font-black uppercase italic mb-4">Edit Offer</h3>
                                     <AdminInput label="Item Name" value={editingOffer.itemName} onChange={v => setEditingOffer({...editingOffer, itemName: v})} />
                                     <div className="space-y-2">
@@ -1071,9 +1086,14 @@ const HistoryPage: React.FC<{user: any, t: any, onAuth: () => void}> = ({user, t
                     ) : (
                         redeems.map(r => (
                             <div key={r.id} className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex justify-between items-center animate-in slide-in-from-bottom-2">
-                                <div>
-                                    <h4 className="font-black text-[#2c3e50] uppercase italic">{r.itemName}</h4>
-                                    <p className="text-[10px] text-gray-400 font-bold">{r.redeemedAt?.toDate()?.toLocaleDateString()}</p>
+                                <div className="flex gap-4 items-center">
+                                    <div className="w-12 h-12 bg-blue-50 text-[#3498db] rounded-2xl flex items-center justify-center font-black text-[10px] shrink-0 border border-blue-100">
+                                        {r.rdCode || 'N/A'}
+                                    </div>
+                                    <div>
+                                        <h4 className="font-black text-[#2c3e50] uppercase italic">{r.itemName}</h4>
+                                        <p className="text-[10px] text-gray-400 font-bold">{r.redeemedAt?.toDate()?.toLocaleDateString()}</p>
+                                    </div>
                                 </div>
                                 <div className="flex flex-col items-end gap-1">
                                     <span className={`text-[8px] font-black uppercase px-3 py-1 rounded-full ${r.status === 'confirmed' ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'}`}>
@@ -1472,7 +1492,7 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
             await db.collection('notifications').add({
                 userId: redeem.userId,
                 title: "Redeem Confirmed",
-                message: `Your redeem for ${redeem.itemName} has been confirmed.`,
+                message: `Your redeem for ${redeem.itemName} has been confirmed. Code: ${redeem.rdCode || 'N/A'}`,
                 type: 'status',
                 read: false,
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -1683,14 +1703,19 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
                 {activeTab === 'vouchers' && (
                     <div className="space-y-3">
                         {data.redemptions.map(r => (
-                            <div key={r.id} className="bg-white p-4 border-2 border-orange-50 rounded-2xl">
+                            <div key={r.id} className="bg-white p-4 border-2 border-orange-50 rounded-2xl shadow-sm">
                                 <div className="flex justify-between items-start mb-2">
-                                    <div className="font-black text-[11px] text-[#f39c12] uppercase">{r.itemName}</div>
+                                    <div className="flex items-center gap-3">
+                                        <div className="px-2 py-1 bg-[#2c3e50] text-white rounded-lg font-black text-[10px] shadow-sm">
+                                            {r.rdCode || 'RD????'}
+                                        </div>
+                                        <div className="font-black text-[11px] text-[#f39c12] uppercase">{r.itemName}</div>
+                                    </div>
                                     <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full ${r.status === 'confirmed' ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'}`}>
                                         {r.status || 'pending'}
                                     </span>
                                 </div>
-                                <div className="text-[10px] font-bold text-gray-700 uppercase">{r.fullName} ({r.userClass})</div>
+                                <div className="text-[10px] font-bold text-gray-700 uppercase pl-11">{r.fullName} ({r.userClass})</div>
                                 {r.status !== 'confirmed' && (
                                     <button 
                                         onClick={() => handleAcceptRedeem(r)}
