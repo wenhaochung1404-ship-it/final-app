@@ -326,13 +326,23 @@ export const App: React.FC = () => {
                             </div>
                         )}
                         {user && (
-                            <button 
-                                onClick={() => setPage('shop')}
-                                className="flex items-center bg-[#f39c12] hover:bg-[#e67e22] transition-colors px-2 sm:px-4 py-1 rounded-full text-[8px] sm:text-xs font-black shadow-lg whitespace-nowrap"
-                            >
-                                <i className="fas fa-star mr-1 sm:mr-2"></i> 
-                                {user.points} <span className="ml-0.5">{t('points')}</span>
-                            </button>
+                            <div className="flex items-center gap-2">
+                                <button 
+                                    onClick={() => setPage('shop')}
+                                    className="flex items-center bg-[#f39c12] hover:bg-[#e67e22] transition-colors px-2 sm:px-4 py-1 rounded-full text-[8px] sm:text-xs font-black shadow-lg whitespace-nowrap"
+                                >
+                                    <i className="fas fa-star mr-1 sm:mr-2"></i> 
+                                    {user.points} <span className="ml-0.5">{t('points')}</span>
+                                </button>
+                                {isKoperasi && (
+                                    <button 
+                                        onClick={() => firebase.auth().signOut()} 
+                                        className="bg-red-500 hover:bg-red-600 text-white px-2 sm:px-3 py-1 rounded-full text-[8px] sm:text-[10px] font-black uppercase shadow-lg transition-all"
+                                    >
+                                        <i className="fas fa-sign-out-alt"></i>
+                                    </button>
+                                )}
+                            </div>
                         )}
                         {!user && (
                             <button onClick={(e) => { e.stopPropagation(); setIsAuthModalOpen(true); }} className="bg-[#3498db] hover:bg-blue-600 px-3 py-1.5 rounded-full text-[8px] sm:text-[10px] font-black uppercase shadow-lg">{t('login')}</button>
@@ -366,7 +376,7 @@ export const App: React.FC = () => {
                     )}
                     
                     <div className="flex items-center gap-3">
-                        {user && (
+                        {user && !isKoperasi && (
                             <button 
                                 onClick={(e) => { 
                                     e.stopPropagation(); 
@@ -429,7 +439,7 @@ export const App: React.FC = () => {
                 <main className={`flex-1 overflow-y-auto transition-all duration-300 ${(isAdmin || isKoperasi) && showAdminPanel ? 'lg:mr-80' : ''}`}>
                     <div className="container mx-auto px-4 py-8 max-w-6xl">
                         {page === 'home' && <HomePage t={t} user={user} />}
-                        {page === 'profile' && <ProfilePage user={user} t={t} onAuth={() => setIsAuthModalOpen(true)} onNavigate={() => {}} />}
+                        {page === 'profile' && !isKoperasi && <ProfilePage user={user} t={t} onAuth={() => setIsAuthModalOpen(true)} onNavigate={() => {}} />}
                         {page === 'shop' && <ShopPage user={user} t={t} onAuth={() => setIsAuthModalOpen(true)} onRedeemConfirm={setItemToRedeem} />}
                         {page === 'history' && <HistoryPage user={user} t={t} onAuth={() => setIsAuthModalOpen(true)} />}
                         {page === 'guide' && <UserGuidePage t={t} isAdmin={isAdmin} />}
@@ -458,7 +468,7 @@ export const App: React.FC = () => {
                     <nav className="flex flex-col gap-2">
                         <MenuItem icon="home" label={t('home')} onClick={() => { setPage('home'); setIsMenuOpen(false); }} active={page === 'home'} />
                         <MenuItem icon="book" label={t('user_guide')} onClick={() => { setPage('guide'); setIsMenuOpen(false); }} active={page === 'guide'} />
-                        <MenuItem icon="user" label={t('profile')} onClick={() => { setPage('profile'); setIsMenuOpen(false); }} active={page === 'profile'} />
+                        {!isKoperasi && <MenuItem icon="user" label={t('profile')} onClick={() => { setPage('profile'); setIsMenuOpen(false); }} active={page === 'profile'} />}
                         <MenuItem icon="shopping-cart" label={t('points_shop')} onClick={() => { setPage('shop'); setIsMenuOpen(false); }} active={page === 'shop'} />
                         <MenuItem icon="history" label={t('history')} onClick={() => { setPage('history'); setIsMenuOpen(false); }} active={page === 'history'} />
                     </nav>
@@ -506,7 +516,7 @@ export const App: React.FC = () => {
 
             {isAuthModalOpen && <AuthModal onClose={() => setIsAuthModalOpen(false)} t={t} lang={lang} />}
             
-            {isQuickOfferOpen && user && (
+            {isQuickOfferOpen && user && !isKoperasi && (
                 <div className="fixed inset-0 bg-black/80 z-[600] flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setIsQuickOfferOpen(false)}>
                     <div className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl p-8 animate-in zoom-in relative" onClick={e => e.stopPropagation()}>
                          <button onClick={() => setIsQuickOfferOpen(false)} className="absolute top-6 right-6 w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center hover:bg-red-500 hover:text-white transition-all z-10">
@@ -1571,7 +1581,7 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
         } catch (err: any) {}
     };
 
-    const declineOffer = async () => {
+    const declineOffer = async (offer: any) => {
         if (!declineReason.trim()) {
             alert("Please provide a reason.");
             return;
@@ -1579,7 +1589,6 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
         if (typeof firebase === 'undefined' || !firebase.firestore) return;
         const db = firebase.firestore();
         try {
-            const offer = selectedOffer;
             await db.collection('notifications').add({
                 userId: offer.userId,
                 title: "Offer Declined",
@@ -1677,7 +1686,7 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
                                         placeholder="Type here..."
                                     />
                                     <div className="flex gap-2">
-                                        <button onClick={declineOffer} className="flex-1 bg-red-500 text-white py-3 rounded-xl font-black uppercase text-[9px]">Confirm Decline</button>
+                                        <button onClick={() => declineOffer(selectedOffer)} className="flex-1 bg-red-500 text-white py-3 rounded-xl font-black uppercase text-[9px]">Confirm Decline</button>
                                         <button onClick={() => setShowDeclineModal(false)} className="bg-gray-200 px-4 py-3 rounded-xl font-black uppercase text-[9px]">Cancel</button>
                                     </div>
                                 </div>
