@@ -223,12 +223,22 @@ export const App: React.FC = () => {
                         await authUser.reload();
                         setEmailVerified(!!authUser.emailVerified || isHardcodedAdmin || isKoperasi);
                         
-                        db.collection('users').doc(authUser.uid).onSnapshot((doc: any) => {
+                        db.collection('users').doc(authUser.uid).onSnapshot(async (doc: any) => {
                             if (doc.exists) {
                                 const data = doc.data();
                                 setUser({ ...data, uid: authUser.uid });
                             } else {
-                                setUser({ uid: authUser.uid, email: authUser.email, points: 5, isAdmin: isHardcodedAdmin, isKoperasi: isKoperasi } as any);
+                                // Default profile setup for Admin/Koperasi if they don't exist in DB yet
+                                const profile = { 
+                                    uid: authUser.uid, 
+                                    email: authUser.email, 
+                                    displayName: isHardcodedAdmin ? 'System Admin' : (isKoperasi ? 'Koperasi' : 'Guest'),
+                                    points: 5, 
+                                    isAdmin: isHardcodedAdmin, 
+                                    isKoperasi: isKoperasi 
+                                };
+                                await db.collection('users').doc(authUser.uid).set(profile);
+                                setUser(profile as any);
                             }
                         }, (err: any) => {});
 
@@ -1408,7 +1418,7 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
     const isAdmin = user?.isAdmin || user?.email === 'admin@gmail.com';
     const isKoperasi = user?.isKoperasi || user?.email === 'koperasi@gmail.com';
 
-    // If Koperasi, they only see Vouchers. If Admin, default is Users.
+    // Strictly limit Koperasi to vouchers tab only
     const [activeTab, setActiveTab] = useState<'users' | 'items' | 'vouchers' | 'chats'>(isKoperasi ? 'vouchers' : 'users');
     const [data, setData] = useState<{users: any[], items: any[], redemptions: any[], completedItems: any[], supportChats: any[]}>({users: [], items: [], redemptions: [], completedItems: [], supportChats: []});
     const [searchQuery, setSearchQuery] = useState('');
@@ -1423,12 +1433,12 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
         if (typeof firebase === 'undefined' || !firebase.firestore) return;
         const db = firebase.firestore();
         
-        // Conditional unsub based on permissions
         let unsubUsers = () => {};
         let unsubItems = () => {};
         let unsubCompleted = () => {};
         let unsubSupport = () => {};
         
+        // Only fetch admin data if current user has full admin rights
         if (isAdmin) {
             unsubUsers = db.collection('users').onSnapshot((snap: any) => setData(prev => ({...prev, users: snap.docs.map((d: any) => ({...d.data(), uid: d.id}))})), (err: any) => {});
             unsubItems = db.collection('donations').onSnapshot((snap: any) => {
@@ -1452,6 +1462,7 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
             }, (err: any) => {});
         }
 
+        // Both Admin and Koperasi can see redemptions
         const unsubRedemptions = db.collection('redeem_history').onSnapshot((snap: any) => {
             const redemptions = snap.docs.map((d: any) => ({...d.data(), id: d.id}));
             redemptions.sort((a: any, b: any) => (b.redeemedAt?.toMillis?.() || 0) - (a.redeemedAt?.toMillis?.() || 0));
@@ -1746,30 +1757,34 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
 
                 {activeTab === 'vouchers' && (
                     <div className="space-y-3">
-                        {data.redemptions.map(r => (
-                            <div key={r.id} className="bg-white p-4 border-2 border-orange-50 rounded-2xl shadow-sm">
-                                <div className="flex justify-between items-start mb-2">
-                                    <div className="flex items-center gap-3">
-                                        <div className="px-2 py-1 bg-[#2c3e50] text-white rounded-lg font-black text-[10px] shadow-sm">
-                                            {r.rdCode || 'RD????'}
+                        {data.redemptions.length === 0 ? (
+                            <p className="text-[10px] text-gray-300 italic px-1">{t('nothing_here')}</p>
+                        ) : (
+                            data.redemptions.map(r => (
+                                <div key={r.id} className="bg-white p-4 border-2 border-orange-50 rounded-2xl shadow-sm">
+                                    <div className="flex justify-between items-start mb-2">
+                                        <div className="flex items-center gap-3">
+                                            <div className="px-2 py-1 bg-[#2c3e50] text-white rounded-lg font-black text-[10px] shadow-sm">
+                                                {r.rdCode || 'RD????'}
+                                            </div>
+                                            <div className="font-black text-[11px] text-[#f39c12] uppercase">{r.itemName}</div>
                                         </div>
-                                        <div className="font-black text-[11px] text-[#f39c12] uppercase">{r.itemName}</div>
+                                        <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full ${r.status === 'confirmed' ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'}`}>
+                                            {r.status || 'pending'}
+                                        </span>
                                     </div>
-                                    <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full ${r.status === 'confirmed' ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'}`}>
-                                        {r.status || 'pending'}
-                                    </span>
+                                    <div className="text-[10px] font-bold text-gray-700 uppercase pl-11">{r.fullName} ({r.userClass})</div>
+                                    {r.status !== 'confirmed' && (
+                                        <button 
+                                            onClick={() => handleAcceptRedeem(r)}
+                                            className="w-full mt-3 bg-[#2ecc71] text-white py-2 rounded-xl text-[9px] font-black uppercase shadow-lg hover:bg-[#27ae60] transition-colors"
+                                        >
+                                            Accept Redeem
+                                        </button>
+                                    )}
                                 </div>
-                                <div className="text-[10px] font-bold text-gray-700 uppercase pl-11">{r.fullName} ({r.userClass})</div>
-                                {r.status !== 'confirmed' && (
-                                    <button 
-                                        onClick={() => handleAcceptRedeem(r)}
-                                        className="w-full mt-3 bg-[#2ecc71] text-white py-2 rounded-xl text-[9px] font-black uppercase shadow-lg hover:bg-[#27ae60] transition-colors"
-                                    >
-                                        Accept Redeem
-                                    </button>
-                                )}
-                            </div>
-                        ))}
+                            ))
+                        )}
                     </div>
                 )}
 
