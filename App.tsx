@@ -218,15 +218,16 @@ export const App: React.FC = () => {
                 unsubscribeAuth = firebase.auth().onAuthStateChanged(async (authUser: any) => {
                     if (authUser) {
                         const isHardcodedAdmin = authUser.email === 'admin@gmail.com';
+                        const isKoperasi = authUser.email === 'koperasi@gmail.com';
                         await authUser.reload();
-                        setEmailVerified(!!authUser.emailVerified || isHardcodedAdmin);
+                        setEmailVerified(!!authUser.emailVerified || isHardcodedAdmin || isKoperasi);
                         
                         db.collection('users').doc(authUser.uid).onSnapshot((doc: any) => {
                             if (doc.exists) {
                                 const data = doc.data();
                                 setUser({ ...data, uid: authUser.uid });
                             } else {
-                                setUser({ uid: authUser.uid, email: authUser.email, points: 5, isAdmin: isHardcodedAdmin } as any);
+                                setUser({ uid: authUser.uid, email: authUser.email, points: 5, isAdmin: isHardcodedAdmin, isKoperasi: isKoperasi } as any);
                             }
                         }, (err: any) => {});
 
@@ -264,6 +265,7 @@ export const App: React.FC = () => {
     }, []);
 
     const isAdmin = user?.isAdmin || user?.email === 'admin@gmail.com';
+    const isKoperasi = user?.isKoperasi || user?.email === 'koperasi@gmail.com';
 
     const markNotifRead = async (notification: any) => {
         if (typeof firebase === 'undefined' || !firebase.firestore) return;
@@ -337,7 +339,7 @@ export const App: React.FC = () => {
 
             <div className="flex flex-1 overflow-hidden relative">
                 <div className="fixed right-6 bottom-6 z-[200] flex flex-col items-end gap-3 sm:gap-4">
-                    {showSupportChat && !isAdmin && (
+                    {showSupportChat && !isAdmin && !isKoperasi && (
                         <div className="w-[85vw] sm:w-80 h-[450px] bg-white rounded-3xl shadow-2xl border border-gray-100 flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 mb-2 origin-bottom-right" onClick={(e) => e.stopPropagation()}>
                             <div className="bg-[#3498db] p-4 text-white flex justify-between items-center">
                                 <div className="font-black uppercase text-xs flex items-center gap-2">
@@ -393,13 +395,13 @@ export const App: React.FC = () => {
                         </div>
 
                         {user && (
-                            isAdmin ? (
+                            (isAdmin || isKoperasi) ? (
                                 <button 
                                     onClick={(e) => { e.stopPropagation(); setShowAdminPanel(!showAdminPanel); }}
                                     className="bg-[#2c3e50] text-white w-16 h-16 rounded-full shadow-2xl flex flex-col items-center justify-center hover:scale-110 active:scale-95 transition-all border-4 border-white z-[201]"
                                 >
                                     <i className={`fas fa-${showAdminPanel ? 'times' : 'user-shield'} text-2xl`}></i>
-                                    <span className="text-[7px] font-black uppercase mt-1">Admin</span>
+                                    <span className="text-[7px] font-black uppercase mt-1">{isAdmin ? 'Admin' : 'Koperasi'}</span>
                                 </button>
                             ) : (
                                 <button 
@@ -413,7 +415,7 @@ export const App: React.FC = () => {
                     </div>
                 </div>
 
-                <main className={`flex-1 overflow-y-auto transition-all duration-300 ${isAdmin && showAdminPanel ? 'lg:mr-80' : ''}`}>
+                <main className={`flex-1 overflow-y-auto transition-all duration-300 ${(isAdmin || isKoperasi) && showAdminPanel ? 'lg:mr-80' : ''}`}>
                     <div className="container mx-auto px-4 py-8 max-w-6xl">
                         {page === 'home' && <HomePage t={t} user={user} />}
                         {page === 'profile' && <ProfilePage user={user} t={t} onAuth={() => setIsAuthModalOpen(true)} onNavigate={() => {}} />}
@@ -423,7 +425,7 @@ export const App: React.FC = () => {
                     </div>
                 </main>
 
-                {isAdmin && (
+                {(isAdmin || isKoperasi) && (
                     <aside className={`fixed top-16 sm:top-20 right-4 bottom-[120px] w-72 sm:w-80 bg-white border border-gray-100 rounded-[2.5rem] shadow-2xl z-[100] transition-transform duration-300 transform overflow-hidden ${showAdminPanel ? 'translate-x-0' : 'translate-x-[120%]'}`}>
                         <AdminPanelContent t={t} user={user} />
                     </aside>
@@ -551,13 +553,14 @@ const AuthModal: React.FC<{onClose: () => void, t: any, lang: Language}> = ({onC
             if (mode === 'login') {
                 const { user } = await firebase.auth().signInWithEmailAndPassword(data.email, data.password);
                 const isHardcodedAdmin = data.email === 'admin@gmail.com';
-                if (!user.emailVerified && !isHardcodedAdmin) {
+                const isKoperasi = data.email === 'koperasi@gmail.com';
+                if (!user.emailVerified && !isHardcodedAdmin && !isKoperasi) {
                     await firebase.auth().signOut();
                     throw new Error(translations[lang]['check_email_verify']);
                 }
                 onClose();
             } else if (mode === 'register') {
-                if (!data.email.toLowerCase().endsWith("@moe-dl.edu.my") && data.email !== 'admin@gmail.com') {
+                if (!data.email.toLowerCase().endsWith("@moe-dl.edu.my") && data.email !== 'admin@gmail.com' && data.email !== 'koperasi@gmail.com') {
                     throw new Error(t('moe_email_required'));
                 }
                 const {user} = await firebase.auth().createUserWithEmailAndPassword(data.email, data.password);
@@ -567,7 +570,8 @@ const AuthModal: React.FC<{onClose: () => void, t: any, lang: Language}> = ({onC
                     await firebase.firestore().collection('users').doc(user.uid).set({ 
                         email: data.email, displayName: data.name, points: 5, birthdate: data.birthdate, 
                         phone: data.phone, address: data.address, userClass: data.userClass, 
-                        isAdmin: data.email === 'admin@gmail.com'
+                        isAdmin: data.email === 'admin@gmail.com',
+                        isKoperasi: data.email === 'koperasi@gmail.com'
                     });
                     await firebase.auth().signOut();
                     alert(t('check_email_verify'));
@@ -1353,7 +1357,11 @@ const SupportChatBody: React.FC<{userId: string, userName: string, t: any, isGue
 };
 
 const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
-    const [activeTab, setActiveTab] = useState<'users' | 'items' | 'vouchers' | 'chats'>('users');
+    const isAdmin = user?.isAdmin || user?.email === 'admin@gmail.com';
+    const isKoperasi = user?.isKoperasi || user?.email === 'koperasi@gmail.com';
+
+    // If Koperasi, they only see Vouchers. If Admin, default is Users.
+    const [activeTab, setActiveTab] = useState<'users' | 'items' | 'vouchers' | 'chats'>(isKoperasi ? 'vouchers' : 'users');
     const [data, setData] = useState<{users: any[], items: any[], redemptions: any[], completedItems: any[], supportChats: any[]}>({users: [], items: [], redemptions: [], completedItems: [], supportChats: []});
     const [searchQuery, setSearchQuery] = useState('');
     const [editingUser, setEditingUser] = useState<any>(null);
@@ -1366,35 +1374,44 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
     useEffect(() => {
         if (typeof firebase === 'undefined' || !firebase.firestore) return;
         const db = firebase.firestore();
-        const unsubUsers = db.collection('users').onSnapshot((snap: any) => setData(prev => ({...prev, users: snap.docs.map((d: any) => ({...d.data(), uid: d.id}))})), (err: any) => {});
-        const unsubItems = db.collection('donations').onSnapshot((snap: any) => {
-            const items = snap.docs.map((d: any) => ({...d.data(), id: d.id}));
-            items.sort((a: any, b: any) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
-            setData(prev => ({...prev, items}));
-        }, (err: any) => {});
-        const unsubCompleted = db.collection('completed_donations').onSnapshot((snap: any) => setData(prev => ({...prev, completedItems: snap.docs.map((d: any) => ({...d.data(), id: d.id}))})), (err: any) => {});
+        
+        // Conditional unsub based on permissions
+        let unsubUsers = () => {};
+        let unsubItems = () => {};
+        let unsubCompleted = () => {};
+        let unsubSupport = () => {};
+        
+        if (isAdmin) {
+            unsubUsers = db.collection('users').onSnapshot((snap: any) => setData(prev => ({...prev, users: snap.docs.map((d: any) => ({...d.data(), uid: d.id}))})), (err: any) => {});
+            unsubItems = db.collection('donations').onSnapshot((snap: any) => {
+                const items = snap.docs.map((d: any) => ({...d.data(), id: d.id}));
+                items.sort((a: any, b: any) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+                setData(prev => ({...prev, items}));
+            }, (err: any) => {});
+            unsubCompleted = db.collection('completed_donations').onSnapshot((snap: any) => setData(prev => ({...prev, completedItems: snap.docs.map((d: any) => ({...d.data(), id: d.id}))})), (err: any) => {});
+            unsubSupport = db.collection('support_chats').onSnapshot((snap: any) => {
+                const rawDocs = snap.docs.map((d: any) => d.data());
+                const grouped: any[] = [];
+                const seen = new Set();
+                rawDocs.sort((a: any, b: any) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+                rawDocs.forEach((doc: any) => {
+                    if (!seen.has(doc.userId)) {
+                        grouped.push({ userId: doc.userId, userName: doc.userName, lastMsg: doc.text, isGuest: doc.isGuest });
+                        seen.add(doc.userId);
+                    }
+                });
+                setData(prev => ({...prev, supportChats: grouped}));
+            }, (err: any) => {});
+        }
+
         const unsubRedemptions = db.collection('redeem_history').onSnapshot((snap: any) => {
             const redemptions = snap.docs.map((d: any) => ({...d.data(), id: d.id}));
             redemptions.sort((a: any, b: any) => (b.redeemedAt?.toMillis?.() || 0) - (a.redeemedAt?.toMillis?.() || 0));
             setData(prev => ({...prev, redemptions}));
         }, (err: any) => {});
-        
-        const unsubSupport = db.collection('support_chats').onSnapshot((snap: any) => {
-            const rawDocs = snap.docs.map((d: any) => d.data());
-            const grouped: any[] = [];
-            const seen = new Set();
-            rawDocs.sort((a: any, b: any) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
-            rawDocs.forEach((doc: any) => {
-                if (!seen.has(doc.userId)) {
-                    grouped.push({ userId: doc.userId, userName: doc.userName, lastMsg: doc.text, isGuest: doc.isGuest });
-                    seen.add(doc.userId);
-                }
-            });
-            setData(prev => ({...prev, supportChats: grouped}));
-        }, (err: any) => {});
 
         return () => { unsubUsers(); unsubItems(); unsubCompleted(); unsubRedemptions(); unsubSupport(); };
-    }, []);
+    }, [isAdmin]);
 
     const filteredUsers = useMemo(() => {
         if (!searchQuery) return data.users;
@@ -1522,16 +1539,20 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
 
     return (
         <div className="h-full flex flex-col p-4 sm:p-6 overflow-hidden bg-white">
-            <h2 className="text-xl font-black italic uppercase text-[#2c3e50] mb-4 border-b-4 border-[#3498db] pb-2 inline-block shrink-0">{t('admin_panel')}</h2>
+            <h2 className="text-xl font-black italic uppercase text-[#2c3e50] mb-4 border-b-4 border-[#3498db] pb-2 inline-block shrink-0">{isAdmin ? t('admin_panel') : 'Koperasi Panel'}</h2>
             <div className="flex flex-wrap gap-1 mb-4 shrink-0">
-                <button onClick={() => { setActiveTab('users'); setEditingUser(null); setActiveSupportUser(null); setSelectedOffer(null); }} className={`flex-1 min-w-[60px] py-2 rounded-xl text-[7px] font-black uppercase ${activeTab === 'users' ? 'bg-[#2c3e50] text-white' : 'bg-gray-100'}`}>{t('users')}</button>
-                <button onClick={() => { setActiveTab('items'); setEditingUser(null); setActiveSupportUser(null); setSelectedOffer(null); }} className={`flex-1 min-w-[60px] py-2 rounded-xl text-[7px] font-black uppercase ${activeTab === 'items' ? 'bg-[#2c3e50] text-white' : 'bg-gray-100'}`}>{t('offers')}</button>
+                {isAdmin && (
+                    <>
+                        <button onClick={() => { setActiveTab('users'); setEditingUser(null); setActiveSupportUser(null); setSelectedOffer(null); }} className={`flex-1 min-w-[60px] py-2 rounded-xl text-[7px] font-black uppercase ${activeTab === 'users' ? 'bg-[#2c3e50] text-white' : 'bg-gray-100'}`}>{t('users')}</button>
+                        <button onClick={() => { setActiveTab('items'); setEditingUser(null); setActiveSupportUser(null); setSelectedOffer(null); }} className={`flex-1 min-w-[60px] py-2 rounded-xl text-[7px] font-black uppercase ${activeTab === 'items' ? 'bg-[#2c3e50] text-white' : 'bg-gray-100'}`}>{t('offers')}</button>
+                        <button onClick={() => { setActiveTab('chats'); setEditingUser(null); setActiveSupportUser(null); setSelectedOffer(null); }} className={`flex-1 min-w-[60px] py-2 rounded-xl text-[7px] font-black uppercase ${activeTab === 'chats' ? 'bg-[#2c3e50] text-white' : 'bg-gray-100'}`}>{t('support')}</button>
+                    </>
+                )}
                 <button onClick={() => { setActiveTab('vouchers'); setEditingUser(null); setActiveSupportUser(null); setSelectedOffer(null); }} className={`flex-1 min-w-[60px] py-2 rounded-xl text-[7px] font-black uppercase ${activeTab === 'vouchers' ? 'bg-[#2c3e50] text-white' : 'bg-gray-100'}`}>{t('vouchers')}</button>
-                <button onClick={() => { setActiveTab('chats'); setEditingUser(null); setActiveSupportUser(null); setSelectedOffer(null); }} className={`flex-1 min-w-[60px] py-2 rounded-xl text-[7px] font-black uppercase ${activeTab === 'chats' ? 'bg-[#2c3e50] text-white' : 'bg-gray-100'}`}>{t('support')}</button>
             </div>
             
             <div className="flex-1 overflow-y-auto space-y-4 pr-1 scrollbar-hide">
-                {activeTab === 'users' && (
+                {activeTab === 'users' && isAdmin && (
                     <div className="space-y-4">
                         <div className="bg-[#2c3e50] text-white p-4 rounded-2xl shadow-inner flex justify-between items-center">
                             <span className="text-[10px] font-black uppercase tracking-widest">Total Citizens</span>
@@ -1568,7 +1589,7 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
                     </div>
                 )}
 
-                {activeTab === 'items' && (
+                {activeTab === 'items' && isAdmin && (
                     selectedOffer ? (
                         <div className="bg-gray-50 p-5 rounded-3xl border border-gray-100 space-y-5 animate-in slide-in-from-right-2 relative">
                             {showDeclineModal && (
@@ -1683,7 +1704,7 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
                     </div>
                 )}
 
-                {activeTab === 'chats' && (
+                {activeTab === 'chats' && isAdmin && (
                     activeSupportUser ? (
                         <div className="flex flex-col h-full space-y-4">
                             <button onClick={() => setActiveSupportUser(null)} className="text-[10px] font-black uppercase text-gray-400 hover:text-[#2c3e50] transition-colors"><i className="fas fa-arrow-left mr-2"></i> {t('back_to_list')}</button>
