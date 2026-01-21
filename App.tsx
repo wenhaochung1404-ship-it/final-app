@@ -10,7 +10,7 @@ const MenuItem: React.FC<{icon: string, label: string, onClick: () => void, acti
         <div className={`w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center rounded-lg sm:rounded-xl ${active ? 'bg-white/20' : 'bg-gray-100'}`}>
             <i className={`fas fa-${icon} text-xs sm:text-sm`}></i>
         </div>
-        <span className="font-black text-[10px] sm:text-xs uppercase tracking-widest">{label}</span>
+        <span className="font-black text-[10px] sm:text-xs uppercase tracking-widest text-left">{label}</span>
     </button>
 );
 
@@ -423,6 +423,16 @@ export const App: React.FC = () => {
     
     const t = useCallback((key: string) => translations[lang][key] || key, [lang]);
 
+    // Prevent background scroll when menu is open
+    useEffect(() => {
+        if (isMenuOpen) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = 'unset';
+        }
+        return () => { document.body.style.overflow = 'unset'; };
+    }, [isMenuOpen]);
+
     useEffect(() => {
         let storedGuestId = sessionStorage.getItem('support_guest_id');
         if (!storedGuestId) {
@@ -470,7 +480,6 @@ export const App: React.FC = () => {
                             if (doc.exists) {
                                 const data = doc.data();
                                 setUser({ ...data, uid: authUser.uid });
-                                // On login, if Koperasi, direct to panel
                                 if (isKoperasi) setPage('admin');
                             } else {
                                 const profile = { 
@@ -558,8 +567,8 @@ export const App: React.FC = () => {
                     <button onClick={(e) => { e.stopPropagation(); setIsMenuOpen(true); }} className="p-2 hover:bg-white/10 rounded-xl transition-all flex-shrink-0">
                         <i className="fas fa-bars text-lg sm:text-xl"></i>
                     </button>
-                    <div className="flex-grow text-center font-black tracking-tighter cursor-pointer text-[10px] xs:text-[13px] sm:text-lg uppercase whitespace-nowrap overflow-hidden px-1" onClick={() => { if (!isKoperasi) setPage('home'); }}>
-                        MIRI <span className="text-[#3498db]">CARE</span> CONNECT
+                    <div className="flex-grow text-center font-black tracking-tighter cursor-pointer text-[10px] xs:text-[13px] sm:text-lg whitespace-nowrap overflow-hidden px-1" onClick={() => { if (!isKoperasi) setPage('home'); }}>
+                        Miri <span className="text-[#3498db]">Care</span> Connect
                     </div>
                     
                     <div className="flex items-center gap-1 sm:gap-4 flex-shrink-0">
@@ -702,18 +711,22 @@ export const App: React.FC = () => {
             </div>
 
             <aside className={`fixed inset-y-0 left-0 w-[80vw] sm:w-80 bg-white z-[301] transform transition-transform duration-500 shadow-2xl flex flex-col ${isMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-                <div className="p-8 flex flex-col h-full" onClick={(e) => e.stopPropagation()}>
+                <div className="p-8 flex flex-col h-full overflow-y-auto scrollbar-hide" onClick={(e) => e.stopPropagation()}>
                     <div className="flex justify-between items-center mb-12">
-                        <h2 className="text-xl font-black italic text-[#2c3e50] uppercase tracking-tighter">MIRI CARE CONNECT</h2>
-                        <button onClick={() => setIsMenuOpen(false)} className="text-gray-400 hover:text-red-500"><i className="fas fa-times text-2xl"></i></button>
+                        <h2 className="text-xl font-black italic text-[#2c3e50] uppercase tracking-tighter truncate pr-4">
+                            {user?.displayName || 'Guest'}
+                        </h2>
+                        <button onClick={() => setIsMenuOpen(false)} className="text-gray-400 hover:text-red-500 shrink-0">
+                            <i className="fas fa-times text-2xl"></i>
+                        </button>
                     </div>
                     {user && !isKoperasi && (
-                        <div className="mb-8 p-4 bg-gray-50 rounded-2xl">
+                        <div className="mb-8 p-4 bg-gray-50 rounded-2xl shrink-0">
                             <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">{t('kindness_level')}</div>
                             <div className="text-2xl font-black text-[#f39c12]">{user.points} <span className="text-xs">{t('points')}</span></div>
                         </div>
                     )}
-                    <nav className="flex flex-col gap-2">
+                    <nav className="flex flex-col gap-2 pb-8">
                         {!isKoperasi ? (
                             <>
                                 <MenuItem icon="home" label={t('home')} onClick={() => { setPage('home'); setIsMenuOpen(false); }} active={page === 'home'} />
