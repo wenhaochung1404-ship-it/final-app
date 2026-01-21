@@ -470,6 +470,8 @@ export const App: React.FC = () => {
                             if (doc.exists) {
                                 const data = doc.data();
                                 setUser({ ...data, uid: authUser.uid });
+                                // On login, if Koperasi, direct to panel
+                                if (isKoperasi) setPage('admin');
                             } else {
                                 const profile = { 
                                     uid: authUser.uid, 
@@ -481,6 +483,7 @@ export const App: React.FC = () => {
                                 };
                                 await db.collection('users').doc(authUser.uid).set(profile);
                                 setUser(profile as any);
+                                if (isKoperasi) setPage('admin');
                             }
                         }, (err: any) => {});
 
@@ -499,6 +502,7 @@ export const App: React.FC = () => {
                         setUser(null); 
                         setNotifications([]);
                         setEmailVerified(true);
+                        setPage('home');
                         if (unsubNotifs) unsubNotifs();
                     }
                     setLoading(false);
@@ -683,10 +687,10 @@ export const App: React.FC = () => {
                         {page === 'home' && !isKoperasi && <HomePage t={t} user={user} />}
                         {page === 'gallery' && !isKoperasi && <PhotoGalleryPage t={t} user={user} />}
                         {page === 'profile' && !isKoperasi && <ProfilePage user={user} t={t} onAuth={() => setIsAuthModalOpen(true)} onNavigate={() => {}} />}
-                        {page === 'shop' && !isKoperasi && <ShopPage user={user} t={t} onAuth={() => setIsAuthModalOpen(true)} onRedeemConfirm={setItemToRedeem} />}
+                        {page === 'shop' && <ShopPage user={user} t={t} onAuth={() => setIsAuthModalOpen(true)} onRedeemConfirm={setItemToRedeem} />}
                         {page === 'history' && !isKoperasi && <HistoryPage user={user} t={t} onAuth={() => setIsAuthModalOpen(true)} />}
                         {page === 'guide' && !isKoperasi && <UserGuidePage t={t} isAdmin={isAdmin} />}
-                        {isKoperasi && page === 'admin' && <div className="bg-white p-8 rounded-[2.5rem] shadow-xl"><AdminPanelContent t={t} user={user} isKoperasiMenu={true} /></div>}
+                        {page === 'admin' && (isAdmin || isKoperasi) && <div className="bg-white p-8 rounded-[2.5rem] shadow-xl"><AdminPanelContent t={t} user={user} isKoperasiMenu={isKoperasi} /></div>}
                     </div>
                 </main>
 
@@ -722,6 +726,7 @@ export const App: React.FC = () => {
                         ) : (
                             <>
                                 <MenuItem icon="user-shield" label="Koperasi Panel" onClick={() => { setPage('admin'); setIsMenuOpen(false); }} active={page === 'admin'} />
+                                <MenuItem icon="shopping-cart" label={t('points_shop')} onClick={() => { setPage('shop'); setIsMenuOpen(false); }} active={page === 'shop'} />
                             </>
                         )}
                     </nav>
