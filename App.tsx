@@ -531,7 +531,7 @@ export const App: React.FC = () => {
         try {
             if (firebase.auth().currentUser) {
                 await firebase.auth().currentUser.sendEmailVerification();
-                alert(t('verification_sent'));
+                alert("Verification message sent, please check your moe email spam folder page");
             }
         } catch (e: any) {
             alert(e.message);
@@ -554,7 +554,7 @@ export const App: React.FC = () => {
                     <button onClick={(e) => { e.stopPropagation(); setIsMenuOpen(true); }} className="p-2 hover:bg-white/10 rounded-xl transition-all flex-shrink-0">
                         <i className="fas fa-bars text-lg sm:text-xl"></i>
                     </button>
-                    <div className="flex-grow text-center font-black tracking-tighter cursor-pointer text-[10px] xs:text-[13px] sm:text-lg uppercase whitespace-nowrap overflow-hidden px-1" onClick={() => setPage('home')}>
+                    <div className="flex-grow text-center font-black tracking-tighter cursor-pointer text-[10px] xs:text-[13px] sm:text-lg uppercase whitespace-nowrap overflow-hidden px-1" onClick={() => { if (!isKoperasi) setPage('home'); }}>
                         MIRI <span className="text-[#3498db]">CARE</span> CONNECT
                     </div>
                     
@@ -567,7 +567,7 @@ export const App: React.FC = () => {
                                 </button>
                             </div>
                         )}
-                        {user && (
+                        {user && !isKoperasi && (
                             <div className="flex items-center gap-2">
                                 <button 
                                     onClick={() => setPage('shop')}
@@ -576,18 +576,18 @@ export const App: React.FC = () => {
                                     <i className="fas fa-star mr-1 sm:mr-2"></i> 
                                     {user.points} <span className="ml-0.5">{t('points')}</span>
                                 </button>
-                                {isKoperasi && (
-                                    <button 
-                                        onClick={() => firebase.auth().signOut()} 
-                                        className="bg-red-500 hover:bg-red-600 text-white px-2 sm:px-3 py-1 rounded-full text-[8px] sm:text-[10px] font-black uppercase shadow-lg transition-all"
-                                    >
-                                        <i className="fas fa-sign-out-alt"></i>
-                                    </button>
-                                )}
                             </div>
                         )}
                         {!user && (
                             <button onClick={(e) => { e.stopPropagation(); setIsAuthModalOpen(true); }} className="bg-[#3498db] hover:bg-blue-600 px-3 py-1.5 rounded-full text-[8px] sm:text-[10px] font-black uppercase shadow-lg">{t('login')}</button>
+                        )}
+                        {isKoperasi && (
+                             <button 
+                                onClick={() => firebase.auth().signOut()} 
+                                className="bg-red-500 hover:bg-red-600 text-white px-2 sm:px-3 py-1 rounded-full text-[8px] sm:text-[10px] font-black uppercase shadow-lg transition-all"
+                            >
+                                <i className="fas fa-sign-out-alt"></i>
+                            </button>
                         )}
                     </div>
                 </div>
@@ -595,15 +595,15 @@ export const App: React.FC = () => {
 
             {!emailVerified && user && (
                 <div className="bg-amber-500 text-white p-2 text-center text-[10px] font-black uppercase tracking-widest animate-pulse">
-                    {t('check_email_verify')}
+                    Please check your moe email spam folder page
                     <button onClick={resendVerification} className="ml-4 underline hover:text-black">{t('update')}</button>
                 </div>
             )}
 
             <div className="flex flex-1 overflow-hidden relative">
-                <div className="fixed right-6 bottom-6 z-[200] flex flex-col items-end gap-3 sm:gap-4">
+                <div className="fixed right-6 bottom-6 z-[200] flex items-center gap-3">
                     {showSupportChat && !isAdmin && !isKoperasi && (
-                        <div className="w-[85vw] sm:w-80 h-[450px] bg-white rounded-3xl shadow-2xl border border-gray-100 flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 mb-2 origin-bottom-right" onClick={(e) => e.stopPropagation()}>
+                        <div className="fixed right-6 bottom-24 w-[85vw] sm:w-80 h-[450px] bg-white rounded-3xl shadow-2xl border border-gray-100 flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 origin-bottom-right" onClick={(e) => e.stopPropagation()}>
                             <div className="bg-[#3498db] p-4 text-white flex justify-between items-center">
                                 <div className="font-black uppercase text-xs flex items-center gap-2">
                                     <i className="fas fa-headset"></i>
@@ -658,15 +658,15 @@ export const App: React.FC = () => {
                         </div>
 
                         {user && (
-                            (isAdmin || isKoperasi) ? (
+                            isAdmin ? (
                                 <button 
                                     onClick={(e) => { e.stopPropagation(); setShowAdminPanel(!showAdminPanel); }}
                                     className="bg-[#2c3e50] text-white w-16 h-16 rounded-full shadow-2xl flex flex-col items-center justify-center hover:scale-110 active:scale-95 transition-all border-4 border-white z-[201]"
                                 >
                                     <i className={`fas fa-${showAdminPanel ? 'times' : 'user-shield'} text-2xl`}></i>
-                                    <span className="text-[7px] font-black uppercase mt-1">{isAdmin ? 'Admin' : 'Koperasi'}</span>
+                                    <span className="text-[7px] font-black uppercase mt-1">Admin</span>
                                 </button>
-                            ) : (
+                            ) : !isKoperasi && (
                                 <button 
                                     onClick={(e) => { e.stopPropagation(); setShowSupportChat(!showSupportChat); }}
                                     className="bg-[#3498db] text-white w-16 h-16 rounded-full shadow-[0_8px_32px_rgba(52,152,219,0.3)] flex items-center justify-center hover:scale-110 active:scale-95 transition-all border-4 border-white z-[201]"
@@ -678,18 +678,19 @@ export const App: React.FC = () => {
                     </div>
                 </div>
 
-                <main className={`flex-1 overflow-y-auto transition-all duration-300 ${(isAdmin || isKoperasi) && showAdminPanel ? 'lg:mr-80' : ''}`}>
+                <main className={`flex-1 overflow-y-auto transition-all duration-300 ${isAdmin && showAdminPanel ? 'lg:mr-80' : ''}`}>
                     <div className="container mx-auto px-4 py-8 max-w-6xl">
-                        {page === 'home' && <HomePage t={t} user={user} />}
-                        {page === 'gallery' && <PhotoGalleryPage t={t} user={user} />}
+                        {page === 'home' && !isKoperasi && <HomePage t={t} user={user} />}
+                        {page === 'gallery' && !isKoperasi && <PhotoGalleryPage t={t} user={user} />}
                         {page === 'profile' && !isKoperasi && <ProfilePage user={user} t={t} onAuth={() => setIsAuthModalOpen(true)} onNavigate={() => {}} />}
-                        {page === 'shop' && <ShopPage user={user} t={t} onAuth={() => setIsAuthModalOpen(true)} onRedeemConfirm={setItemToRedeem} />}
-                        {page === 'history' && <HistoryPage user={user} t={t} onAuth={() => setIsAuthModalOpen(true)} />}
-                        {page === 'guide' && <UserGuidePage t={t} isAdmin={isAdmin} />}
+                        {page === 'shop' && !isKoperasi && <ShopPage user={user} t={t} onAuth={() => setIsAuthModalOpen(true)} onRedeemConfirm={setItemToRedeem} />}
+                        {page === 'history' && !isKoperasi && <HistoryPage user={user} t={t} onAuth={() => setIsAuthModalOpen(true)} />}
+                        {page === 'guide' && !isKoperasi && <UserGuidePage t={t} isAdmin={isAdmin} />}
+                        {isKoperasi && page === 'admin' && <div className="bg-white p-8 rounded-[2.5rem] shadow-xl"><AdminPanelContent t={t} user={user} isKoperasiMenu={true} /></div>}
                     </div>
                 </main>
 
-                {(isAdmin || isKoperasi) && (
+                {isAdmin && (
                     <aside className={`fixed top-16 sm:top-20 right-4 bottom-[120px] w-72 sm:w-80 bg-white border border-gray-100 rounded-[2.5rem] shadow-2xl z-[100] transition-transform duration-300 transform overflow-hidden ${showAdminPanel ? 'translate-x-0' : 'translate-x-[120%]'}`}>
                         <AdminPanelContent t={t} user={user} />
                     </aside>
@@ -702,19 +703,27 @@ export const App: React.FC = () => {
                         <h2 className="text-xl font-black italic text-[#2c3e50] uppercase tracking-tighter">MIRI CARE CONNECT</h2>
                         <button onClick={() => setIsMenuOpen(false)} className="text-gray-400 hover:text-red-500"><i className="fas fa-times text-2xl"></i></button>
                     </div>
-                    {user && (
+                    {user && !isKoperasi && (
                         <div className="mb-8 p-4 bg-gray-50 rounded-2xl">
                             <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">{t('kindness_level')}</div>
                             <div className="text-2xl font-black text-[#f39c12]">{user.points} <span className="text-xs">{t('points')}</span></div>
                         </div>
                     )}
                     <nav className="flex flex-col gap-2">
-                        <MenuItem icon="home" label={t('home')} onClick={() => { setPage('home'); setIsMenuOpen(false); }} active={page === 'home'} />
-                        <MenuItem icon="camera" label={t('photo_gallery')} onClick={() => { setPage('gallery'); setIsMenuOpen(false); }} active={page === 'gallery'} />
-                        <MenuItem icon="book" label={t('user_guide')} onClick={() => { setPage('guide'); setIsMenuOpen(false); }} active={page === 'guide'} />
-                        {!isKoperasi && <MenuItem icon="user" label={t('profile')} onClick={() => { setPage('profile'); setIsMenuOpen(false); }} active={page === 'profile'} />}
-                        <MenuItem icon="shopping-cart" label={t('points_shop')} onClick={() => { setPage('shop'); setIsMenuOpen(false); }} active={page === 'shop'} />
-                        <MenuItem icon="history" label={t('history')} onClick={() => { setPage('history'); setIsMenuOpen(false); }} active={page === 'history'} />
+                        {!isKoperasi ? (
+                            <>
+                                <MenuItem icon="home" label={t('home')} onClick={() => { setPage('home'); setIsMenuOpen(false); }} active={page === 'home'} />
+                                <MenuItem icon="camera" label={t('photo_gallery')} onClick={() => { setPage('gallery'); setIsMenuOpen(false); }} active={page === 'gallery'} />
+                                <MenuItem icon="book" label={t('user_guide')} onClick={() => { setPage('guide'); setIsMenuOpen(false); }} active={page === 'guide'} />
+                                <MenuItem icon="user" label={t('profile')} onClick={() => { setPage('profile'); setIsMenuOpen(false); }} active={page === 'profile'} />
+                                <MenuItem icon="shopping-cart" label={t('points_shop')} onClick={() => { setPage('shop'); setIsMenuOpen(false); }} active={page === 'shop'} />
+                                <MenuItem icon="history" label={t('history')} onClick={() => { setPage('history'); setIsMenuOpen(false); }} active={page === 'history'} />
+                            </>
+                        ) : (
+                            <>
+                                <MenuItem icon="user-shield" label="Koperasi Panel" onClick={() => { setPage('admin'); setIsMenuOpen(false); }} active={page === 'admin'} />
+                            </>
+                        )}
                     </nav>
                 </div>
             </aside>
@@ -861,7 +870,7 @@ const AuthModal: React.FC<{onClose: () => void, t: any, lang: Language}> = ({onC
                 const isKoperasi = data.email === 'koperasi@gmail.com';
                 if (!user.emailVerified && !isHardcodedAdmin && !isKoperasi) {
                     await firebase.auth().signOut();
-                    throw new Error(translations[lang]['check_email_verify']);
+                    throw new Error("Please check your moe email spam folder page");
                 }
                 onClose();
             } else if (mode === 'register') {
@@ -879,7 +888,7 @@ const AuthModal: React.FC<{onClose: () => void, t: any, lang: Language}> = ({onC
                         isKoperasi: data.email === 'koperasi@gmail.com'
                     });
                     await firebase.auth().signOut();
-                    alert(t('check_email_verify'));
+                    alert("Verification message sent, please check your moe email spam folder page");
                     setMode('login');
                 }
             }
@@ -1667,7 +1676,7 @@ const SupportChatBody: React.FC<{userId: string, userName: string, t: any, isGue
     );
 };
 
-const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
+const AdminPanelContent: React.FC<{t: any, user: any | null, isKoperasiMenu?: boolean}> = ({t, user, isKoperasiMenu}) => {
     const isAdmin = user?.isAdmin || user?.email === 'admin@gmail.com';
     const isKoperasi = user?.isKoperasi || user?.email === 'koperasi@gmail.com';
 
@@ -1699,7 +1708,7 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
                 const rawDocs = snap.docs.map((d: any) => d.data());
                 const grouped: any[] = [];
                 const seen = new Set();
-                rawDocs.sort((a: any, b: any) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+                rawDocs.sort((a: any, b: any) => (a.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
                 rawDocs.forEach((doc: any) => {
                     if (!seen.has(doc.userId)) {
                         grouped.push({ userId: doc.userId, userName: doc.userName, lastMsg: doc.text, isGuest: doc.isGuest });
@@ -1854,7 +1863,7 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
     };
 
     return (
-        <div className="h-full flex flex-col p-4 sm:p-6 overflow-hidden bg-white">
+        <div className={`h-full flex flex-col ${isKoperasiMenu ? '' : 'p-4 sm:p-6'} overflow-hidden bg-white`}>
             <div className="flex justify-between items-start mb-4 shrink-0">
                 <h2 className="text-xl font-black italic uppercase text-[#2c3e50] border-b-4 border-[#3498db] pb-2 inline-block">{isAdmin ? t('admin_panel') : 'Koperasi Panel'}</h2>
                 {isAdmin && activeTab === 'vouchers' && (
@@ -1889,7 +1898,7 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
                                 <AdminInput label={t('class_label')} value={editingUser.userClass} onChange={v => setEditingUser({...editingUser, userClass: v})} />
                                 <div className="flex gap-2">
                                     <button type="submit" className="flex-1 bg-[#2ecc71] text-white py-2 rounded-lg font-black text-[10px] uppercase">{t('save')}</button>
-                                    <button type="button" onClick={() => setEditingUser(null)} className="flex-1 bg-gray-200 text-gray-600 py-2 rounded-lg font-black text-[10px] uppercase">{t('cancel')}</button>
+                                    <button type="button" onClick={() => setEditingUser(null)} className="flex-1 bg-gray-100 text-gray-600 py-2 rounded-lg font-black text-[10px] uppercase">{t('cancel')}</button>
                                 </div>
                             </form>
                         ) : (
