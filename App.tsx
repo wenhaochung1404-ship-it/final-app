@@ -28,6 +28,251 @@ const AdminInput: React.FC<{label: string, value: any, onChange?: (v: any) => vo
     </div>
 );
 
+const PhotoGalleryPage: React.FC<{ t: any, user: any }> = ({ t, user }) => {
+    const [galleries, setGalleries] = useState<any[]>([]);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [header, setHeader] = useState('');
+    const [mediaItems, setMediaItems] = useState<string[]>(['', '', '']);
+    const [saving, setSaving] = useState(false);
+
+    const isAdmin = user?.isAdmin || user?.email === 'admin@gmail.com';
+
+    useEffect(() => {
+        if (typeof firebase === 'undefined' || !firebase.firestore) return;
+        const db = firebase.firestore();
+        const unsub = db.collection('galleries').onSnapshot((snap: any) => {
+            const data = snap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+            // Sort by creation date
+            data.sort((a: any, b: any) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+            setGalleries(data);
+        });
+        return unsub;
+    }, []);
+
+    const openAdd = () => {
+        setEditingId(null);
+        setHeader('');
+        setMediaItems(['', '', '']);
+        setIsModalOpen(true);
+    };
+
+    const openEdit = (gallery: any) => {
+        setEditingId(gallery.id);
+        setHeader(gallery.header || '');
+        setMediaItems(gallery.items?.length > 0 ? [...gallery.items] : ['', '', '']);
+        setIsModalOpen(true);
+    };
+
+    const handleSave = async () => {
+        if (typeof firebase === 'undefined' || !firebase.firestore) return;
+        setSaving(true);
+        try {
+            const filteredItems = mediaItems.filter(item => item.trim() !== '');
+            const db = firebase.firestore();
+            const payload = {
+                header,
+                items: filteredItems,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
+
+            if (editingId) {
+                await db.collection('galleries').doc(editingId).update(payload);
+            } else {
+                await db.collection('galleries').add({
+                    ...payload,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+            }
+            setIsModalOpen(false);
+        } catch (e: any) {
+            alert("Save failed: " + e.message);
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleDelete = async (id: string) => {
+        if (!window.confirm("Are you sure you want to delete this specific gallery group?")) return;
+        if (typeof firebase === 'undefined' || !firebase.firestore) return;
+        try {
+            await firebase.firestore().collection('galleries').doc(id).delete();
+        } catch (e: any) {
+            alert("Delete failed: " + e.message);
+        }
+    };
+
+    const addSlot = () => setMediaItems([...mediaItems, '']);
+    const updateItem = (index: number, val: string) => {
+        const newItems = [...mediaItems];
+        newItems[index] = val;
+        setMediaItems(newItems);
+    };
+    const removeSlot = (index: number) => {
+        const newItems = mediaItems.filter((_, i) => i !== index);
+        setMediaItems(newItems.length >= 3 ? newItems : [...newItems, '']);
+    };
+
+    return (
+        <div className="max-w-6xl mx-auto py-8 px-4 space-y-12 animate-in fade-in duration-500">
+            <div className="flex justify-between items-center border-b-4 border-[#2c3e50] pb-4">
+                <h1 className="text-4xl font-black italic uppercase text-[#2c3e50] tracking-tighter">
+                    {t('photo_gallery')}
+                </h1>
+                {isAdmin && (
+                    <button 
+                        onClick={openAdd}
+                        className="bg-[#2ecc71] text-white px-8 py-3 rounded-full font-black text-xs uppercase shadow-xl hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
+                    >
+                        <i className="fas fa-plus"></i> ADD GALLERY
+                    </button>
+                )}
+            </div>
+
+            {galleries.length === 0 ? (
+                <div className="bg-white rounded-[3rem] p-20 shadow-xl border-4 border-dashed border-gray-100 flex flex-col items-center justify-center text-center">
+                    <div className="w-24 h-24 bg-gray-50 rounded-full flex items-center justify-center text-gray-200 text-4xl mb-6">
+                        <i className="fas fa-camera-retro"></i>
+                    </div>
+                    <h2 className="text-4xl font-black text-gray-200 italic uppercase tracking-tighter animate-pulse">
+                        {t('coming_soon')}
+                    </h2>
+                </div>
+            ) : (
+                <div className="space-y-20">
+                    {galleries.map((gallery) => (
+                        <section key={gallery.id} className="space-y-8 animate-in slide-in-from-bottom-4">
+                            <div className="flex justify-between items-end gap-4">
+                                <div className="flex-1">
+                                    {gallery.header && (
+                                        <h2 className="text-3xl font-black uppercase text-[#2c3e50] tracking-widest border-l-8 border-[#3498db] pl-6">
+                                            {gallery.header}
+                                        </h2>
+                                    )}
+                                </div>
+                                {isAdmin && (
+                                    <div className="flex gap-2 shrink-0">
+                                        <button 
+                                            onClick={() => openEdit(gallery)}
+                                            className="w-10 h-10 bg-blue-50 text-[#3498db] rounded-full flex items-center justify-center hover:bg-[#3498db] hover:text-white transition-all shadow-sm"
+                                            title="Edit Group"
+                                        >
+                                            <i className="fas fa-pen text-xs"></i>
+                                        </button>
+                                        <button 
+                                            onClick={() => handleDelete(gallery.id)}
+                                            className="w-10 h-10 bg-red-50 text-red-500 rounded-full flex items-center justify-center hover:bg-red-500 hover:text-white transition-all shadow-sm"
+                                            title="Delete Group"
+                                        >
+                                            <i className="fas fa-trash text-xs"></i>
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+                                {gallery.items?.map((url: string, i: number) => (
+                                    <div key={i} className="group relative bg-white rounded-[2.5rem] overflow-hidden shadow-lg border border-gray-100 hover:shadow-2xl transition-all duration-500 hover:-translate-y-2">
+                                        {url.match(/\.(mp4|webm|ogg)$/i) || url.includes('youtube.com') || url.includes('vimeo.com') ? (
+                                            <div className="aspect-square bg-black flex items-center justify-center overflow-hidden">
+                                                <video src={url} className="w-full h-full object-cover" controls />
+                                            </div>
+                                        ) : (
+                                            <div className="aspect-square overflow-hidden bg-gray-50">
+                                                <img 
+                                                    src={url} 
+                                                    alt={`Gallery ${gallery.id} Item ${i}`} 
+                                                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                                                    onError={(e: any) => { e.target.src = 'https://placehold.co/600x600?text=Invalid+Media+URL'; }}
+                                                />
+                                            </div>
+                                        )}
+                                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-6">
+                                            <p className="text-white font-black uppercase italic text-[10px] tracking-widest">Kindness captured in Miri</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </section>
+                    ))}
+                </div>
+            )}
+
+            {/* Manage Gallery Modal (Add or Edit) */}
+            {isModalOpen && (
+                <div className="fixed inset-0 bg-[#2c3e50]/90 z-[1100] flex items-center justify-center p-4 backdrop-blur-sm overflow-y-auto">
+                    <div className="bg-white w-full max-w-2xl rounded-[3rem] p-8 sm:p-12 shadow-2xl space-y-6 my-auto animate-in zoom-in duration-300">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-2xl font-black uppercase italic text-[#2c3e50]">
+                                {editingId ? 'Edit Gallery Group' : 'Add New Gallery Group'}
+                            </h3>
+                            <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-red-500 transition-colors">
+                                <i className="fas fa-times text-2xl"></i>
+                            </button>
+                        </div>
+
+                        <div className="space-y-6">
+                            <AdminInput 
+                                label="Group Header (First Column)" 
+                                value={header} 
+                                onChange={setHeader} 
+                                placeholder="Enter header for this group of photos..."
+                            />
+
+                            <div className="space-y-4">
+                                <label className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em] ml-1">
+                                    Media URLs (Support Images & Videos)
+                                </label>
+                                <div className="grid grid-cols-1 gap-3 max-h-[40vh] overflow-y-auto pr-2 scrollbar-hide">
+                                    {mediaItems.map((url, idx) => (
+                                        <div key={idx} className="flex gap-2 animate-in slide-in-from-left-2">
+                                            <input 
+                                                value={url} 
+                                                onChange={(e) => updateItem(idx, e.target.value)}
+                                                placeholder={`URL for slot ${idx + 1}...`}
+                                                className="flex-1 p-4 bg-gray-50 border-2 border-gray-100 rounded-2xl font-bold text-xs outline-none focus:border-[#3498db] transition-all"
+                                            />
+                                            <button 
+                                                onClick={() => removeSlot(idx)}
+                                                className="w-12 h-12 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center hover:bg-red-500 hover:text-white transition-all shrink-0 shadow-sm"
+                                            >
+                                                <i className="fas fa-minus text-xs"></i>
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                                <button 
+                                    onClick={addSlot}
+                                    className="w-full py-5 border-2 border-dashed border-gray-200 rounded-[2rem] text-gray-400 hover:border-[#3498db] hover:text-[#3498db] transition-all font-black text-xs uppercase flex items-center justify-center gap-2"
+                                >
+                                    <i className="fas fa-plus"></i> Add More Media Slot
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="flex gap-4 pt-6 border-t border-gray-100">
+                            <button 
+                                onClick={handleSave} 
+                                disabled={saving}
+                                className="flex-1 bg-[#2ecc71] text-white py-5 rounded-2xl font-black uppercase shadow-xl hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2"
+                            >
+                                {saving ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-save"></i>}
+                                {editingId ? 'Update Group' : 'Post Group'}
+                            </button>
+                            <button 
+                                onClick={() => setIsModalOpen(false)} 
+                                className="flex-1 bg-gray-100 text-gray-500 py-5 rounded-2xl font-black uppercase hover:bg-gray-200 transition-all"
+                            >
+                                {t('cancel')}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
 const HomePage: React.FC<{ t: any, user: any }> = ({ t, user }) => {
     const [donations, setDonations] = useState<any[]>([]);
     const [announcement, setAnnouncement] = useState<{text: string}>({text: ''});
@@ -439,6 +684,7 @@ export const App: React.FC = () => {
                 <main className={`flex-1 overflow-y-auto transition-all duration-300 ${(isAdmin || isKoperasi) && showAdminPanel ? 'lg:mr-80' : ''}`}>
                     <div className="container mx-auto px-4 py-8 max-w-6xl">
                         {page === 'home' && <HomePage t={t} user={user} />}
+                        {page === 'gallery' && <PhotoGalleryPage t={t} user={user} />}
                         {page === 'profile' && !isKoperasi && <ProfilePage user={user} t={t} onAuth={() => setIsAuthModalOpen(true)} onNavigate={() => {}} />}
                         {page === 'shop' && <ShopPage user={user} t={t} onAuth={() => setIsAuthModalOpen(true)} onRedeemConfirm={setItemToRedeem} />}
                         {page === 'history' && <HistoryPage user={user} t={t} onAuth={() => setIsAuthModalOpen(true)} />}
@@ -467,6 +713,7 @@ export const App: React.FC = () => {
                     )}
                     <nav className="flex flex-col gap-2">
                         <MenuItem icon="home" label={t('home')} onClick={() => { setPage('home'); setIsMenuOpen(false); }} active={page === 'home'} />
+                        <MenuItem icon="camera" label={t('photo_gallery')} onClick={() => { setPage('gallery'); setIsMenuOpen(false); }} active={page === 'gallery'} />
                         <MenuItem icon="book" label={t('user_guide')} onClick={() => { setPage('guide'); setIsMenuOpen(false); }} active={page === 'guide'} />
                         {!isKoperasi && <MenuItem icon="user" label={t('profile')} onClick={() => { setPage('profile'); setIsMenuOpen(false); }} active={page === 'profile'} />}
                         <MenuItem icon="shopping-cart" label={t('points_shop')} onClick={() => { setPage('shop'); setIsMenuOpen(false); }} active={page === 'shop'} />
