@@ -43,7 +43,6 @@ const PhotoGalleryPage: React.FC<{ t: any, user: any }> = ({ t, user }) => {
         const db = firebase.firestore();
         const unsub = db.collection('galleries').onSnapshot((snap: any) => {
             const data = snap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
-            // Sort by creation date
             data.sort((a: any, b: any) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
             setGalleries(data);
         });
@@ -198,7 +197,6 @@ const PhotoGalleryPage: React.FC<{ t: any, user: any }> = ({ t, user }) => {
                 </div>
             )}
 
-            {/* Manage Gallery Modal (Add or Edit) */}
             {isModalOpen && (
                 <div className="fixed inset-0 bg-[#2c3e50]/90 z-[1100] flex items-center justify-center p-4 backdrop-blur-sm overflow-y-auto">
                     <div className="bg-white w-full max-w-2xl rounded-[3rem] p-8 sm:p-12 shadow-2xl space-y-6 my-auto animate-in zoom-in duration-300">
@@ -473,7 +471,6 @@ export const App: React.FC = () => {
                                 const data = doc.data();
                                 setUser({ ...data, uid: authUser.uid });
                             } else {
-                                // Default profile setup for Admin/Koperasi if they don't exist in DB yet
                                 const profile = { 
                                     uid: authUser.uid, 
                                     email: authUser.email, 
@@ -815,7 +812,6 @@ export const App: React.FC = () => {
                                 const userDoc = await transaction.get(userRef);
                                 if (userDoc.data().points < itemToRedeem.cost) throw new Error("Not enough points");
                                 
-                                // Get and increment global redemption counter
                                 const counterDoc = await transaction.get(counterRef);
                                 let currentCount = 1;
                                 if (counterDoc.exists) {
@@ -823,7 +819,6 @@ export const App: React.FC = () => {
                                 }
                                 transaction.set(counterRef, { count: currentCount }, { merge: true });
                                 
-                                // Format RDXXXX code
                                 rdCode = `RD${String(currentCount).padStart(4, '0')}`;
                                 
                                 transaction.update(userRef, { points: userDoc.data().points - itemToRedeem.cost });
@@ -1149,6 +1144,7 @@ const ShopPage: React.FC<{user: any, t: any, onAuth: () => void, onRedeemConfirm
     };
 
     const handleDeleteItem = async (id: string) => {
+        if (!id) return;
         if (window.confirm("Delete this reward?")) {
             await firebase.firestore().collection('shop_items').doc(id).delete();
         }
@@ -1675,7 +1671,6 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
     const isAdmin = user?.isAdmin || user?.email === 'admin@gmail.com';
     const isKoperasi = user?.isKoperasi || user?.email === 'koperasi@gmail.com';
 
-    // Strictly limit Koperasi to vouchers tab only
     const [activeTab, setActiveTab] = useState<'users' | 'items' | 'vouchers' | 'chats'>(isKoperasi ? 'vouchers' : 'users');
     const [data, setData] = useState<{users: any[], items: any[], redemptions: any[], completedItems: any[], supportChats: any[]}>({users: [], items: [], redemptions: [], completedItems: [], supportChats: []});
     const [searchQuery, setSearchQuery] = useState('');
@@ -1690,25 +1685,21 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
         if (typeof firebase === 'undefined' || !firebase.firestore) return;
         const db = firebase.firestore();
         
-        let unsubUsers = () => {};
-        let unsubItems = () => {};
-        let unsubCompleted = () => {};
-        let unsubSupport = () => {};
+        let unsubs: Array<() => void> = [];
         
-        // Only fetch admin data if current user has full admin rights
         if (isAdmin) {
-            unsubUsers = db.collection('users').onSnapshot((snap: any) => setData(prev => ({...prev, users: snap.docs.map((d: any) => ({...d.data(), uid: d.id}))})), (err: any) => {});
-            unsubItems = db.collection('donations').onSnapshot((snap: any) => {
+            unsubs.push(db.collection('users').onSnapshot((snap: any) => setData(prev => ({...prev, users: snap.docs.map((d: any) => ({...d.data(), uid: d.id}))}))));
+            unsubs.push(db.collection('donations').onSnapshot((snap: any) => {
                 const items = snap.docs.map((d: any) => ({...d.data(), id: d.id}));
                 items.sort((a: any, b: any) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
                 setData(prev => ({...prev, items}));
-            }, (err: any) => {});
-            unsubCompleted = db.collection('completed_donations').onSnapshot((snap: any) => setData(prev => ({...prev, completedItems: snap.docs.map((d: any) => ({...d.data(), id: d.id}))})), (err: any) => {});
-            unsubSupport = db.collection('support_chats').onSnapshot((snap: any) => {
+            }));
+            unsubs.push(db.collection('completed_donations').onSnapshot((snap: any) => setData(prev => ({...prev, completedItems: snap.docs.map((d: any) => ({...d.data(), id: d.id}))}))));
+            unsubs.push(db.collection('support_chats').onSnapshot((snap: any) => {
                 const rawDocs = snap.docs.map((d: any) => d.data());
                 const grouped: any[] = [];
                 const seen = new Set();
-                rawDocs.sort((a: any, b: any) => (a.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+                rawDocs.sort((a: any, b: any) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
                 rawDocs.forEach((doc: any) => {
                     if (!seen.has(doc.userId)) {
                         grouped.push({ userId: doc.userId, userName: doc.userName, lastMsg: doc.text, isGuest: doc.isGuest });
@@ -1716,17 +1707,16 @@ const AdminPanelContent: React.FC<{t: any, user: any | null}> = ({t, user}) => {
                     }
                 });
                 setData(prev => ({...prev, supportChats: grouped}));
-            }, (err: any) => {});
+            }));
         }
 
-        // Both Admin and Koperasi can see redemptions
-        const unsubRedemptions = db.collection('redeem_history').onSnapshot((snap: any) => {
+        unsubs.push(db.collection('redeem_history').onSnapshot((snap: any) => {
             const redemptions = snap.docs.map((d: any) => ({...d.data(), id: d.id}));
             redemptions.sort((a: any, b: any) => (b.redeemedAt?.toMillis?.() || 0) - (a.redeemedAt?.toMillis?.() || 0));
             setData(prev => ({...prev, redemptions}));
-        }, (err: any) => {});
+        }));
 
-        return () => { unsubUsers(); unsubItems(); unsubCompleted(); unsubRedemptions(); unsubSupport(); };
+        return () => unsubs.forEach(u => u());
     }, [isAdmin]);
 
     const filteredUsers = useMemo(() => {
