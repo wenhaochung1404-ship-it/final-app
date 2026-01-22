@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Language, UserProfile } from './types';
 import { translations } from './translations';
+import { Analytics } from "@vercel/analytics/react";
 
 declare const firebase: any;
 
@@ -2085,6 +2086,7 @@ const AdminPanelContent: React.FC<{t: any, user: any | null, isKoperasiMenu?: bo
                     )
                 )}
             </div>
+            <Analytics />
         </div>
     );
 };
