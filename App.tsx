@@ -314,7 +314,7 @@ const HomePage: React.FC<{ t: any, user: any }> = ({ t, user }) => {
             {!user && (
                 <div className="bg-[#2c3e50] text-white rounded-[2.5rem] p-8 sm:p-16 text-center shadow-2xl relative overflow-hidden border-b-[10px] border-[#3498db] animate-in fade-in zoom-in duration-500">
                     <h1 className="text-4xl sm:text-7xl font-black italic uppercase tracking-tighter leading-tight mb-4">
-                        CONNECTING MIRI CITIZENS IN NEED
+                        Connecting Miri Citizens In Need
                     </h1>
                     <p className="text-gray-400 font-bold uppercase text-sm sm:text-lg tracking-widest">
                         SHARE YOUR EXTRA ITEMS WITH OTHERS THAT NEED HELP
@@ -423,7 +423,7 @@ export const App: React.FC = () => {
     
     const t = useCallback((key: string) => translations[lang][key] || key, [lang]);
 
-    // Prevent background scroll when menu is open
+    // Detect small screen height/width and prevent background scrolling
     useEffect(() => {
         if (isMenuOpen) {
             document.body.style.overflow = 'hidden';
@@ -886,9 +886,12 @@ const AuthModal: React.FC<{onClose: () => void, t: any, lang: Language}> = ({onC
                 const { user } = await firebase.auth().signInWithEmailAndPassword(data.email, data.password);
                 const isHardcodedAdmin = data.email === 'admin@gmail.com';
                 const isKoperasi = data.email === 'koperasi@gmail.com';
+                
+                // Always send verification if not verified (except for admins/koperasi)
                 if (!user.emailVerified && !isHardcodedAdmin && !isKoperasi) {
+                    await user.sendEmailVerification();
                     await firebase.auth().signOut();
-                    throw new Error("Please check your moe email spam folder page");
+                    throw new Error("Verification email sent! Please check your moe email spam folder page.");
                 }
                 onClose();
             } else if (mode === 'register') {
@@ -1726,7 +1729,7 @@ const AdminPanelContent: React.FC<{t: any, user: any | null, isKoperasiMenu?: bo
                 const rawDocs = snap.docs.map((d: any) => d.data());
                 const grouped: any[] = [];
                 const seen = new Set();
-                rawDocs.sort((a: any, b: any) => (a.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+                rawDocs.sort((a: any, b: any) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
                 rawDocs.forEach((doc: any) => {
                     if (!seen.has(doc.userId)) {
                         grouped.push({ userId: doc.userId, userName: doc.userName, lastMsg: doc.text, isGuest: doc.isGuest });
