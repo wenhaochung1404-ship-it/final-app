@@ -839,6 +839,23 @@ export const App: React.FC = () => {
                                 const userDoc = await transaction.get(userRef);
                                 if (userDoc.data().points < itemToRedeem.cost) throw new Error("Not enough points");
                                 
+                                // Monthly Point Limit Check (200 pts)
+                                const now = new Date();
+                                const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+                                const historySnap = await db.collection('redeem_history')
+                                    .where('userId', '==', user!.uid)
+                                    .where('redeemedAt', '>=', firebase.firestore.Timestamp.fromDate(firstDay))
+                                    .get();
+                                
+                                let monthlyTotal = 0;
+                                historySnap.forEach((d: any) => {
+                                    monthlyTotal += (d.data().itemPoints || 0);
+                                });
+
+                                if (monthlyTotal + itemToRedeem.cost > 200) {
+                                    throw new Error(t('points_limit_msg'));
+                                }
+
                                 const counterDoc = await transaction.get(counterRef);
                                 let currentCount = 1;
                                 if (counterDoc.exists) {
@@ -862,7 +879,7 @@ export const App: React.FC = () => {
                             });
                             setItemToRedeem(null);
                             setRedeemSuccessCode(rdCode);
-                        } catch (e: any) { alert("Failed: " + e.message); }
+                        } catch (e: any) { alert(e.message); }
                     }} 
                 />
             )}
@@ -1155,6 +1172,8 @@ const ShopPage: React.FC<{user: any, t: any, onAuth: () => void, onRedeemConfirm
     }, []);
 
     const isAdmin = user?.isAdmin || user?.email === 'admin@gmail.com';
+    const dayOfMonth = new Date().getDate();
+    const isShopOpen = dayOfMonth <= 21;
 
     const handleAddItem = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -1182,17 +1201,52 @@ const ShopPage: React.FC<{user: any, t: any, onAuth: () => void, onRedeemConfirm
 
     if (loading) return <div className="text-center py-20 font-black uppercase text-gray-300">Checking Inventory...</div>;
 
+    if (!isShopOpen && !isAdmin) {
+        return (
+            <div className="flex flex-col items-center justify-center py-24 bg-white rounded-[3rem] border-4 border-dashed border-gray-100 px-8 text-center animate-in fade-in zoom-in duration-500">
+                <div className="w-24 h-24 bg-red-50 text-red-500 rounded-full flex items-center justify-center text-4xl mb-6">
+                    <i className="fas fa-lock"></i>
+                </div>
+                <h2 className="text-3xl font-black text-[#2c3e50] uppercase italic tracking-tighter mb-4 leading-tight">
+                    {t('shop_closed_msg')}
+                </h2>
+                <p className="text-gray-400 font-bold uppercase text-[10px] tracking-widest max-w-md">
+                    Scheduled Reopening: 1st day of next month.
+                </p>
+            </div>
+        );
+    }
+
     return (
-        <div className="space-y-8">
-            <div className="flex justify-between items-center">
-                <h2 className="text-3xl font-black italic uppercase text-[#2c3e50] tracking-tighter">{t('points_shop')}</h2>
+        <div className="space-y-8 animate-in fade-in duration-500">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+                <div className="flex items-center gap-4">
+                    <h2 className="text-3xl font-black italic uppercase text-[#2c3e50] tracking-tighter shrink-0">{t('points_shop')}</h2>
+                    {isShopOpen && (
+                        <div className="hidden lg:block bg-blue-50 border border-blue-100 p-3 rounded-2xl">
+                            <p className="text-[9px] font-bold text-blue-600 leading-tight uppercase">
+                                <i className="fas fa-info-circle mr-2"></i>
+                                {t('shop_open_warning')}
+                            </p>
+                        </div>
+                    )}
+                </div>
                 {isAdmin && (
-                    <button onClick={() => { setShowAddForm(true); setEditingItem(null); setNewItem({name: '', cost: 0, color: '#3498db'}); }} className="bg-[#2c3e50] text-white px-6 py-2 rounded-full font-black text-[10px] uppercase shadow-lg transition-all active:scale-95">
+                    <button onClick={() => { setShowAddForm(true); setEditingItem(null); setNewItem({name: '', cost: 0, color: '#3498db'}); }} className="bg-[#2c3e50] text-white px-6 py-2 rounded-full font-black text-[10px] uppercase shadow-lg transition-all active:scale-95 shrink-0">
                         <i className="fas fa-plus mr-2"></i>
                         {t('add_reward')}
                     </button>
                 )}
             </div>
+
+            {isShopOpen && (
+                <div className="lg:hidden bg-blue-50 border border-blue-100 p-5 rounded-3xl mb-4">
+                    <p className="text-[10px] font-bold text-blue-600 leading-relaxed uppercase">
+                        <i className="fas fa-info-circle mr-2"></i>
+                        {t('shop_open_warning')}
+                    </p>
+                </div>
+            )}
 
             {showAddForm && (
                 <div className="fixed inset-0 bg-black/80 z-[1000] flex items-center justify-center p-4 backdrop-blur-sm">
@@ -1216,7 +1270,7 @@ const ShopPage: React.FC<{user: any, t: any, onAuth: () => void, onRedeemConfirm
                     <p className="text-gray-400 font-bold uppercase text-xs mt-2">Our store is currently being restocked with kindness rewards.</p>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 pb-20">
                     {rewards.map(item => (
                         <div key={item.id} className="bg-white p-8 rounded-[2.5rem] shadow-lg border-b-8 transition-transform hover:-translate-y-2 relative group" style={{ borderColor: item.color || '#3498db' }}>
                             <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-white text-2xl mb-6 shadow-lg" style={{ backgroundColor: item.color || '#3498db' }}>
@@ -1710,6 +1764,8 @@ const AdminPanelContent: React.FC<{t: any, user: any | null, isKoperasiMenu?: bo
     const [selectedOffer, setSelectedOffer] = useState<any>(null);
     const [declineReason, setDeclineReason] = useState('');
     const [showDeclineModal, setShowDeclineModal] = useState(false);
+    const [awardingPoints, setAwardingPoints] = useState<number>(0);
+    const [showAwardConfirm, setShowAwardConfirm] = useState(false);
 
     useEffect(() => {
         if (typeof firebase === 'undefined' || !firebase.firestore) return;
@@ -1729,7 +1785,7 @@ const AdminPanelContent: React.FC<{t: any, user: any | null, isKoperasiMenu?: bo
                 const rawDocs = snap.docs.map((d: any) => d.data());
                 const grouped: any[] = [];
                 const seen = new Set();
-                rawDocs.sort((a: any, b: any) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+                rawDocs.sort((a: any, b: any) => (a.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
                 rawDocs.forEach((doc: any) => {
                     if (!seen.has(doc.userId)) {
                         grouped.push({ userId: doc.userId, userName: doc.userName, lastMsg: doc.text, isGuest: doc.isGuest });
@@ -1818,18 +1874,27 @@ const AdminPanelContent: React.FC<{t: any, user: any | null, isKoperasiMenu?: bo
     };
 
     const approveOffer = async (offer: any) => {
+        if (awardingPoints <= 0) {
+            alert("Please enter valid points.");
+            return;
+        }
+
+        const confirmMsg = t('points_award_confirm')
+            .replace('{pts}', awardingPoints.toString())
+            .replace('{user}', offer.donorName);
+
+        if (!window.confirm(confirmMsg)) return;
+
         if (typeof firebase === 'undefined' || !firebase.firestore) return;
-        const itemQty = offer.qty || 1;
-        const pointsToEarn = itemQty * 5;
         const db = firebase.firestore();
         try {
             const donorRef = db.collection('users').doc(offer.userId);
             await db.runTransaction(async (transaction: any) => {
                 const donorDoc = await transaction.get(donorRef);
                 const currentPoints = donorDoc.exists ? (donorDoc.data().points || 0) : 0;
-                transaction.update(donorRef, { points: currentPoints + pointsToEarn });
+                transaction.update(donorRef, { points: currentPoints + awardingPoints });
                 transaction.set(db.collection('completed_donations').doc(offer.id), {
-                    ...offer, completedAt: firebase.firestore.FieldValue.serverTimestamp(), confirmedBy: user.uid, earnedPoints: pointsToEarn
+                    ...offer, completedAt: firebase.firestore.FieldValue.serverTimestamp(), confirmedBy: user.uid, earnedPoints: awardingPoints
                 });
                 transaction.delete(db.collection('donations').doc(offer.id));
             });
@@ -1837,15 +1902,18 @@ const AdminPanelContent: React.FC<{t: any, user: any | null, isKoperasiMenu?: bo
             await db.collection('notifications').add({
                 userId: offer.userId,
                 title: t('points_earned_notif'),
-                message: `${t('verified')}! ${t('points_earned')}: ${pointsToEarn}`,
+                message: `${t('verified')}! ${t('points_earned')}: ${awardingPoints}`,
                 type: 'status',
                 read: false,
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
             });
 
             alert(t('verified') + "!");
+            setAwardingPoints(0);
             setSelectedOffer(null);
-        } catch (err: any) {}
+        } catch (err: any) {
+            alert("Approval failed.");
+        }
     };
 
     const declineOffer = async (offer: any) => {
@@ -1984,16 +2052,25 @@ const AdminPanelContent: React.FC<{t: any, user: any | null, isKoperasiMenu?: bo
                                     </div>
                                 </div>
                             </div>
-                            <div className="flex gap-2">
+                            <div className="space-y-4">
                                 {!data.completedItems.find(c => c.id === selectedOffer.id) && (
-                                    <>
-                                        <button onClick={() => approveOffer(selectedOffer)} className="flex-1 bg-[#2ecc71] hover:bg-[#27ae60] text-white py-4 rounded-2xl font-black uppercase text-xs shadow-xl shadow-green-100 transition-all active:scale-95">
-                                            <i className="fas fa-check-circle mr-2"></i> {t('confirm')}
-                                        </button>
-                                        <button onClick={() => setShowDeclineModal(true)} className="flex-1 bg-red-50 text-red-500 py-4 rounded-2xl font-black uppercase text-xs hover:bg-red-100 transition-colors active:scale-95 shadow-xl shadow-red-100">
-                                            <i className="fas fa-times-circle mr-2"></i> Decline
-                                        </button>
-                                    </>
+                                    <div className="bg-white p-4 rounded-3xl shadow-sm border border-gray-100 space-y-3">
+                                        <AdminInput 
+                                            label={t('points_award_input')} 
+                                            type="number" 
+                                            value={awardingPoints} 
+                                            onChange={setAwardingPoints} 
+                                            placeholder="0"
+                                        />
+                                        <div className="flex gap-2">
+                                            <button onClick={() => approveOffer(selectedOffer)} className="flex-1 bg-[#2ecc71] hover:bg-[#27ae60] text-white py-4 rounded-2xl font-black uppercase text-xs shadow-xl shadow-green-100 transition-all active:scale-95">
+                                                <i className="fas fa-check-circle mr-2"></i> {t('confirm')}
+                                            </button>
+                                            <button onClick={() => setShowDeclineModal(true)} className="flex-1 bg-red-50 text-red-500 py-4 rounded-2xl font-black uppercase text-xs hover:bg-red-100 transition-colors active:scale-95 shadow-xl shadow-red-100">
+                                                <i className="fas fa-times-circle mr-2"></i> Decline
+                                            </button>
+                                        </div>
+                                    </div>
                                 )}
                             </div>
                         </div>
