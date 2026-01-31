@@ -5,6 +5,32 @@ import { translations } from './translations';
 
 declare const firebase: any;
 
+const Logo: React.FC<{ className?: string, iconSize?: string, customUrl?: string }> = ({ className, iconSize = "text-xl", customUrl }) => {
+    const [error, setError] = useState(false);
+    const logoSrc = customUrl || "logo.png";
+    
+    useEffect(() => {
+        setError(false);
+    }, [logoSrc]);
+
+    if (error || !logoSrc) {
+        return (
+            <div className={`${className} bg-white flex items-center justify-center text-[#3498db] shadow-inner overflow-hidden border border-gray-100`}>
+                <i className={`fas fa-hand-holding-heart ${iconSize}`}></i>
+            </div>
+        );
+    }
+
+    return (
+        <img 
+            src={logoSrc} 
+            alt="Miri Care Connect Logo" 
+            className={`${className} object-contain`}
+            onError={() => setError(true)}
+        />
+    );
+};
+
 const MenuItem: React.FC<{icon: string, label: string, onClick: () => void, active?: boolean}> = ({icon, label, onClick, active}) => (
     <button onClick={onClick} className={`flex items-center gap-3 sm:gap-5 p-3 sm:p-5 rounded-xl sm:rounded-2xl transition-all ${active ? 'bg-[#3498db] text-white shadow-xl scale-105' : 'text-gray-400 hover:bg-gray-50 hover:text-[#2c3e50]'}`}>
         <div className={`w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center rounded-lg sm:rounded-xl ${active ? 'bg-white/20' : 'bg-gray-100'}`}>
@@ -313,16 +339,9 @@ const HomePage: React.FC<{ t: any, user: any }> = ({ t, user }) => {
         <div className="space-y-8 py-4 sm:py-8 max-w-6xl mx-auto">
             {!user && (
                 <div className="bg-[#2c3e50] text-white rounded-[2.5rem] p-8 sm:p-16 text-center shadow-2xl relative overflow-hidden border-b-[10px] border-[#3498db] animate-in fade-in zoom-in duration-500">
-                    <div className="flex flex-col items-center justify-center mb-8 gap-4">
-                         <img 
-                            src="Logo.png" 
-                            alt="Miri Care Connect Logo" 
-                            className="w-20 h-20 sm:w-32 sm:h-32 object-contain rounded-[2rem] bg-white p-2 shadow-2xl border-4 border-white/10"
-                        />
-                        <h1 className="text-4xl sm:text-7xl font-black italic uppercase tracking-tighter leading-tight">
-                            Connecting Miri Citizens In Need
-                        </h1>
-                    </div>
+                    <h1 className="text-4xl sm:text-7xl font-black italic uppercase tracking-tighter leading-tight mb-4">
+                        Connecting Miri Citizens In Need
+                    </h1>
                     <p className="text-gray-400 font-bold uppercase text-sm sm:text-lg tracking-widest">
                         SHARE YOUR EXTRA ITEMS WITH OTHERS THAT NEED HELP
                     </p>
@@ -428,9 +447,15 @@ export const App: React.FC = () => {
     const [emailVerified, setEmailVerified] = useState(true);
     const [redeemSuccessCode, setRedeemSuccessCode] = useState<string | null>(null);
     
+    // BRANDING STATES
+    const [branding, setBranding] = useState<{logoUrl?: string}>({});
+    const [isLogoModalOpen, setIsLogoModalOpen] = useState(false);
+    const [logoFile, setLogoFile] = useState<File | null>(null);
+    const [logoPreview, setLogoPreview] = useState<string>('');
+    const [uploading, setUploading] = useState(false);
+    
     const t = useCallback((key: string) => translations[lang][key] || key, [lang]);
 
-    // Detect small screen height/width and prevent background scrolling
     useEffect(() => {
         if (isMenuOpen) {
             document.body.style.overflow = 'hidden';
@@ -452,6 +477,7 @@ export const App: React.FC = () => {
     useEffect(() => {
         let unsubscribeAuth: () => void = () => {};
         let unsubNotifs: () => void = () => {};
+        let unsubBranding: () => void = () => {};
 
         const initFirebase = async () => {
             if (typeof firebase === 'undefined' || !firebase.auth) {
@@ -475,6 +501,13 @@ export const App: React.FC = () => {
                 }
 
                 const db = firebase.firestore();
+
+                unsubBranding = db.collection('settings').doc('branding').onSnapshot((doc: any) => {
+                    if (doc.exists) {
+                        setBranding(doc.data());
+                        setLogoPreview(doc.data().logoUrl || '');
+                    }
+                });
 
                 unsubscribeAuth = firebase.auth().onAuthStateChanged(async (authUser: any) => {
                     if (authUser) {
@@ -534,11 +567,58 @@ export const App: React.FC = () => {
         return () => {
             if (unsubscribeAuth) unsubscribeAuth();
             if (unsubNotifs) unsubNotifs();
+            if (unsubBranding) unsubBranding();
         };
     }, []);
 
     const isAdmin = user?.isAdmin || user?.email === 'admin@gmail.com';
     const isKoperasi = user?.isKoperasi || user?.email === 'koperasi@gmail.com';
+
+    // LOGO UPLOAD HANDLING
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            const file = e.target.files[0];
+            setLogoFile(file);
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                setLogoPreview(event.target?.result as string);
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
+    const updateLogo = async () => {
+        if (!logoFile || !firebase.storage) {
+            if (!logoFile && branding.logoUrl) {
+                setIsLogoModalOpen(false);
+                return;
+            }
+            alert("Please select a file first.");
+            return;
+        }
+        
+        setUploading(true);
+        try {
+            const storageRef = firebase.storage().ref();
+            const fileName = `branding/site_logo_${Date.now()}`;
+            const logoRef = storageRef.child(fileName);
+            const snapshot = await logoRef.put(logoFile);
+            const downloadURL = await snapshot.ref.getDownloadURL();
+            
+            await firebase.firestore().collection('settings').doc('branding').set({ 
+                logoUrl: downloadURL 
+            }, { merge: true });
+            
+            setIsLogoModalOpen(false);
+            setLogoFile(null);
+            alert("Website logo updated successfully!");
+        } catch (e: any) {
+            console.error(e);
+            alert("Upload failed: " + e.message);
+        } finally {
+            setUploading(false);
+        }
+    };
 
     const markNotifRead = async (notification: any) => {
         if (typeof firebase === 'undefined' || !firebase.firestore) return;
@@ -579,11 +659,21 @@ export const App: React.FC = () => {
                         className="flex-grow flex items-center justify-center gap-2 sm:gap-3 py-1 cursor-pointer overflow-hidden px-1" 
                         onClick={() => { if (!isKoperasi) setPage('home'); }}
                     >
-                        <img 
-                            src="Logo.png" 
-                            alt="Miri Care Connect Logo" 
-                            className="w-9 h-9 sm:w-11 sm:h-11 object-contain rounded-full bg-white p-0.5 shadow-[0_0_15px_rgba(255,255,255,0.3)] flex-shrink-0"
-                        />
+                        <div className="relative group shrink-0" onClick={(e) => {
+                            if (isAdmin) {
+                                e.stopPropagation();
+                                setIsLogoModalOpen(true);
+                            }
+                        }}>
+                           <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white p-0.5 shadow-md flex-shrink-0 flex items-center justify-center overflow-hidden transition-all ${isAdmin ? 'ring-2 ring-dashed ring-[#3498db] hover:scale-110 active:scale-95' : ''}`}>
+                                <Logo customUrl={branding.logoUrl} className="w-full h-full" iconSize="text-xs" />
+                                {isAdmin && !branding.logoUrl && (
+                                    <div className="absolute inset-0 bg-black/10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <i className="fas fa-camera text-[8px] text-[#3498db]"></i>
+                                    </div>
+                                )}
+                           </div>
+                        </div>
                         <div className="font-black tracking-tighter text-[10px] xs:text-[13px] sm:text-lg whitespace-nowrap overflow-hidden">
                             Miri <span className="text-[#3498db]">Care</span> Connect
                         </div>
@@ -731,11 +821,7 @@ export const App: React.FC = () => {
             <aside className={`fixed inset-y-0 left-0 w-[80vw] sm:w-80 bg-white z-[301] transform transition-transform duration-500 shadow-2xl flex flex-col ${isMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
                 <div className="p-8 flex flex-col h-full overflow-y-auto scrollbar-hide" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center gap-4 mb-12">
-                        <img 
-                            src="Logo.png" 
-                            alt="Logo" 
-                            className="w-10 h-10 object-contain rounded-xl shadow-md border-2 border-gray-50 flex-shrink-0"
-                        />
+                        <Logo customUrl={branding.logoUrl} className="w-10 h-10 rounded-xl shadow-md border-2 border-gray-50 flex-shrink-0" iconSize="text-sm" />
                         <h2 className="text-xl font-black italic text-[#2c3e50] uppercase tracking-tighter truncate pr-4">
                             {user?.displayName || 'Guest'}
                         </h2>
@@ -769,6 +855,71 @@ export const App: React.FC = () => {
                 </div>
             </aside>
             {isMenuOpen && <div className="fixed inset-0 bg-black/50 z-[300]" onClick={() => setIsMenuOpen(false)}></div>}
+
+            {/* LOGO UPLOAD MODAL */}
+            {isLogoModalOpen && (
+                <div className="fixed inset-0 bg-black/80 z-[1200] flex items-center justify-center p-4 backdrop-blur-md" onClick={() => setIsLogoModalOpen(false)}>
+                    <div className="bg-white w-full max-w-md rounded-[3rem] p-10 shadow-2xl animate-in zoom-in" onClick={e => e.stopPropagation()}>
+                        <h3 className="text-2xl font-black uppercase italic text-[#2c3e50] mb-6 text-center">Update Website Design</h3>
+                        
+                        <div className="space-y-6">
+                            <div className="relative group">
+                                <input 
+                                    type="file" 
+                                    accept="image/*" 
+                                    onChange={handleFileChange} 
+                                    className="hidden" 
+                                    id="logo-upload"
+                                />
+                                <label 
+                                    htmlFor="logo-upload" 
+                                    className="w-full flex flex-col items-center justify-center p-12 border-4 border-dashed border-gray-100 rounded-[2.5rem] cursor-pointer hover:border-[#3498db] hover:bg-blue-50/30 transition-all group"
+                                >
+                                    <div className="w-16 h-16 bg-blue-50 text-[#3498db] rounded-full flex items-center justify-center text-2xl mb-4 group-hover:scale-110 transition-transform">
+                                        <i className="fas fa-cloud-upload-alt"></i>
+                                    </div>
+                                    <span className="text-xs font-black text-gray-400 uppercase tracking-widest text-center">
+                                        {logoFile ? logoFile.name : 'Select Logo from Device'}
+                                    </span>
+                                </label>
+                            </div>
+
+                            {logoPreview && (
+                                <div className="p-6 bg-gray-50 rounded-[2rem] border border-dashed border-gray-200 flex flex-col items-center">
+                                    <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-4">Preview Selected Logo</span>
+                                    <div className="w-24 h-24 rounded-2xl bg-white shadow-xl border-4 border-white overflow-hidden p-2">
+                                        <img src={logoPreview} alt="Preview" className="w-full h-full object-contain" />
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="flex gap-4 mt-10">
+                            <button 
+                                onClick={updateLogo} 
+                                disabled={uploading || !logoFile}
+                                className={`flex-1 bg-[#2ecc71] text-white py-4 rounded-2xl font-black uppercase shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 ${uploading || !logoFile ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105'}`}
+                            >
+                                {uploading ? (
+                                    <><i className="fas fa-spinner fa-spin"></i> Uploading...</>
+                                ) : (
+                                    <><i className="fas fa-check"></i> Save Logo</>
+                                )}
+                            </button>
+                            <button 
+                                onClick={() => {
+                                    setIsLogoModalOpen(false);
+                                    setLogoFile(null);
+                                    setLogoPreview(branding.logoUrl || '');
+                                }} 
+                                className="flex-1 bg-gray-100 text-gray-500 py-4 rounded-2xl font-black uppercase hover:bg-gray-200 transition-colors"
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {isNotifOpen && (
                 <div className="fixed inset-0 bg-black/80 z-[600] flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setIsNotifOpen(false)}>
@@ -961,12 +1112,9 @@ const AuthModal: React.FC<{onClose: () => void, t: any, lang: Language}> = ({onC
         <div className="fixed inset-0 bg-black/80 z-[400] flex items-center justify-center p-4 backdrop-blur-md" onClick={onClose}>
             <div className="bg-white w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl relative animate-in zoom-in overflow-y-auto max-h-[95vh]" onClick={e => e.stopPropagation()}>
                 <button onClick={onClose} className="absolute top-6 right-6 bg-gray-100 w-10 h-10 rounded-full flex items-center justify-center transition-all"><i className="fas fa-times text-gray-400"></i></button>
-                <div className="flex flex-col items-center mb-6">
-                    <img src="Logo.png" alt="Logo" className="w-16 h-16 object-contain mb-2" />
-                    <h2 className="text-2xl font-black text-center uppercase italic text-[#2c3e50]">
-                        {mode === 'login' ? t('login') : t('register')}
-                    </h2>
-                </div>
+                <h2 className="text-2xl font-black text-center uppercase italic text-[#2c3e50] mb-8">
+                    {mode === 'login' ? t('login') : t('register')}
+                </h2>
                 {error && <div className="mb-6 bg-amber-50 p-4 rounded-xl text-amber-800 text-[11px] font-black uppercase tracking-wider border-2 border-amber-200">{error}</div>}
                 <form onSubmit={submit} className="space-y-4">
                     {mode === 'register' && (
@@ -1909,7 +2057,6 @@ const AdminPanelContent: React.FC<{t: any, user: any | null, isKoperasiMenu?: bo
             return;
         }
 
-        // Double confirmation requested by user
         const confirmMsg = t('points_award_confirm')
             .replace('{pts}', awardingPoints.toString())
             .replace('{user}', offer.donorName);
@@ -1936,7 +2083,7 @@ const AdminPanelContent: React.FC<{t: any, user: any | null, isKoperasiMenu?: bo
                 message: `${t('verified')}! ${t('points_earned')}: ${awardingPoints}`,
                 type: 'status',
                 read: false,
-                createdAt: firebase.firestore.Timestamp.now()
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
             });
 
             alert(t('verified') + "!");
@@ -1962,7 +2109,7 @@ const AdminPanelContent: React.FC<{t: any, user: any | null, isKoperasiMenu?: bo
                 message: `Your offer for ${offer.itemName} was declined. Reason: ${declineReason}`,
                 type: 'message',
                 read: false,
-                createdAt: firebase.firestore.Timestamp.now()
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
             });
             await db.collection('donations').doc(offer.id).delete();
             alert("Offer Declined and removed.");
