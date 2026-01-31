@@ -42,7 +42,6 @@ export const translations: Record<Language, Record<string, string>> = {
         "redeem_now": "Redeem Now",
         "confirm_received": "Confirm Received",
         "category_food": "Food Items",
-        "category_clothing": "Clothing",
         "category_books": "Books/Educational",
         "category_furniture": "Furniture",
         "category_toiletries": "Toiletries",
@@ -113,9 +112,9 @@ export const translations: Record<Language, Record<string, string>> = {
         "redeem_remember_code": "Please remember your code and redeem your items with this code. You can always check your code in History > Rewards page.",
         "points_award_input": "Enter points to give",
         "points_award_confirm": "Confirm giving {pts} points to {user}?",
-        "points_limit_msg": "You can only redeem 200 points of items in this month, please try to redeem next month.",
-        "shop_closed_msg": "The points shop is currently closed, it will reopen on every month 1st day.",
-        "shop_open_warning": "The points shop will open until 21st only, please redeem as fast as possible. You can only redeem items from 1st to 21st of the month. The items can only be used starting from 22nd of the month until the end of the month."
+        "points_limit_msg": "you can only redeem 200 points of items in this month , please try to redeem next month",
+        "shop_closed_msg": "the points shop is currently close , it will reopen on every month 1st day",
+        "shop_open_warning": "the points shop will open until 21st only , please redeem as fast as possible , you can only redeem items from 1st to 21st of the month , the items can only be used started from 22nd of the month until the end of the month"
     },
     [Language.BM]: {
         "menu": "Menu",
@@ -157,7 +156,6 @@ export const translations: Record<Language, Record<string, string>> = {
         "redeem_now": "Tebus Sekarang",
         "confirm_received": "Sahkan Diterima",
         "category_food": "Makanan",
-        "category_clothing": "Pakaian",
         "category_books": "Buku/Pendidikan",
         "category_furniture": "Perabot",
         "category_toiletries": "Barangan Dandanan",
@@ -228,9 +226,9 @@ export const translations: Record<Language, Record<string, string>> = {
         "redeem_remember_code": "Sila ingat kod anda dan tebus barangan anda dengan kod ini. Anda boleh menyemak kod anda di halaman Sejarah > Ganjaran.",
         "points_award_input": "Masukkan mata untuk diberikan",
         "points_award_confirm": "Sahkan pemberian {pts} mata kepada {user}?",
-        "points_limit_msg": "Anda hanya boleh menebus 200 mata barangan dalam bulan ini, sila cuba menebus bulan depan.",
-        "shop_closed_msg": "Kedai mata kini ditutup, ia akan dibuka semula pada hari pertama setiap bulan.",
-        "shop_open_warning": "Kedai mata akan dibuka sehingga 21 haribulan sahaja, sila tebus secepat mungkin. Anda hanya boleh menebus barangan dari 1 hingga 21 haribulan. Barangan hanya boleh digunakan bermula dari 22 haribulan sehingga akhir bulan."
+        "points_limit_msg": "anda hanya boleh menebus 200 mata barangan dalam bulan ini , sila cuba menebus bulan depan",
+        "shop_closed_msg": "kedai mata kini ditutup , ia akan dibuka semula pada hari pertama setiap bulan",
+        "shop_open_warning": "kedai mata akan dibuka sehingga 21 haribulan sahaja , sila tebus secepat mungkin , anda hanya boleh menebus barangan dari 1 hingga 21 haribulan , barangan hanya boleh digunakan bermula dari 22 haribulan sehingga akhir bulan"
     },
     [Language.BC]: {
         "menu": "菜单",
@@ -272,7 +270,6 @@ export const translations: Record<Language, Record<string, string>> = {
         "redeem_now": "现在兑换",
         "confirm_received": "确认已收到",
         "category_food": "食品类",
-        "category_clothing": "衣服类",
         "category_books": "书籍/教育",
         "category_furniture": "家具类",
         "category_toiletries": "洗漱用品",
@@ -343,9 +340,9 @@ export const translations: Record<Language, Record<string, string>> = {
         "redeem_remember_code": "请记住您的代码并凭此代码领取物品。您随时可以在“历史记录 > 兑换奖励”页面查看您的代码。",
         "points_award_input": "输入发放积分",
         "points_award_confirm": "确认向 {user} 发放 {pts} 积分吗？",
-        "points_limit_msg": "您本月只能兑换总值200积分的物品，请下个月再试。",
-        "shop_closed_msg": "积分商店目前已关闭，将于每月1号重新开放。",
-        "shop_open_warning": "积分商店仅开放至21号，请尽快兑换。您只能在每月1号至21号期间兑换物品。兑换的物品仅限在每月22号至月底期间使用。"
+        "points_limit_msg": "您本月只能兑换总值200积分的物品，请下个月再试",
+        "shop_closed_msg": "积分商店目前已关闭，将于每月1号重新开放",
+        "shop_open_warning": "积分商店仅开放至21号，请尽快兑换，您只能在每月1号至21号期间兑换物品，兑换的物品仅限在每月22号至月底期间使用"
     },
     [Language.BI]: {
         "menu": "Menu",
@@ -387,7 +384,6 @@ export const translations: Record<Language, Record<string, string>> = {
         "redeem_now": "Tebus Diatu",
         "confirm_received": "Tentu ka Udah Diterima",
         "category_food": "Utai Pemakai",
-        "category_clothing": "Gari",
         "category_books": "Bup/Pekakas Belajar",
         "category_furniture": "Pekakas Rumah",
         "category_toiletries": "Utai Mandi",
@@ -458,8 +454,8 @@ export const translations: Record<Language, Record<string, string>> = {
         "redeem_remember_code": "Tolong kingat ka kod nuan lalu tebus utai nuan ngena kod tu. Nuan ulih semampai meriksa kod nuan ba baris Sejarah > Upah.",
         "points_award_input": "Masukkan mata deka diberi",
         "points_award_confirm": "Tentu ka meri {pts} mata ngagai {user}?",
-        "points_limit_msg": "Nuan semina ulih nebus 200 mata barang dalam bulan tu, uji nebus baru bulan dudi.",
-        "shop_closed_msg": "Kedai mata benung ditutup diatu, iya deka dibuka baru ba hari keterubah ninting bulan.",
-        "shop_open_warning": "Kedai mata semina dibuka nyentuk 21 haribulan aja, tulung tebus jampat. Nuan semina ulih nebus barang ari 1 nyentuk 21 haribulan. Barang nya semina ulih dikena berengkah ari 22 haribulan nyentuk ujung bulan."
+        "points_limit_msg": "nuan semina ulih nebus 200 mata barang dalam bulan tu , tulung uji nebus baru bulan dudi",
+        "shop_closed_msg": "kedai mata benung ditutup diatu , iya deka dibuka baru ba hari keterubah ninting bulan",
+        "shop_open_warning": "kedai mata semina dibuka nyentuk 21 haribulan aja , tulung tebus jampat , nuan semina ulih nebus barang ari 1 nyentuk 21 haribulan , barang nya semina ulih dikena berengkah ari 22 haribulan nyentuk ujung bulan"
     }
 };

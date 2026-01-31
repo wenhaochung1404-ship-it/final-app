@@ -853,6 +853,7 @@ export const App: React.FC = () => {
                                 });
 
                                 if (monthlyTotal + itemToRedeem.cost > 200) {
+                                    // Custom Alert message using the specific phrasing
                                     throw new Error(t('points_limit_msg'));
                                 }
 
@@ -1211,7 +1212,7 @@ const ShopPage: React.FC<{user: any, t: any, onAuth: () => void, onRedeemConfirm
                     {t('shop_closed_msg')}
                 </h2>
                 <p className="text-gray-400 font-bold uppercase text-[10px] tracking-widest max-w-md">
-                    Scheduled Reopening: 1st day of next month.
+                    Reopens 1st day of next month.
                 </p>
             </div>
         );
@@ -1395,7 +1396,6 @@ const HistoryPage: React.FC<{user: any, t: any, onAuth: () => void}> = ({user, t
                                             className="w-full p-3 bg-white border-2 border-gray-100 rounded-xl font-bold transition-all text-sm outline-none focus:border-[#3498db] text-[#2c3e50]"
                                         >
                                             <option value="category_food">{t('category_food')}</option>
-                                            <option value="category_clothing">{t('category_clothing')}</option>
                                             <option value="category_books">{t('category_books')}</option>
                                             <option value="category_furniture">{t('category_furniture')}</option>
                                             <option value="category_toiletries">{t('category_toiletries')}</option>
@@ -1430,7 +1430,7 @@ const HistoryPage: React.FC<{user: any, t: any, onAuth: () => void}> = ({user, t
                                                 <span className={`text-[8px] font-black uppercase px-3 py-1 rounded-full ${o.active ? 'bg-amber-100 text-amber-600' : 'bg-green-100 text-green-600'}`}>
                                                     {o.active ? t('pending_approval') : t('verified')}
                                                 </span>
-                                                {!o.active && <span className="font-black text-green-500 text-[10px]">+{o.earnedPoints || 5} {t('points')}</span>}
+                                                {!o.active && <span className="font-black text-green-500 text-[10px]">+{o.earnedPoints || 0} {t('points')}</span>}
                                             </div>
                                         </div>
                                         {o.active ? (
@@ -1673,7 +1673,6 @@ const QuickOfferModalContent: React.FC<{user: any, t: any, onComplete: () => voi
                             className="w-full p-4 rounded-2xl border-2 outline-none font-bold bg-white"
                         >
                             <option value="category_food">{t('category_food')}</option>
-                            <option value="category_clothing">{t('category_clothing')}</option>
                             <option value="category_books">{t('category_books')}</option>
                             <option value="category_furniture">{t('category_furniture')}</option>
                             <option value="category_toiletries">{t('category_toiletries')}</option>
@@ -1765,7 +1764,7 @@ const AdminPanelContent: React.FC<{t: any, user: any | null, isKoperasiMenu?: bo
     const [declineReason, setDeclineReason] = useState('');
     const [showDeclineModal, setShowDeclineModal] = useState(false);
     const [awardingPoints, setAwardingPoints] = useState<number>(0);
-    const [showAwardConfirm, setShowAwardConfirm] = useState(false);
+    const [isAwardingMode, setIsAwardingMode] = useState(false);
 
     useEffect(() => {
         if (typeof firebase === 'undefined' || !firebase.firestore) return;
@@ -1873,12 +1872,18 @@ const AdminPanelContent: React.FC<{t: any, user: any | null, isKoperasiMenu?: bo
         } catch (e) {}
     };
 
+    const handleInitialAccept = () => {
+        setIsAwardingMode(true);
+        setAwardingPoints(0);
+    };
+
     const approveOffer = async (offer: any) => {
-        if (awardingPoints <= 0) {
+        if (awardingPoints < 0) {
             alert("Please enter valid points.");
             return;
         }
 
+        // Double confirmation requested by user
         const confirmMsg = t('points_award_confirm')
             .replace('{pts}', awardingPoints.toString())
             .replace('{user}', offer.donorName);
@@ -1909,6 +1914,7 @@ const AdminPanelContent: React.FC<{t: any, user: any | null, isKoperasiMenu?: bo
             });
 
             alert(t('verified') + "!");
+            setIsAwardingMode(false);
             setAwardingPoints(0);
             setSelectedOffer(null);
         } catch (err: any) {
@@ -2026,6 +2032,29 @@ const AdminPanelContent: React.FC<{t: any, user: any | null, isKoperasiMenu?: bo
                                     </div>
                                 </div>
                             )}
+
+                            {isAwardingMode && (
+                                <div className="absolute inset-0 z-[60] bg-white/98 rounded-3xl p-8 flex flex-col justify-center animate-in zoom-in duration-200">
+                                    <h3 className="text-xl font-black uppercase italic text-[#2c3e50] mb-2">{t('points_award_input')}</h3>
+                                    <p className="text-[10px] font-bold text-gray-400 uppercase mb-6">{selectedOffer.donorName} • {selectedOffer.itemName}</p>
+                                    <AdminInput 
+                                        label="Points Amount" 
+                                        type="number" 
+                                        value={awardingPoints} 
+                                        onChange={setAwardingPoints} 
+                                        placeholder="Enter points..."
+                                    />
+                                    <div className="flex gap-3 pt-6">
+                                        <button onClick={() => approveOffer(selectedOffer)} className="flex-1 bg-[#2ecc71] text-white py-4 rounded-2xl font-black uppercase text-xs shadow-xl active:scale-95 transition-all">
+                                            {t('confirm')}
+                                        </button>
+                                        <button onClick={() => setIsAwardingMode(false)} className="bg-gray-100 text-gray-500 px-6 py-4 rounded-2xl font-black uppercase text-xs">
+                                            {t('cancel')}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
                             <button onClick={() => setSelectedOffer(null)} className="text-[10px] font-black uppercase text-gray-400 hover:text-[#2c3e50] transition-colors flex items-center gap-2">
                                 <i className="fas fa-arrow-left"></i> {t('back_to_list')}
                             </button>
@@ -2052,25 +2081,16 @@ const AdminPanelContent: React.FC<{t: any, user: any | null, isKoperasiMenu?: bo
                                     </div>
                                 </div>
                             </div>
-                            <div className="space-y-4">
+                            <div className="flex gap-2">
                                 {!data.completedItems.find(c => c.id === selectedOffer.id) && (
-                                    <div className="bg-white p-4 rounded-3xl shadow-sm border border-gray-100 space-y-3">
-                                        <AdminInput 
-                                            label={t('points_award_input')} 
-                                            type="number" 
-                                            value={awardingPoints} 
-                                            onChange={setAwardingPoints} 
-                                            placeholder="0"
-                                        />
-                                        <div className="flex gap-2">
-                                            <button onClick={() => approveOffer(selectedOffer)} className="flex-1 bg-[#2ecc71] hover:bg-[#27ae60] text-white py-4 rounded-2xl font-black uppercase text-xs shadow-xl shadow-green-100 transition-all active:scale-95">
-                                                <i className="fas fa-check-circle mr-2"></i> {t('confirm')}
-                                            </button>
-                                            <button onClick={() => setShowDeclineModal(true)} className="flex-1 bg-red-50 text-red-500 py-4 rounded-2xl font-black uppercase text-xs hover:bg-red-100 transition-colors active:scale-95 shadow-xl shadow-red-100">
-                                                <i className="fas fa-times-circle mr-2"></i> Decline
-                                            </button>
-                                        </div>
-                                    </div>
+                                    <>
+                                        <button onClick={handleInitialAccept} className="flex-1 bg-[#2ecc71] hover:bg-[#27ae60] text-white py-4 rounded-2xl font-black uppercase text-xs shadow-xl shadow-green-100 transition-all active:scale-95">
+                                            <i className="fas fa-check-circle mr-2"></i> {t('confirm')}
+                                        </button>
+                                        <button onClick={() => setShowDeclineModal(true)} className="flex-1 bg-red-50 text-red-500 py-4 rounded-2xl font-black uppercase text-xs hover:bg-red-100 transition-colors active:scale-95 shadow-xl shadow-red-100">
+                                            <i className="fas fa-times-circle mr-2"></i> Decline
+                                        </button>
+                                    </>
                                 )}
                             </div>
                         </div>
