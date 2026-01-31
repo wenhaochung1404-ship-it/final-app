@@ -567,8 +567,20 @@ export const App: React.FC = () => {
                     <button onClick={(e) => { e.stopPropagation(); setIsMenuOpen(true); }} className="p-2 hover:bg-white/10 rounded-xl transition-all flex-shrink-0">
                         <i className="fas fa-bars text-lg sm:text-xl"></i>
                     </button>
-                    <div className="flex-grow text-center font-black tracking-tighter cursor-pointer text-[10px] xs:text-[13px] sm:text-lg whitespace-nowrap overflow-hidden px-1" onClick={() => { if (!isKoperasi) setPage('home'); }}>
-                        Miri <span className="text-[#3498db]">Care</span> Connect
+                    
+                    <div 
+                        className="flex-grow flex items-center justify-center gap-2 sm:gap-3 py-1 cursor-pointer overflow-hidden px-1" 
+                        onClick={() => { if (!isKoperasi) setPage('home'); }}
+                    >
+                        <img 
+                            src="logo.png" 
+                            alt="Logo" 
+                            className="w-8 h-8 sm:w-10 sm:h-10 object-contain rounded-full bg-white p-0.5 shadow-md flex-shrink-0"
+                            onError={(e: any) => { e.target.style.display = 'none'; }}
+                        />
+                        <div className="font-black tracking-tighter text-[10px] xs:text-[13px] sm:text-lg whitespace-nowrap overflow-hidden">
+                            Miri <span className="text-[#3498db]">Care</span> Connect
+                        </div>
                     </div>
                     
                     <div className="flex items-center gap-1 sm:gap-4 flex-shrink-0">
@@ -712,11 +724,17 @@ export const App: React.FC = () => {
 
             <aside className={`fixed inset-y-0 left-0 w-[80vw] sm:w-80 bg-white z-[301] transform transition-transform duration-500 shadow-2xl flex flex-col ${isMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
                 <div className="p-8 flex flex-col h-full overflow-y-auto scrollbar-hide" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex justify-between items-center mb-12">
+                    <div className="flex items-center gap-4 mb-12">
+                        <img 
+                            src="logo.png" 
+                            alt="Logo" 
+                            className="w-10 h-10 object-contain rounded-xl shadow-md border-2 border-gray-50 flex-shrink-0"
+                            onError={(e: any) => { e.target.style.display = 'none'; }}
+                        />
                         <h2 className="text-xl font-black italic text-[#2c3e50] uppercase tracking-tighter truncate pr-4">
                             {user?.displayName || 'Guest'}
                         </h2>
-                        <button onClick={() => setIsMenuOpen(false)} className="text-gray-400 hover:text-red-500 shrink-0">
+                        <button onClick={() => setIsMenuOpen(false)} className="text-gray-400 hover:text-red-500 shrink-0 ml-auto">
                             <i className="fas fa-times text-2xl"></i>
                         </button>
                     </div>
@@ -2027,7 +2045,7 @@ const AdminPanelContent: React.FC<{t: any, user: any | null, isKoperasiMenu?: bo
                                         placeholder="Type here..."
                                     />
                                     <div className="flex gap-2">
-                                        <button onClick={() => declineOffer(selectedOffer)} className="flex-1 bg-red-500 text-white py-3 rounded-xl font-black uppercase text-[9px]">Confirm Decline</button>
+                                        <button onClick={() => declineOffer(selectedOffer)} className="flex-1 bg-red-50 text-white py-3 rounded-xl font-black uppercase text-[9px]">Confirm Decline</button>
                                         <button onClick={() => setShowDeclineModal(false)} className="bg-gray-200 px-4 py-3 rounded-xl font-black uppercase text-[9px]">Cancel</button>
                                     </div>
                                 </div>
