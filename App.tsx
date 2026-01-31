@@ -313,9 +313,16 @@ const HomePage: React.FC<{ t: any, user: any }> = ({ t, user }) => {
         <div className="space-y-8 py-4 sm:py-8 max-w-6xl mx-auto">
             {!user && (
                 <div className="bg-[#2c3e50] text-white rounded-[2.5rem] p-8 sm:p-16 text-center shadow-2xl relative overflow-hidden border-b-[10px] border-[#3498db] animate-in fade-in zoom-in duration-500">
-                    <h1 className="text-4xl sm:text-7xl font-black italic uppercase tracking-tighter leading-tight mb-4">
-                        Connecting Miri Citizens In Need
-                    </h1>
+                    <div className="flex flex-col items-center justify-center mb-8 gap-4">
+                         <img 
+                            src="Logo.png" 
+                            alt="Miri Care Connect Logo" 
+                            className="w-20 h-20 sm:w-32 sm:h-32 object-contain rounded-[2rem] bg-white p-2 shadow-2xl border-4 border-white/10"
+                        />
+                        <h1 className="text-4xl sm:text-7xl font-black italic uppercase tracking-tighter leading-tight">
+                            Connecting Miri Citizens In Need
+                        </h1>
+                    </div>
                     <p className="text-gray-400 font-bold uppercase text-sm sm:text-lg tracking-widest">
                         SHARE YOUR EXTRA ITEMS WITH OTHERS THAT NEED HELP
                     </p>
@@ -575,8 +582,7 @@ export const App: React.FC = () => {
                         <img 
                             src="Logo.png" 
                             alt="Miri Care Connect Logo" 
-                            className="w-8 h-8 sm:w-10 sm:h-10 object-contain rounded-full bg-white p-0.5 shadow-md flex-shrink-0"
-                            onError={(e: any) => { e.target.style.display = 'none'; }}
+                            className="w-9 h-9 sm:w-11 sm:h-11 object-contain rounded-full bg-white p-0.5 shadow-[0_0_15px_rgba(255,255,255,0.3)] flex-shrink-0"
                         />
                         <div className="font-black tracking-tighter text-[10px] xs:text-[13px] sm:text-lg whitespace-nowrap overflow-hidden">
                             Miri <span className="text-[#3498db]">Care</span> Connect
@@ -729,7 +735,6 @@ export const App: React.FC = () => {
                             src="Logo.png" 
                             alt="Logo" 
                             className="w-10 h-10 object-contain rounded-xl shadow-md border-2 border-gray-50 flex-shrink-0"
-                            onError={(e: any) => { e.target.style.display = 'none'; }}
                         />
                         <h2 className="text-xl font-black italic text-[#2c3e50] uppercase tracking-tighter truncate pr-4">
                             {user?.displayName || 'Guest'}
@@ -956,9 +961,12 @@ const AuthModal: React.FC<{onClose: () => void, t: any, lang: Language}> = ({onC
         <div className="fixed inset-0 bg-black/80 z-[400] flex items-center justify-center p-4 backdrop-blur-md" onClick={onClose}>
             <div className="bg-white w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl relative animate-in zoom-in overflow-y-auto max-h-[95vh]" onClick={e => e.stopPropagation()}>
                 <button onClick={onClose} className="absolute top-6 right-6 bg-gray-100 w-10 h-10 rounded-full flex items-center justify-center transition-all"><i className="fas fa-times text-gray-400"></i></button>
-                <h2 className="text-2xl font-black text-center uppercase italic text-[#2c3e50] mb-8">
-                    {mode === 'login' ? t('login') : t('register')}
-                </h2>
+                <div className="flex flex-col items-center mb-6">
+                    <img src="Logo.png" alt="Logo" className="w-16 h-16 object-contain mb-2" />
+                    <h2 className="text-2xl font-black text-center uppercase italic text-[#2c3e50]">
+                        {mode === 'login' ? t('login') : t('register')}
+                    </h2>
+                </div>
                 {error && <div className="mb-6 bg-amber-50 p-4 rounded-xl text-amber-800 text-[11px] font-black uppercase tracking-wider border-2 border-amber-200">{error}</div>}
                 <form onSubmit={submit} className="space-y-4">
                     {mode === 'register' && (
@@ -1928,7 +1936,7 @@ const AdminPanelContent: React.FC<{t: any, user: any | null, isKoperasiMenu?: bo
                 message: `${t('verified')}! ${t('points_earned')}: ${awardingPoints}`,
                 type: 'status',
                 read: false,
-                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                createdAt: firebase.firestore.Timestamp.now()
             });
 
             alert(t('verified') + "!");
@@ -1954,7 +1962,7 @@ const AdminPanelContent: React.FC<{t: any, user: any | null, isKoperasiMenu?: bo
                 message: `Your offer for ${offer.itemName} was declined. Reason: ${declineReason}`,
                 type: 'message',
                 read: false,
-                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                createdAt: firebase.firestore.Timestamp.now()
             });
             await db.collection('donations').doc(offer.id).delete();
             alert("Offer Declined and removed.");
