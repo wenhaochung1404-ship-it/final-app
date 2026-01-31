@@ -613,14 +613,16 @@ export const App: React.FC = () => {
             if (unsubscribeAuth) unsubscribeAuth();
             if (unsubNotifs) unsubNotifs();
             if (unsubBranding) unsubBranding();
-            if (uploadTaskRef.current) uploadTaskRef.current.cancel();
+            if (uploadTaskRef.current) {
+                try { uploadTaskRef.current.cancel(); } catch(e) {}
+            }
         };
     }, []);
 
     const isAdmin = user?.isAdmin || user?.email === 'admin@gmail.com';
     const isKoperasi = user?.isKoperasi || user?.email === 'koperasi@gmail.com';
 
-    // ROBUST LOGO UPLOAD (FIXED FOR SPEED AND RELIABILITY)
+    // ROBUST LOGO UPLOAD (STABILIZED FOR POOR CONNECTIONS)
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (!e.target.files || !e.target.files[0]) return;
         const file = e.target.files[0];
@@ -642,7 +644,7 @@ export const App: React.FC = () => {
         try {
             // 2. Optimized Image Processing
             const optimizedBlob = await optimizeImageForUpload(file);
-            setUploadProgress(15);
+            setUploadProgress(10); // Ready to upload
 
             if (typeof firebase === 'undefined' || !firebase.storage) {
                 throw new Error("Firebase Storage not initialized.");
@@ -650,13 +652,15 @@ export const App: React.FC = () => {
 
             const storage = firebase.storage();
             const db = firebase.firestore();
-            const fileName = `branding/site-logo.webp`; // Stable name for branding
-            const logoRef = storage.ref().child(fileName);
 
-            // 3. Resumable Upload with Stall Detection & Retry logic
-            const performUpload = (blob: Blob, retryCount = 0): Promise<string> => {
+            // 3. Reliable Recursive Upload Session
+            const performUploadWithRetry = (blob: Blob, retryCount = 0): Promise<string> => {
                 return new Promise((resolve, reject) => {
-                    // Cancel any existing background task
+                    // Use a unique name for each attempt to bypass any hung server state
+                    const uniqueFileName = `branding/logo_${Date.now()}.webp`;
+                    const logoRef = storage.ref().child(uniqueFileName);
+
+                    // Cancel any previous hung task safely
                     if (uploadTaskRef.current) {
                         try { uploadTaskRef.current.cancel(); } catch(e) {}
                     }
@@ -667,51 +671,75 @@ export const App: React.FC = () => {
                     });
                     uploadTaskRef.current = task;
 
-                    // Stall detection watchdog: if progress stops for 15s, cancel and trigger retry
-                    let lastBytes = 0;
-                    let stallTimer = setTimeout(() => {
-                        console.warn("Upload stalled, cancelling for retry...");
-                        task.cancel();
-                        reject(new Error("STALLED"));
-                    }, 15000);
+                    // WATCHDOG SETUP:
+                    // We detect stalls by tracking bytesTransferred over time.
+                    let lastBytesTransferred = 0;
+                    let lastProgressTime = Date.now();
+                    const startTime = Date.now();
+                    
+                    const watchdogInterval = setInterval(() => {
+                        const now = Date.now();
+                        const timeSinceStart = now - startTime;
+                        const timeSinceProgress = now - lastProgressTime;
+                        
+                        // GRACE PERIOD: 
+                        // Allow up to 60 seconds for the initial connection handshake.
+                        if (lastBytesTransferred === 0 && timeSinceStart < 60000) return;
 
-                    task.on('state_changed', 
+                        // STALL DETECTION: 
+                        // If we have started but haven't moved for 25 seconds, force-fail for retry.
+                        if (timeSinceProgress > 25000) {
+                            console.warn(`Upload stalled at ${lastBytesTransferred} bytes for ${timeSinceProgress}ms. Restarting...`);
+                            clearInterval(watchdogInterval);
+                            task.cancel();
+                            // Task cancellation triggers the error handler below
+                        }
+                    }, 5000);
+
+                    task.on(firebase.storage.TaskEvent.STATE_CHANGED, 
                         (snapshot: any) => {
-                            // Reset watchdog on progress
-                            if (snapshot.bytesTransferred > lastBytes) {
-                                lastBytes = snapshot.bytesTransferred;
-                                clearTimeout(stallTimer);
-                                stallTimer = setTimeout(() => {
-                                    task.cancel();
-                                    reject(new Error("STALLED"));
-                                }, 15000);
+                            if (snapshot.bytesTransferred > lastBytesTransferred) {
+                                lastBytesTransferred = snapshot.bytesTransferred;
+                                lastProgressTime = Date.now();
                             }
 
-                            const progressPct = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 80) + 15;
-                            setUploadProgress(progressPct);
+                            // Progress scaling: 10% processing + 90% actual network upload
+                            const pct = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 90) + 10;
+                            setUploadProgress(pct);
                         },
-                        (error: any) => {
-                            clearTimeout(stallTimer);
-                            // Auto-retry on network errors or stalls (up to 3 attempts)
-                            if ((error.code === 'storage/canceled' || error.code === 'storage/retry-limit-exceeded') && retryCount < 2) {
-                                console.log(`Retrying upload... attempt ${retryCount + 2}`);
-                                resolve(performUpload(blob, retryCount + 1));
+                        async (error: any) => {
+                            clearInterval(watchdogInterval);
+                            
+                            // AUTO-RETRY LOGIC: 
+                            // Only retry on network timeouts, cancellations, or generic storage errors
+                            const retryableErrors = ['storage/canceled', 'storage/retry-limit-exceeded', 'storage/unknown', 'storage/internal-error'];
+                            if (retryableErrors.includes(error.code) && retryCount < 3) {
+                                const backoff = Math.pow(2, retryCount) * 1500;
+                                console.log(`Connection weak. Retrying attempt ${retryCount + 1} in ${backoff}ms...`);
+                                setTimeout(() => {
+                                    resolve(performUploadWithRetry(blob, retryCount + 1));
+                                }, backoff);
                             } else {
                                 reject(error);
                             }
                         },
                         async () => {
-                            clearTimeout(stallTimer);
-                            const downloadURL = await logoRef.getDownloadURL();
-                            resolve(downloadURL);
+                            clearInterval(watchdogInterval);
+                            try {
+                                const downloadURL = await logoRef.getDownloadURL();
+                                resolve(downloadURL);
+                            } catch (e) {
+                                reject(e);
+                            }
                         }
                     );
                 });
             };
 
-            const finalUrl = await performUpload(optimizedBlob);
+            // Start the optimized upload pipe
+            const finalUrl = await performUploadWithRetry(optimizedBlob);
 
-            // 4. Update Database
+            // 4. Persistence: Update Firestore settings
             await db.collection('settings').doc('branding').set({ 
                 logoUrl: finalUrl,
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -721,17 +749,19 @@ export const App: React.FC = () => {
             setUploading(false);
             setUploadProgress(0);
             setIsLogoModalOpen(false);
-            alert("Design Updated Successfully!");
+            alert("Site Branding Updated Successfully!");
 
         } catch (e: any) {
-            console.error("Upload process failed:", e);
+            console.error("Storage Error:", e);
             setUploading(false);
             setUploadProgress(0);
-            if (e.message !== "STALLED") {
-                alert("Failed to update design: " + (e.message || "Unknown error"));
-            } else {
-                alert("Upload timed out due to poor connection. Please try again on a faster network.");
-            }
+            
+            let message = "Upload failed. ";
+            if (e.code === 'storage/unauthorized') message += "Please login as admin again.";
+            else if (e.code === 'storage/retry-limit-exceeded') message += "Your network is too unstable. Please try on a faster connection.";
+            else message += e.message || "Unknown error.";
+            
+            alert(message);
         }
     };
 
