@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Language, UserProfile } from './types';
 import { translations } from './translations';
@@ -47,8 +46,8 @@ const optimizeImageForUpload = (file: File): Promise<Blob> => {
 const Logo: React.FC<{ className?: string, iconSize?: string, customUrl?: string }> = ({ className, iconSize = "text-xl", customUrl }) => {
     const [error, setError] = useState(false);
     
-    // Use saved URL if available, otherwise fallback to local asset or icon
-    const logoSrc = customUrl || null;
+    // Default to the permanent URL provided by the user
+    const logoSrc = customUrl || 'https://i.ibb.co/b5c0zgmG/Logo.jpg';
     
     useEffect(() => {
         setError(false);
@@ -68,6 +67,7 @@ const Logo: React.FC<{ className?: string, iconSize?: string, customUrl?: string
             alt="Miri Care Connect Logo" 
             className={`${className} object-contain`}
             onError={() => setError(true)}
+            crossOrigin="anonymous"
         />
     );
 };
