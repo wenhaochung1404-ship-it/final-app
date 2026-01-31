@@ -5,9 +5,50 @@ import { translations } from './translations';
 
 declare const firebase: any;
 
+// --- UTILITY: Image Optimization (Canvas) ---
+const optimizeImageForUpload = (file: File): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = (e) => {
+            const img = new Image();
+            img.src = e.target?.result as string;
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                const MAX_WIDTH = 512; // Optimized for header size
+                let width = img.width;
+                let height = img.height;
+
+                if (width > MAX_WIDTH) {
+                    height *= MAX_WIDTH / width;
+                    width = MAX_WIDTH;
+                }
+
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                if (!ctx) return reject(new Error("Canvas Context Error"));
+
+                // Transparent background for PNG/WebP
+                ctx.clearRect(0, 0, width, height);
+                ctx.drawImage(img, 0, 0, width, height);
+
+                canvas.toBlob((blob) => {
+                    if (blob) resolve(blob);
+                    else reject(new Error("Compression failed"));
+                }, 'image/webp', 0.85); // High quality WebP
+            };
+            img.onerror = () => reject(new Error("Image loading failed"));
+        };
+        reader.onerror = () => reject(new Error("File reading failed"));
+    });
+};
+
 const Logo: React.FC<{ className?: string, iconSize?: string, customUrl?: string }> = ({ className, iconSize = "text-xl", customUrl }) => {
     const [error, setError] = useState(false);
-    const logoSrc = customUrl || "logo.png";
+    
+    // Use saved URL if available, otherwise fallback to local asset or icon
+    const logoSrc = customUrl || null;
     
     useEffect(() => {
         setError(false);
@@ -450,9 +491,9 @@ export const App: React.FC = () => {
     // BRANDING STATES
     const [branding, setBranding] = useState<{logoUrl?: string}>({});
     const [isLogoModalOpen, setIsLogoModalOpen] = useState(false);
-    const [logoFile, setLogoFile] = useState<File | null>(null);
     const [logoPreview, setLogoPreview] = useState<string>('');
     const [uploading, setUploading] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState(0);
     
     const t = useCallback((key: string) => translations[lang][key] || key, [lang]);
 
@@ -504,8 +545,9 @@ export const App: React.FC = () => {
 
                 unsubBranding = db.collection('settings').doc('branding').onSnapshot((doc: any) => {
                     if (doc.exists) {
-                        setBranding(doc.data());
-                        setLogoPreview(doc.data().logoUrl || '');
+                        const data = doc.data();
+                        setBranding(data);
+                        setLogoPreview(data.logoUrl || '');
                     }
                 });
 
@@ -574,47 +616,84 @@ export const App: React.FC = () => {
     const isAdmin = user?.isAdmin || user?.email === 'admin@gmail.com';
     const isKoperasi = user?.isKoperasi || user?.email === 'koperasi@gmail.com';
 
-    // LOGO UPLOAD HANDLING
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            const file = e.target.files[0];
-            setLogoFile(file);
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                setLogoPreview(event.target?.result as string);
-            };
-            reader.readAsDataURL(file);
+    // ROBUST LOGO UPLOAD (UPGRADED)
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!e.target.files || !e.target.files[0]) return;
+        const file = e.target.files[0];
+
+        // 1. Validation
+        const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
+        if (!allowedTypes.includes(file.type)) {
+            alert("Please upload a valid image (PNG, JPG, or WebP).");
+            return;
+        }
+        if (file.size > 5 * 1024 * 1024) {
+            alert("File size too large. Please select an image under 5MB.");
+            return;
+        }
+
+        // 2. Immediate Start (Automatic Flow)
+        setUploading(true);
+        setUploadProgress(5);
+        
+        try {
+            // 3. Client-side Optimization
+            const optimizedBlob = await optimizeImageForUpload(file);
+            setUploadProgress(20);
+
+            if (typeof firebase === 'undefined' || !firebase.storage) {
+                throw new Error("Firebase Storage not available");
+            }
+
+            // 4. Firebase Storage Permanent Save
+            const storageRef = firebase.storage().ref();
+            const fileName = `branding/logo_${Date.now()}.webp`;
+            const logoRef = storageRef.child(fileName);
+            
+            const uploadTask = logoRef.put(optimizedBlob);
+
+            uploadTask.on('state_changed', 
+                (snapshot: any) => {
+                    const progress = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 70) + 20;
+                    setUploadProgress(progress);
+                },
+                (error: any) => {
+                    throw error;
+                },
+                async () => {
+                    // 5. Get Download URL & Save to Firestore
+                    const downloadURL = await logoRef.getDownloadURL();
+                    await firebase.firestore().collection('settings').doc('branding').set({ 
+                        logoUrl: downloadURL,
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        updatedBy: user?.uid || 'admin'
+                    }, { merge: true });
+
+                    setUploading(false);
+                    setUploadProgress(0);
+                    setIsLogoModalOpen(false);
+                    alert("Design Updated Automatically!");
+                }
+            );
+        } catch (e: any) {
+            console.error("Upload Error:", e);
+            alert("Failed to update design: " + e.message);
+            setUploading(false);
+            setUploadProgress(0);
         }
     };
 
-    const updateLogo = async () => {
-        if (!logoFile || !firebase.storage) {
-            if (!logoFile && branding.logoUrl) {
-                setIsLogoModalOpen(false);
-                return;
-            }
-            alert("Please select a file first.");
-            return;
-        }
-        
+    const removeLogo = async () => {
+        if (!window.confirm("Remove logo and reset to default?")) return;
         setUploading(true);
         try {
-            const storageRef = firebase.storage().ref();
-            const fileName = `branding/site_logo_${Date.now()}`;
-            const logoRef = storageRef.child(fileName);
-            const snapshot = await logoRef.put(logoFile);
-            const downloadURL = await snapshot.ref.getDownloadURL();
-            
             await firebase.firestore().collection('settings').doc('branding').set({ 
-                logoUrl: downloadURL 
+                logoUrl: firebase.firestore.FieldValue.delete() 
             }, { merge: true });
-            
             setIsLogoModalOpen(false);
-            setLogoFile(null);
-            alert("Website logo updated successfully!");
+            alert("Logo removed.");
         } catch (e: any) {
-            console.error(e);
-            alert("Upload failed: " + e.message);
+            alert(e.message);
         } finally {
             setUploading(false);
         }
@@ -659,13 +738,14 @@ export const App: React.FC = () => {
                         className="flex-grow flex items-center justify-center gap-2 sm:gap-3 py-1 cursor-pointer overflow-hidden px-1" 
                         onClick={() => { if (!isKoperasi) setPage('home'); }}
                     >
+                        {/* BRANDING LOGO LEFT OF TEXT */}
                         <div className="relative group shrink-0" onClick={(e) => {
                             if (isAdmin) {
                                 e.stopPropagation();
                                 setIsLogoModalOpen(true);
                             }
                         }}>
-                           <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white p-0.5 shadow-md flex-shrink-0 flex items-center justify-center overflow-hidden transition-all ${isAdmin ? 'ring-2 ring-dashed ring-[#3498db] hover:scale-110 active:scale-95' : ''}`}>
+                           <div className={`w-8 h-8 sm:w-11 sm:h-11 rounded-full bg-white p-0.5 shadow-md flex-shrink-0 flex items-center justify-center overflow-hidden transition-all ${isAdmin ? 'ring-2 ring-dashed ring-[#3498db] hover:scale-110 active:scale-95' : ''}`}>
                                 <Logo customUrl={branding.logoUrl} className="w-full h-full" iconSize="text-xs" />
                                 {isAdmin && !branding.logoUrl && (
                                     <div className="absolute inset-0 bg-black/10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
@@ -856,11 +936,12 @@ export const App: React.FC = () => {
             </aside>
             {isMenuOpen && <div className="fixed inset-0 bg-black/50 z-[300]" onClick={() => setIsMenuOpen(false)}></div>}
 
-            {/* LOGO UPLOAD MODAL */}
+            {/* LOGO UPLOAD MODAL (UPGRADED UI) */}
             {isLogoModalOpen && (
-                <div className="fixed inset-0 bg-black/80 z-[1200] flex items-center justify-center p-4 backdrop-blur-md" onClick={() => setIsLogoModalOpen(false)}>
+                <div className="fixed inset-0 bg-black/80 z-[1200] flex items-center justify-center p-4 backdrop-blur-md" onClick={() => !uploading && setIsLogoModalOpen(false)}>
                     <div className="bg-white w-full max-w-md rounded-[3rem] p-10 shadow-2xl animate-in zoom-in" onClick={e => e.stopPropagation()}>
-                        <h3 className="text-2xl font-black uppercase italic text-[#2c3e50] mb-6 text-center">Update Website Design</h3>
+                        <h3 className="text-2xl font-black uppercase italic text-[#2c3e50] mb-2 text-center">Site Branding</h3>
+                        <p className="text-[10px] font-bold text-gray-400 text-center uppercase tracking-widest mb-8">Update Logo Identity</p>
                         
                         <div className="space-y-6">
                             <div className="relative group">
@@ -870,51 +951,50 @@ export const App: React.FC = () => {
                                     onChange={handleFileChange} 
                                     className="hidden" 
                                     id="logo-upload"
+                                    disabled={uploading}
                                 />
                                 <label 
                                     htmlFor="logo-upload" 
-                                    className="w-full flex flex-col items-center justify-center p-12 border-4 border-dashed border-gray-100 rounded-[2.5rem] cursor-pointer hover:border-[#3498db] hover:bg-blue-50/30 transition-all group"
+                                    className={`w-full flex flex-col items-center justify-center p-12 border-4 border-dashed rounded-[2.5rem] transition-all group ${uploading ? 'bg-gray-50 border-gray-100 cursor-not-allowed' : 'border-gray-100 cursor-pointer hover:border-[#3498db] hover:bg-blue-50/30'}`}
                                 >
-                                    <div className="w-16 h-16 bg-blue-50 text-[#3498db] rounded-full flex items-center justify-center text-2xl mb-4 group-hover:scale-110 transition-transform">
-                                        <i className="fas fa-cloud-upload-alt"></i>
+                                    <div className={`w-16 h-16 rounded-full flex items-center justify-center text-2xl mb-4 transition-transform ${uploading ? 'bg-gray-200 text-gray-400 animate-pulse' : 'bg-blue-50 text-[#3498db] group-hover:scale-110'}`}>
+                                        <i className={`fas fa-${uploading ? 'spinner fa-spin' : 'cloud-upload-alt'}`}></i>
                                     </div>
                                     <span className="text-xs font-black text-gray-400 uppercase tracking-widest text-center">
-                                        {logoFile ? logoFile.name : 'Select Logo from Device'}
+                                        {uploading ? `Uploading... ${uploadProgress}%` : 'Pick Logo from Device'}
                                     </span>
                                 </label>
                             </div>
 
-                            {logoPreview && (
+                            {uploading && (
+                                <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
+                                    <div className="bg-[#3498db] h-full transition-all duration-300" style={{ width: `${uploadProgress}%` }}></div>
+                                </div>
+                            )}
+
+                            {branding.logoUrl && !uploading && (
                                 <div className="p-6 bg-gray-50 rounded-[2rem] border border-dashed border-gray-200 flex flex-col items-center">
-                                    <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-4">Preview Selected Logo</span>
+                                    <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-4">Active Website Logo</span>
                                     <div className="w-24 h-24 rounded-2xl bg-white shadow-xl border-4 border-white overflow-hidden p-2">
-                                        <img src={logoPreview} alt="Preview" className="w-full h-full object-contain" />
+                                        <Logo customUrl={branding.logoUrl} className="w-full h-full" />
                                     </div>
+                                    <button 
+                                        onClick={removeLogo}
+                                        className="mt-4 text-[9px] font-black text-red-500 uppercase hover:underline"
+                                    >
+                                        Remove Logo
+                                    </button>
                                 </div>
                             )}
                         </div>
 
-                        <div className="flex gap-4 mt-10">
+                        <div className="flex flex-col gap-3 mt-10">
                             <button 
-                                onClick={updateLogo} 
-                                disabled={uploading || !logoFile}
-                                className={`flex-1 bg-[#2ecc71] text-white py-4 rounded-2xl font-black uppercase shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 ${uploading || !logoFile ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105'}`}
+                                onClick={() => setIsLogoModalOpen(false)} 
+                                disabled={uploading}
+                                className="w-full bg-gray-100 text-gray-500 py-4 rounded-2xl font-black uppercase hover:bg-gray-200 transition-colors disabled:opacity-50"
                             >
-                                {uploading ? (
-                                    <><i className="fas fa-spinner fa-spin"></i> Uploading...</>
-                                ) : (
-                                    <><i className="fas fa-check"></i> Save Logo</>
-                                )}
-                            </button>
-                            <button 
-                                onClick={() => {
-                                    setIsLogoModalOpen(false);
-                                    setLogoFile(null);
-                                    setLogoPreview(branding.logoUrl || '');
-                                }} 
-                                className="flex-1 bg-gray-100 text-gray-500 py-4 rounded-2xl font-black uppercase hover:bg-gray-200 transition-colors"
-                            >
-                                Cancel
+                                Close
                             </button>
                         </div>
                     </div>
@@ -1027,7 +1107,6 @@ export const App: React.FC = () => {
                                 });
 
                                 if (monthlyTotal + itemToRedeem.cost > 200) {
-                                    // Custom Alert message using the specific phrasing
                                     throw new Error(t('points_limit_msg'));
                                 }
 
@@ -1079,7 +1158,6 @@ const AuthModal: React.FC<{onClose: () => void, t: any, lang: Language}> = ({onC
                 const isHardcodedAdmin = data.email === 'admin@gmail.com';
                 const isKoperasi = data.email === 'koperasi@gmail.com';
                 
-                // Always send verification if not verified (except for admins/koperasi)
                 if (!user.emailVerified && !isHardcodedAdmin && !isKoperasi) {
                     await user.sendEmailVerification();
                     await firebase.auth().signOut();
