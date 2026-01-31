@@ -573,8 +573,8 @@ export const App: React.FC = () => {
                         onClick={() => { if (!isKoperasi) setPage('home'); }}
                     >
                         <img 
-                            src="logo.png" 
-                            alt="Logo" 
+                            src="Logo.png" 
+                            alt="Miri Care Connect Logo" 
                             className="w-8 h-8 sm:w-10 sm:h-10 object-contain rounded-full bg-white p-0.5 shadow-md flex-shrink-0"
                             onError={(e: any) => { e.target.style.display = 'none'; }}
                         />
@@ -726,7 +726,7 @@ export const App: React.FC = () => {
                 <div className="p-8 flex flex-col h-full overflow-y-auto scrollbar-hide" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center gap-4 mb-12">
                         <img 
-                            src="logo.png" 
+                            src="Logo.png" 
                             alt="Logo" 
                             className="w-10 h-10 object-contain rounded-xl shadow-md border-2 border-gray-50 flex-shrink-0"
                             onError={(e: any) => { e.target.style.display = 'none'; }}
