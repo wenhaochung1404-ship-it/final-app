@@ -494,6 +494,9 @@ export const App: React.FC = () => {
     const [logoPreview, setLogoPreview] = useState<string>('');
     const [uploading, setUploading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
+
+    // Ref to manage the active upload task for cancellation/cleanup
+    const uploadTaskRef = useRef<any>(null);
     
     const t = useCallback((key: string) => translations[lang][key] || key, [lang]);
 
@@ -610,13 +613,14 @@ export const App: React.FC = () => {
             if (unsubscribeAuth) unsubscribeAuth();
             if (unsubNotifs) unsubNotifs();
             if (unsubBranding) unsubBranding();
+            if (uploadTaskRef.current) uploadTaskRef.current.cancel();
         };
     }, []);
 
     const isAdmin = user?.isAdmin || user?.email === 'admin@gmail.com';
     const isKoperasi = user?.isKoperasi || user?.email === 'koperasi@gmail.com';
 
-    // ROBUST LOGO UPLOAD (UPGRADED)
+    // ROBUST LOGO UPLOAD (FIXED FOR SPEED AND RELIABILITY)
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (!e.target.files || !e.target.files[0]) return;
         const file = e.target.files[0];
@@ -632,54 +636,102 @@ export const App: React.FC = () => {
             return;
         }
 
-        // 2. Immediate Start (Automatic Flow)
         setUploading(true);
         setUploadProgress(5);
         
         try {
-            // 3. Client-side Optimization
+            // 2. Optimized Image Processing
             const optimizedBlob = await optimizeImageForUpload(file);
-            setUploadProgress(20);
+            setUploadProgress(15);
 
             if (typeof firebase === 'undefined' || !firebase.storage) {
-                throw new Error("Firebase Storage not available");
+                throw new Error("Firebase Storage not initialized.");
             }
 
-            // 4. Firebase Storage Permanent Save
-            const storageRef = firebase.storage().ref();
-            const fileName = `branding/logo_${Date.now()}.webp`;
-            const logoRef = storageRef.child(fileName);
-            
-            const uploadTask = logoRef.put(optimizedBlob);
+            const storage = firebase.storage();
+            const db = firebase.firestore();
+            const fileName = `branding/site-logo.webp`; // Stable name for branding
+            const logoRef = storage.ref().child(fileName);
 
-            uploadTask.on('state_changed', 
-                (snapshot: any) => {
-                    const progress = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 70) + 20;
-                    setUploadProgress(progress);
-                },
-                (error: any) => {
-                    throw error;
-                },
-                async () => {
-                    // 5. Get Download URL & Save to Firestore
-                    const downloadURL = await logoRef.getDownloadURL();
-                    await firebase.firestore().collection('settings').doc('branding').set({ 
-                        logoUrl: downloadURL,
-                        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-                        updatedBy: user?.uid || 'admin'
-                    }, { merge: true });
+            // 3. Resumable Upload with Stall Detection & Retry logic
+            const performUpload = (blob: Blob, retryCount = 0): Promise<string> => {
+                return new Promise((resolve, reject) => {
+                    // Cancel any existing background task
+                    if (uploadTaskRef.current) {
+                        try { uploadTaskRef.current.cancel(); } catch(e) {}
+                    }
 
-                    setUploading(false);
-                    setUploadProgress(0);
-                    setIsLogoModalOpen(false);
-                    alert("Design Updated Automatically!");
-                }
-            );
-        } catch (e: any) {
-            console.error("Upload Error:", e);
-            alert("Failed to update design: " + e.message);
+                    const task = logoRef.put(blob, { 
+                        contentType: 'image/webp',
+                        cacheControl: 'public,max-age=3600'
+                    });
+                    uploadTaskRef.current = task;
+
+                    // Stall detection watchdog: if progress stops for 15s, cancel and trigger retry
+                    let lastBytes = 0;
+                    let stallTimer = setTimeout(() => {
+                        console.warn("Upload stalled, cancelling for retry...");
+                        task.cancel();
+                        reject(new Error("STALLED"));
+                    }, 15000);
+
+                    task.on('state_changed', 
+                        (snapshot: any) => {
+                            // Reset watchdog on progress
+                            if (snapshot.bytesTransferred > lastBytes) {
+                                lastBytes = snapshot.bytesTransferred;
+                                clearTimeout(stallTimer);
+                                stallTimer = setTimeout(() => {
+                                    task.cancel();
+                                    reject(new Error("STALLED"));
+                                }, 15000);
+                            }
+
+                            const progressPct = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 80) + 15;
+                            setUploadProgress(progressPct);
+                        },
+                        (error: any) => {
+                            clearTimeout(stallTimer);
+                            // Auto-retry on network errors or stalls (up to 3 attempts)
+                            if ((error.code === 'storage/canceled' || error.code === 'storage/retry-limit-exceeded') && retryCount < 2) {
+                                console.log(`Retrying upload... attempt ${retryCount + 2}`);
+                                resolve(performUpload(blob, retryCount + 1));
+                            } else {
+                                reject(error);
+                            }
+                        },
+                        async () => {
+                            clearTimeout(stallTimer);
+                            const downloadURL = await logoRef.getDownloadURL();
+                            resolve(downloadURL);
+                        }
+                    );
+                });
+            };
+
+            const finalUrl = await performUpload(optimizedBlob);
+
+            // 4. Update Database
+            await db.collection('settings').doc('branding').set({ 
+                logoUrl: finalUrl,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                updatedBy: user?.uid || 'admin'
+            }, { merge: true });
+
             setUploading(false);
             setUploadProgress(0);
+            setIsLogoModalOpen(false);
+            alert("Design Updated Successfully!");
+
+        } catch (e: any) {
+            console.error("Upload process failed:", e);
+            setUploading(false);
+            setUploadProgress(0);
+            if (e.message !== "STALLED") {
+                alert("Failed to update design: " + (e.message || "Unknown error"));
+            } else {
+                alert("Upload timed out due to poor connection. Please try again on a faster network.");
+            }
         }
     };
 
