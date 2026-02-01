@@ -81,7 +81,7 @@ const MenuItem: React.FC<{icon: string, label: string, onClick: () => void, acti
     </button>
 );
 
-const AdminInput: React.FC<{label: string, value: any, onChange?: (v: any) => void, type?: string, disabled?: boolean, placeholder?: string}> = ({label, value, onChange, type = 'text', disabled = false, placeholder}) => (
+const AdminInput: React.FC<{label: string, value: any, onChange?: (v: any) => void, type?: string, disabled?: boolean, placeholder?: string, min?: string}> = ({label, value, onChange, type = 'text', disabled = false, placeholder, min}) => (
     <div className="space-y-2">
         <label className="text-[8px] font-black uppercase text-gray-400 tracking-[0.2em] ml-1">{label}</label>
         <input 
@@ -89,6 +89,7 @@ const AdminInput: React.FC<{label: string, value: any, onChange?: (v: any) => vo
             value={value} 
             disabled={disabled}
             placeholder={placeholder}
+            min={min}
             onChange={e => onChange?.(type === 'number' ? Number(e.target.value) : e.target.value)}
             className={`w-full p-3 rounded-xl border-2 font-bold transition-all text-sm outline-none ${disabled ? 'bg-gray-50 border-gray-50 text-gray-300' : 'bg-white border-gray-100 focus:border-[#3498db] text-[#2c3e50]'}`}
         />
@@ -1692,6 +1693,20 @@ const HistoryPage: React.FC<{user: any, t: any, onAuth: () => void}> = ({user, t
     const handleUpdateOffer = async (e: React.FormEvent) => {
         e.preventDefault();
         if (typeof firebase === 'undefined' || !firebase.firestore) return;
+
+        // Strict 1-month check for Food category on edit
+        if (editingOffer.category === 'category_food' && editingOffer.expiryDate) {
+            const now = new Date();
+            const expiry = new Date(editingOffer.expiryDate);
+            const oneMonthLater = new Date();
+            oneMonthLater.setMonth(now.getMonth() + 1);
+
+            if (expiry < oneMonthLater) {
+                alert("your offer had been rejected since the expired date of the food is less than 1 month");
+                return;
+            }
+        }
+
         const db = firebase.firestore();
         await db.collection('donations').doc(editingOffer.id).update({
             itemName: editingOffer.itemName,
@@ -1737,7 +1752,7 @@ const HistoryPage: React.FC<{user: any, t: any, onAuth: () => void}> = ({user, t
                                         </select>
                                     </div>
                                     {editingOffer.category === 'category_food' && (
-                                        <AdminInput label="Expiry Date" type="date" value={editingOffer.expiryDate || ''} onChange={v => setEditingOffer({...editingOffer, expiryDate: v})} />
+                                        <AdminInput label="Expiry Date" type="date" value={editingOffer.expiryDate || ''} onChange={v => setEditingOffer({...editingOffer, expiryDate: v})} min={new Date().toISOString().split('T')[0]} />
                                     )}
                                     <AdminInput label="Qty" type="number" value={editingOffer.qty} onChange={v => setEditingOffer({...editingOffer, qty: v})} />
                                     <div className="flex gap-2 pt-4">
@@ -1958,6 +1973,20 @@ const QuickOfferModalContent: React.FC<{user: any, t: any, onComplete: () => voi
     const handlePost = async (e: React.FormEvent) => {
         e.preventDefault();
         if (typeof firebase === 'undefined' || !firebase.firestore || !user) return;
+
+        // Strict validation: Expiry date must be at least 1 month from post date for food category
+        if (item.category === 'category_food') {
+            const now = new Date();
+            const expiry = new Date(item.expiryDate);
+            const oneMonthLater = new Date();
+            oneMonthLater.setMonth(now.getMonth() + 1);
+
+            if (expiry < oneMonthLater) {
+                alert("your offer had been rejected since the expired date of the food is less than 1 month");
+                return;
+            }
+        }
+
         setPosting(true);
         try {
             const db = firebase.firestore();
@@ -1990,6 +2019,9 @@ const QuickOfferModalContent: React.FC<{user: any, t: any, onComplete: () => voi
         }
     };
 
+    // Helper to get today's date in YYYY-MM-DD for input min attribute
+    const todayStr = new Date().toISOString().split('T')[0];
+
     return (
         <div className="pt-4">
             <h2 className="text-3xl font-black text-[#2c3e50] mb-8 uppercase italic">{t('offer_help')}</h2>
@@ -2020,8 +2052,15 @@ const QuickOfferModalContent: React.FC<{user: any, t: any, onComplete: () => voi
                 </div>
                 {item.category === 'category_food' && (
                     <div className="space-y-1 animate-in slide-in-from-top-2">
-                        <label className="text-[10px] font-black text-red-500 uppercase tracking-widest ml-2">Expiry Date (Food Only)</label>
-                        <input type="date" value={item.expiryDate} onChange={e => setItem({...item, expiryDate: e.target.value})} className="w-full p-4 rounded-2xl border-2 outline-none font-bold border-red-100 focus:border-red-400" required={item.category === 'category_food'} />
+                        <label className="text-[10px] font-black text-red-500 uppercase tracking-widest ml-2">Expiry Date (Food Only - Min 1 Month)</label>
+                        <input 
+                            type="date" 
+                            value={item.expiryDate} 
+                            min={todayStr}
+                            onChange={e => setItem({...item, expiryDate: e.target.value})} 
+                            className="w-full p-4 rounded-2xl border-2 outline-none font-bold border-red-100 focus:border-red-400" 
+                            required={item.category === 'category_food'} 
+                        />
                     </div>
                 )}
                 <button type="submit" disabled={posting} className="w-full bg-[#3498db] text-white py-5 rounded-2xl font-black text-xl shadow-xl uppercase transition-transform active:scale-95">
