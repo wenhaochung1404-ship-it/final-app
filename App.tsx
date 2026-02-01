@@ -44,16 +44,30 @@ const optimizeImageForUpload = (file: File): Promise<Blob> => {
 };
 
 const Logo: React.FC<{ className?: string, iconSize?: string, customUrl?: string }> = ({ className, iconSize = "text-xl", customUrl }) => {
-    const [error, setError] = useState(false);
+    const [srcIndex, setSrcIndex] = useState(0);
     
-    // Default to the permanent URL provided by the user
-    const logoSrc = customUrl || 'https://i.ibb.co/b5c0zgmG/Logo.jpg';
-    
-    useEffect(() => {
-        setError(false);
-    }, [logoSrc]);
+    // Priority: Custom URL (Firebase) -> Local logo.png -> Cloud Backup
+    const sources = useMemo(() => {
+        const list = [];
+        if (customUrl) list.push(customUrl);
+        list.push('./logo.png');
+        list.push('https://i.ibb.co/b5c0zgmG/Logo.jpg');
+        return list;
+    }, [customUrl]);
 
-    if (error || !logoSrc) {
+    useEffect(() => {
+        setSrcIndex(0);
+    }, [customUrl]);
+
+    const handleError = () => {
+        if (srcIndex < sources.length - 1) {
+            setSrcIndex(srcIndex + 1);
+        } else {
+            setSrcIndex(-1); // Use icon fallback
+        }
+    };
+
+    if (srcIndex === -1) {
         return (
             <div className={`${className} bg-white flex items-center justify-center text-[#3498db] shadow-inner overflow-hidden border border-gray-100`}>
                 <i className={`fas fa-hand-holding-heart ${iconSize}`}></i>
@@ -63,10 +77,10 @@ const Logo: React.FC<{ className?: string, iconSize?: string, customUrl?: string
 
     return (
         <img 
-            src={logoSrc} 
+            src={sources[srcIndex]} 
             alt="Miri Care Connect Logo" 
             className={`${className} object-contain`}
-            onError={() => setError(true)}
+            onError={handleError}
             crossOrigin="anonymous"
         />
     );
@@ -1231,15 +1245,15 @@ const AuthModal: React.FC<{onClose: () => void, t: any, lang: Language}> = ({onC
     const [error, setError] = useState<string | null>(null);
     const [showPassword, setShowPassword] = useState(false);
 
-    const submit = async (e: React.FormEvent) => {
+    const submit = async (dataInput: any, e: React.FormEvent) => {
         e.preventDefault();
         if (typeof firebase === 'undefined' || !firebase.auth) return;
         setLoading(true); setError(null);
         try {
             if (mode === 'login') {
-                const { user } = await firebase.auth().signInWithEmailAndPassword(data.email, data.password);
-                const isHardcodedAdmin = data.email === 'admin@gmail.com';
-                const isKoperasi = data.email === 'koperasi@gmail.com';
+                const { user } = await firebase.auth().signInWithEmailAndPassword(dataInput.email, dataInput.password);
+                const isHardcodedAdmin = dataInput.email === 'admin@gmail.com';
+                const isKoperasi = dataInput.email === 'koperasi@gmail.com';
                 
                 if (!user.emailVerified && !isHardcodedAdmin && !isKoperasi) {
                     await user.sendEmailVerification();
@@ -1248,18 +1262,18 @@ const AuthModal: React.FC<{onClose: () => void, t: any, lang: Language}> = ({onC
                 }
                 onClose();
             } else if (mode === 'register') {
-                if (!data.email.toLowerCase().endsWith("@moe-dl.edu.my") && data.email !== 'admin@gmail.com' && data.email !== 'koperasi@gmail.com') {
+                if (!dataInput.email.toLowerCase().endsWith("@moe-dl.edu.my") && dataInput.email !== 'admin@gmail.com' && dataInput.email !== 'koperasi@gmail.com') {
                     throw new Error(t('moe_email_required'));
                 }
-                const {user} = await firebase.auth().createUserWithEmailAndPassword(data.email, data.password);
+                const {user} = await firebase.auth().createUserWithEmailAndPassword(dataInput.email, dataInput.password);
                 
                 if (user) {
                     await user.sendEmailVerification();
                     await firebase.firestore().collection('users').doc(user.uid).set({ 
-                        email: data.email, displayName: data.name, points: 5, birthdate: data.birthdate, 
-                        phone: data.phone, address: data.address, userClass: data.userClass, 
-                        isAdmin: data.email === 'admin@gmail.com',
-                        isKoperasi: data.email === 'koperasi@gmail.com'
+                        email: dataInput.email, displayName: dataInput.name, points: 5, birthdate: dataInput.birthdate, 
+                        phone: dataInput.phone, address: dataInput.address, userClass: dataInput.userClass, 
+                        isAdmin: dataInput.email === 'admin@gmail.com',
+                        isKoperasi: dataInput.email === 'koperasi@gmail.com'
                     });
                     await firebase.auth().signOut();
                     alert("Verification message sent, please check your moe email spam folder page");
@@ -1277,7 +1291,7 @@ const AuthModal: React.FC<{onClose: () => void, t: any, lang: Language}> = ({onC
                     {mode === 'login' ? t('login') : t('register')}
                 </h2>
                 {error && <div className="mb-6 bg-amber-50 p-4 rounded-xl text-amber-800 text-[11px] font-black uppercase tracking-wider border-2 border-amber-200">{error}</div>}
-                <form onSubmit={submit} className="space-y-4">
+                <form onSubmit={(e) => submit(data, e)} className="space-y-4">
                     {mode === 'register' && (
                         <>
                             <input placeholder={t('full_name')} value={data.name} onChange={e => setData({...data, name: e.target.value})} className="w-full bg-gray-50 border-2 p-4 rounded-2xl outline-none font-bold text-sm" required />
