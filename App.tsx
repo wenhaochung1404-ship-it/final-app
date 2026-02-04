@@ -1193,14 +1193,21 @@ export const App: React.FC = () => {
                                 // Monthly Point Limit Check (200 pts)
                                 const now = new Date();
                                 const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
-                                const historySnap = await db.collection('redeem_history')
+                                const firstDayTimestamp = firebase.firestore.Timestamp.fromDate(firstDay);
+
+                                // Get ALL user's redemptions and filter client-side
+                                const allHistorySnap = await db.collection('redeem_history')
                                     .where('userId', '==', user!.uid)
-                                    .where('redeemedAt', '>=', firebase.firestore.Timestamp.fromDate(firstDay))
                                     .get();
-                                
+
                                 let monthlyTotal = 0;
-                                historySnap.forEach((d: any) => {
-                                    monthlyTotal += (d.data().itemPoints || 0);
+                                allHistorySnap.forEach((d: any) => {
+                                    const data = d.data();
+                                    const redeemedAt = data.redeemedAt;
+                                    // Check if redeemed this month (client-side filter)
+                                    if (redeemedAt && redeemedAt.seconds >= firstDayTimestamp.seconds) {
+                                        monthlyTotal += (data.itemPoints || 0);
+                                    }
                                 });
 
                                 if (monthlyTotal + itemToRedeem.cost > 200) {
